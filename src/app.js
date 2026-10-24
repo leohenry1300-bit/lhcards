@@ -244,8 +244,10 @@ const THEMES = [
     { id: 'sakura', group: 'clair', name: 'Sakura', desc: 'Rose tout doux', font: 'Nunito', p: { bg: '#fff4f6', surface: '#ffffff', primary: '#db2777', text: '#4a1d2c', line: '#fbd5de', hero: 'linear-gradient(135deg,#f472b6,#fda4af)' } },
     { id: 'lavande', group: 'clair', name: 'Lavande', desc: 'Violet pastel', font: 'Nunito', p: { bg: '#f4f1fd', surface: '#ffffff', primary: '#7c3aed', text: '#251a45', line: '#e3dbfa', hero: 'linear-gradient(135deg,#6d28d9,#7c5cc9)' } },
     { id: 'solaire', group: 'clair', name: 'Solarisé', desc: 'Doux pour les yeux', font: 'Inter', p: { bg: '#fdf6e3', surface: '#fffbef', primary: '#227bba', text: '#073642', line: '#e6dfc6', hero: 'linear-gradient(135deg,#227bba,#22827b)' } },
+    { id: 'savane', group: 'clair', name: 'Savane', desc: 'Coucher de soleil, acacias', font: 'Nunito', p: { bg: 'linear-gradient(180deg,#fbdfae,#f3deb4)', surface: '#fffaee', primary: '#b45309', text: '#3a2410', line: '#e5d1a4', hero: 'linear-gradient(135deg,#8f2f0b,#b45309 52%,#9a6205)' } },
     { id: 'papier', group: 'clair', name: 'Papier', desc: 'Sépia, typo livre', font: 'Lora', p: { bg: '#efe6d2', surface: '#fbf6ea', primary: '#9a3412', text: '#33271b', line: '#dccdab', hero: '#3b2c1c' } },
     { id: 'nuit', group: 'sombre', name: 'Nuit', desc: 'Sombre et doux', font: 'Inter', p: { bg: '#0b1020', surface: '#131a2e', primary: '#818cf8', text: '#e8ebf5', line: '#2b3553', hero: 'linear-gradient(135deg,#4f46e5,#7c3aed)' } },
+    { id: 'etoile', group: 'sombre', name: 'Étoilé', desc: 'Ciel de nuit, étoiles filantes', font: 'Inter', p: { bg: '#01020a', surface: '#0b1022', primary: '#b9c4ff', text: '#eef1ff', line: '#1b2347', hero: 'linear-gradient(160deg,#0a1030,#1a1a5e 55%,#3a1f6e)' } },
     { id: 'oled', group: 'sombre', name: 'Noir OLED', desc: 'Noir pur, économe', font: 'Inter', p: { bg: '#000', surface: '#0b0b0c', primary: '#f4f4f5', text: '#f4f4f5', line: '#27272a', hero: '#0b0b0c' } },
     { id: 'cafe', group: 'sombre', name: 'Café', desc: 'Brun chaleureux', font: 'Lora', p: { bg: '#1c1512', surface: '#261d18', primary: '#d4a373', text: '#f3e7dc', line: '#3b2e26', hero: 'linear-gradient(135deg,#7f5539,#8a6b52)' } },
     { id: 'luxe', group: 'sombre', name: 'Luxe', desc: 'Noir et or', font: 'Playfair Display', p: { bg: '#0c0b09', surface: '#15130f', primary: '#d4af37', text: '#f4ecd8', line: '#4a3f2a', hero: 'linear-gradient(135deg,#1d1a15,#2c2416)' } },
@@ -1090,7 +1092,7 @@ class SuperAnki {
     /* the logo takes the theme's colours: background = the home banner's gradient, check mark = the most colourful theme colour that stays readable on the cards */
     applyLogo() {
         const root = document.documentElement, cs = getComputedStyle(root), V = n => cs.getPropertyValue(n).trim();
-        const probe = this._logoProbe || (this._logoProbe = Object.assign(document.createElement('i'), { style: 'position:absolute;visibility:hidden' }));
+        const probe = this._logoProbe || (this._logoProbe = Object.assign(document.createElement('i'), { style: 'position:absolute;visibility:hidden;transition:none!important;animation:none!important' }));
         if (!probe.isConnected) document.body.appendChild(probe);
         const rgb = v => { probe.style.color = ''; probe.style.color = v; const m = getComputedStyle(probe).color.match(/[\d.]+/g); return m ? m.slice(0, 3).map(Number) : null; };
         const hex = c => '#' + c.map(x => Math.round(Math.max(0, Math.min(255, x))).toString(16).padStart(2, '0')).join('');
