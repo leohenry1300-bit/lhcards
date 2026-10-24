@@ -1,0 +1,37 @@
+const X = require('./load')();
+const DAY = 864e5, fs = X.buildCfg({ ...X.OPT_DEFAULTS, scheduler: 'fsrs' }), sm = X.buildCfg({ ...X.OPT_DEFAULTS });
+const L = (t) => new Date(t).toLocaleString('fr-FR', { timeZone: 'Europe/Paris' });
+const rows = [];
+const ok = (cas, attendu, obtenu, pass) => rows.push(`${cas} | ${attendu} | ${obtenu} | ${pass ? 'OK' : 'BUG'}`);
+const t = (y, m, d, h, mi = 0) => new Date(y, m - 1, d, h, mi).getTime();
+ok('Réponse à 3 h 59 / 4 h 01 (jour logique)', '23/10 puis 24/10', `${X.dayKey(t(2026, 10, 24, 3, 59))} puis ${X.dayKey(t(2026, 10, 24, 4, 1))}`, X.dayKey(t(2026, 10, 24, 3, 59)) === '2026-10-23' && X.dayKey(t(2026, 10, 24, 4, 1)) === '2026-10-24');
+const c1 = { state: 'review', interval: 10, ease: 2.5, due: 0, lapses: 0, lastReview: t(2026, 10, 14, 23, 50), step: 0, fs: null };
+const r1 = X.schedule(c1, 3, t(2026, 10, 24, 3, 59), false, sm);
+ok('Échéance d\'une révision Bien à 3 h 59', 'à 4 h, le jour logique + intervalle', L(r1.due), new Date(r1.due).getHours() === 4);
+const dst1 = X.addDays(t(2026, 3, 28, 12), 1), dst2 = X.addDays(t(2026, 10, 24, 12), 1);
+ok('Heure d\'été (29/03) : échéance J+1', '29/03 vers 4 h', L(dst1), new Date(dst1).getDate() === 29);
+ok('Heure d\'hiver (25/10) : échéance J+1', '25/10 vers 4 h', L(dst2), new Date(dst2).getDate() === 25);
+ok('Début de journée le jour du passage à l\'heure d\'été', '4 h (comme les autres jours)', L(X.startOfDay(t(2026, 3, 29, 12))), new Date(X.startOfDay(t(2026, 3, 29, 12))).getHours() === 4);
+const back = X.schedule({ state: 'review', interval: 10, ease: 2.5, due: 0, lapses: 0, lastReview: Date.now() + 5 * DAY, step: 0, fs: { s: 10, d: 5, t: 0 } }, 3, Date.now(), false, fs);
+ok('Horloge qui recule (dernière révision « dans le futur »)', 'intervalle fini, ≥ 1', back.interval, Number.isFinite(back.interval) && back.interval >= 1);
+for (const [nm, cfg] of [['FSRS', fs], ['SM-2', sm]]) {
+    const old = X.schedule({ state: 'review', interval: 10, ease: 2.5, due: 0, lapses: 0, lastReview: Date.now() - 5 * 365 * DAY, step: 0, fs: { s: 10, d: 5, t: 0 } }, 3, Date.now(), false, cfg);
+    ok(`${nm} : carte en retard de 5 ans, réponse Bien`, '≤ 3650 j (max)', old.interval, old.interval <= 3650);
+}
+const nofs = X.schedule({ state: 'review', interval: 40, ease: 2.2, due: 0, lapses: 1, lastReview: Date.now() - 40 * DAY, step: 0, fs: null }, 3, Date.now(), false, fs);
+ok('Passage SM-2 → FSRS (carte sans état FSRS, 40 j, 220 %)', 'S ≈ 40, D déduite de la facilité', `S=${nofs.fs.s.toFixed(1)} D=${nofs.fs.d.toFixed(2)} ivl=${nofs.interval}`, nofs.fs && Number.isFinite(nofs.fs.s));
+const nolast = X.schedule({ state: 'review', interval: 20, ease: 2.5, due: 0, lapses: 0, lastReview: null, step: 0, fs: null }, 3, Date.now(), false, fs);
+ok('lastReview manquant', 'retard supposé = intervalle', nolast.interval, Number.isFinite(nolast.interval));
+const bad = X.normalizeCard({ front: 'q', back: 'r', state: 'review', interval: 1e9, due: 'x', ease: 'NaN', fs: { s: Infinity, d: NaN } });
+ok('Données corrompues (S infinie, D NaN, échéance invalide, intervalle 1e9)', 'nettoyées à la lecture', JSON.stringify({ fs: bad.fs, due: Number.isFinite(bad.due), ease: bad.ease, ivl: bad.interval }), bad.fs === null && Number.isFinite(bad.due) && bad.ease === 2.5);
+const big = X.schedule(bad, 3, Date.now(), false, sm);
+ok('…puis réponse Bien avec intervalle 1e9', '≤ 3650 j', big.interval, big.interval <= 3650);
+const learnNo = X.schedule({ state: 'learning', interval: 0, ease: 2.5, due: 0, lapses: 0, lastReview: null, step: 0, fs: null }, 3, Date.now(), false, fs);
+ok('Carte « learning » jamais révisée, sans état FSRS', 'état FSRS créé', JSON.stringify(learnNo.fs && { s: +learnNo.fs.s.toFixed(2) }), !!learnNo.fs);
+const step = X.schedule({ state: 'learning', interval: 0, ease: 2.5, due: 0, lapses: 0, lastReview: null, step: 9, fs: null }, 3, Date.now(), false, sm);
+ok('Étape d\'apprentissage hors limites (step 9 sur 2)', 'passe en révision', step.state, step.state === 'review');
+const early = X.schedule({ state: 'review', interval: 30, ease: 2.5, due: Date.now() + 29 * DAY, lapses: 0, lastReview: Date.now() - DAY, step: 0, fs: null }, 3, Date.now(), false, sm);
+ok('SM-2 : révision en avance (vue hier, intervalle 30 j)', '≈ 30 j (Anki)', early.interval, early.interval <= 35);
+const hard1 = X.schedule({ state: 'new', interval: 0, ease: 2.5, due: 0, lapses: 0, lastReview: null, step: 0, fs: null }, 2, 0, false, X.buildCfg({ ...X.OPT_DEFAULTS, learnSteps: '10' }));
+ok('« Difficile » sur la 1re étape quand il n\'y a qu\'une étape (10 min)', '15 min (Anki : ×1,5)', Math.round(hard1.due / 6e4) + ' min', Math.round(hard1.due / 6e4) === 15);
+console.log('Cas | Attendu | Obtenu | Verdict\n' + rows.join('\n'));

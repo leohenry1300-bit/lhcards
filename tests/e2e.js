@@ -106,6 +106,169 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     await go('settings'); await wait(2500);
     ok('settings show the start-up summary', (await page.evaluate(() => document.getElementById('view-settings').textContent)).includes('Démarrages sur 24 h'));
 
+    /* 8. answers are grouped during a review (no full write after each one), and written when the session ends */
+    const writes = await page.evaluate(async () => {
+        await app.writeNow();
+        let n = 0; const orig = Storage.save; Storage.save = function (...a) { n++; return orig.apply(this, a); };
+        try {
+            app.startSrsIds('test', app.data.cards.slice(0, 6).map(c => c.id));
+            if (!app.session) return 'no session';
+            for (let i = 0; i < 3 && app.session; i++) { app.reveal(); app.grade(3); await new Promise(r => setTimeout(r, 300)); }
+            const during = n; app.endSession(false); await new Promise(r => setTimeout(r, 100));
+            return { during, after: n };
+        } finally { Storage.save = orig; }
+    });
+    ok('review: answers grouped, written at the end', writes.during === 0 && writes.after >= 1, JSON.stringify(writes));
+
+    /* 9. Léo only says "mission accomplie" when nothing is left */
+    const mood = await page.evaluate(() => { const h = new Date().getHours(), night = h >= 23 || h < 5; app.data.stats.lastStudyDate = dayKey(); return { left: app.mascotMood(12), none: app.mascotMood(0), night }; });
+    ok('Léo: mood follows what is left to do', mood.left === (mood.night ? 'calm' : 'ready') && mood.none === (mood.night ? 'calm' : 'happy'), JSON.stringify(mood));
+
+    /* 10. per-deck "à revoir" counts agree with the home screen (suspended / buried cards are not due) */
+    const counts = await page.evaluate(() => {
+        const cs = app.data.cards.slice(0, 6), now = Date.now();
+        cs.forEach((c, i) => Object.assign(c, { state: 'review', interval: 3, due: now - 1000, suspended: i < 2, buriedUntil: i === 2 ? addDays(now, 1) : 0 }));
+        const st = app.deckStats(), roots = app.data.decks.filter(d => !d.parent).reduce((a, d) => a + st.get(d.id).due, 0);
+        return { decks: roots, home: app.countStatuses(app.data.cards).due };
+    });
+    ok('deck counts = home counts', counts.decks === counts.home, JSON.stringify(counts));
+
+    /* 11. "remettre la progression à zéro" with a deck that has its own preset: the app keeps working */
+    const reset = await page.evaluate(async () => {
+        const conf = app.confirm; app.confirm = async () => true;
+        try {
+            app.addPack('anglais-bases'); app.migrateTunedPreset();
+            await app.handleAction('reset-progress');
+            app.renderDashboard(); app.startStudy('pk_g_anglais'); const s = !!app.session; app.endSession(false); return s;
+        } catch (e) { return e.message; } finally { app.confirm = conf; }
+    });
+    ok('reset progress: home and review still work', reset === true, String(reset));
+    await page.evaluate(() => app.writeNow());
+
+    /* 12. a passing read error of the database never replaces the cards by the starter set */
+    const nCards = await page.evaluate(() => app.data.cards.length);
+    const failing = once => { const g = IDBObjectStore.prototype.get; let left = once ? 1 : 1e9; IDBObjectStore.prototype.get = function (k) { if (k === 'state' && left-- > 0) throw new DOMException('Connection to Indexed Database server lost', 'UnknownError'); return g.call(this, k); }; };
+    const p2 = await ctx.newPage(); await p2.route(/fonts\.(googleapis|gstatic)/, r => r.abort());
+    await p2.addInitScript(failing, true); await p2.goto(`http://localhost:${PORT}/index.html`); await p2.waitForSelector('.hero', { timeout: 20000 });
+    ok('database read error once: cards kept', (await p2.evaluate(() => app.data.cards.length)) === nCards);
+    await p2.close();
+    const p3 = await ctx.newPage(); await p3.route(/fonts\.(googleapis|gstatic)/, r => r.abort());
+    await p3.addInitScript(failing, false); await p3.goto(`http://localhost:${PORT}/index.html`); await wait(3500);
+    const shown = await p3.evaluate(() => (document.getElementById('boot') || {}).textContent || ''); await p3.close();
+    const p4 = await ctx.newPage(); await p4.route(/fonts\.(googleapis|gstatic)/, r => r.abort());
+    await p4.goto(`http://localhost:${PORT}/index.html`); await p4.waitForSelector('.hero', { timeout: 20000 });
+    ok('database unreadable: message shown, nothing overwritten', /pas pu être lues/.test(shown) && (await p4.evaluate(() => app.data.cards.length)) === nCards, shown.slice(0, 80));
+    await p4.close();
+
+    /* 13. a new version opens at once (one launch, not the old copy then a reload) */
+    {
+        const c2 = await browser.newContext({ viewport: { width: 390, height: 800 } });
+        await c2.route(/fonts\.(googleapis|gstatic)/, r => r.abort());
+        const q = await c2.newPage();
+        await q.goto(`http://localhost:${PORT}/index.html`); await q.waitForSelector('.hero', { timeout: 20000 });
+        await q.waitForFunction(async () => !!(await navigator.serviceWorker.getRegistration()) && !!navigator.serviceWorker.controller, null, { timeout: 15000 }).catch(() => {});
+        const next = Date.now() + 5e9, html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8').replace(/<meta name="app-build" content="\d+">/, `<meta name="app-build" content="${next}">`);
+        await c2.route(/\/index\.html(\?|$)/, r => r.fulfill({ status: 200, contentType: 'text/html', body: html }));
+        await c2.route(/\/version\.json/, r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ build: next }) }));
+        let navs = 0; q.on('framenavigated', f => { if (f === q.mainFrame()) navs++; });
+        await q.reload(); await q.waitForSelector('.hero', { timeout: 20000 }); await wait(6000);
+        const build = await q.evaluate(() => document.querySelector('meta[name=app-build]').content);
+        ok('new version: opened directly, no second launch', navs === 1 && build === String(next), `navigations ${navs}, build ${build === String(next) ? 'new' : 'old'}`);
+        await c2.close();
+    }
+
+    /* 14. course correction: cards already installed now say "market pull / technology push", progress kept */
+    const pp = await page.evaluate(() => {
+        const d = app.data.decks[0].id, now = Date.now();
+        app.data.cards.push({ ...freshCard(), id: 'co_test_1', deckId: d, front: 'Market push et technology pull ?', back: 'MARKET PUSH', hint: '', detail: '', tags: [], created: now, nid: '', kind: 'basic', ord: 0, nf: null, state: 'review', interval: 12, reps: 4 });
+        app.data.cards.push({ ...freshCard(), id: 'co_test_2', deckId: d, front: '', back: '', hint: '', detail: '', tags: [], created: now, nid: 'co_test_2n', kind: 'cloze', ord: 1, nf: { front: '', back: '', text: 'Approche {{c1::market push}} ou technology pull', extra: '' } });
+        materializeCard(app.card('co_test_2'));
+        app.data.settings.fixPushPullV1 = false; app.migratePushPull();
+        const a = app.card('co_test_1'), c = app.card('co_test_2');
+        return { a: a.front + ' / ' + a.back, keep: a.interval === 12 && a.reps === 4, c: c.nf.text, back: c.back };
+    });
+    ok('course fix: market pull / technology push, progress kept', pp.a === 'Market pull et technology push ? / MARKET PULL' && pp.keep && pp.c === 'Approche {{c1::market pull}} ou technology push' && /market pull/.test(pp.back), JSON.stringify(pp));
+
+    /* 15. cloud backup (fake server): an old shared copy is taken in, encrypted under a new code and removed; another device gets everything back with the code */
+    {
+        const DB = new Map();
+        DB.set('main', { updated_at: new Date().toISOString(), data: { decks: [{ id: 'dmain', name: 'DECK MAIN', emoji: '📁', mod: Date.now() }], cards: [{ id: 'cmain', deckId: 'dmain', front: 'Q main', back: 'R', mod: Date.now() }], settings: {}, updatedAt: Date.now() } });
+        const fake = async route => {
+            const req = route.request(), m = /id=eq\.([^&]+)/.exec(new URL(req.url()).search), row = m && DB.get(decodeURIComponent(m[1]));
+            if (req.method() === 'GET') {
+                if (/object\+json/.test(req.headers().accept || '')) return row ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(row) }) : route.fulfill({ status: 406, contentType: 'application/json', body: JSON.stringify({ code: 'PGRST116', message: '0 rows', details: '', hint: null }) });
+                return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(row ? [row] : []) });
+            }
+            const b = JSON.parse(req.postData()); (Array.isArray(b) ? b : [b]).forEach(r => DB.set(r.id, { data: r.data, updated_at: r.updated_at }));
+            return route.fulfill({ status: 201, contentType: 'application/json', body: '[]' });
+        };
+        const device = async () => {
+            const c = await browser.newContext({ viewport: { width: 390, height: 800 } });
+            await c.route(/supabase\.co/, fake); await c.route(/fonts\.(googleapis|gstatic)/, r => r.abort());
+            const q = await c.newPage(); await q.goto(`http://localhost:${PORT}/index.html`); await q.waitForSelector('.hero', { timeout: 20000 });
+            await q.evaluate(async () => { Object.assign(app.data.settings, { cloudSync: true, backupLegacy: true, backupAutoDone: true, syncKey: '' }); app.save(false); await Cloud.sync(); });
+            return { c, q };
+        };
+        const A = await device();
+        await wait(600);
+        const a = await A.q.evaluate(() => ({ key: app.data.settings.syncKey, deck: app.data.decks.some(d => d.name === 'DECK MAIN'), banner: ((document.querySelector('.modal #bk-code') || {}).textContent || '') === app.data.settings.syncKey }));
+        const rows = [...DB.keys()].filter(k => k.startsWith('u_'));
+        ok('backup: old copy taken in, encrypted under a code, shared copy removed', /^LHC(-[A-Z0-9]{4}){4}$/.test(a.key) && a.deck && a.banner && rows.length === 1 && !!DB.get(rows[0]).data.enc && !!DB.get('main').data.moved, JSON.stringify(a));
+        const B = await device();
+        const need = await B.q.evaluate(() => !!Cloud.needCode && !app.data.settings.syncKey);
+        await B.q.evaluate(async k => { app.askText = async () => k.toLowerCase().replace(/-/g, ' '); await app.backupAction('bk-enter'); }, a.key);
+        const got = await B.q.evaluate(() => app.data.decks.some(d => d.name === 'DECK MAIN'));
+        ok('backup: other device asks for the code, then gets everything back', need && got, JSON.stringify({ need, got }));
+        await A.c.close(); await B.c.close();
+
+        /* 17. cloud backup off by default; Réglages > Données switch: the code is shown, nothing starts before "J'ai noté mon code" is ticked */
+        const C = await browser.newContext({ viewport: { width: 390, height: 800 } });
+        await C.route(/supabase\.co/, fake); await C.route(/fonts\.(googleapis|gstatic)/, r => r.abort());
+        const q = await C.newPage(); await q.goto(`http://localhost:${PORT}/index.html`); await q.waitForSelector('.hero', { timeout: 20000 }); await wait(1500);
+        const rows0 = DB.size, off = await q.evaluate(() => !app.data.settings.cloudSync && !app.data.settings.syncKey);
+        const flip = on => q.evaluate(v => { const el = document.querySelector('[data-input="backup-toggle"]'); el.checked = v; el.dispatchEvent(new Event('change', { bubbles: true })); }, on);
+        await q.evaluate(() => { app.go('settings'); app.flushTail(document.getElementById('view-settings'), true); });
+        await flip(true); await wait(300);
+        const cancel = await q.evaluate(() => { const shown = /^LHC-/.test((document.querySelector('#bk-code') || {}).textContent || ''), locked = document.querySelector('#bk-ok').disabled; app.closeModal(); return { shown, locked, still: !app.data.settings.cloudSync && !document.querySelector('[data-input="backup-toggle"]').checked }; });
+        await flip(true); await wait(300);
+        const code = await q.evaluate(() => document.querySelector('#bk-code').textContent);
+        await q.click('#bk-noted'); await q.click('#bk-ok'); await wait(2500);
+        const on = await q.evaluate(c => ({ sync: app.data.settings.cloudSync, same: app.data.settings.syncKey === c, sw: document.querySelector('[data-input="backup-toggle"]').checked }), code);
+        const sent = [...DB.keys()].filter(k => k.startsWith('u_')).length > rows0 - 1 && DB.size > rows0;
+        await flip(false); await wait(200);
+        const offAgain = await q.evaluate(() => !app.data.settings.cloudSync && !!app.data.settings.syncKey);
+        ok('backup off by default; switch shows the code, needs "noté", then sends an encrypted copy; can be switched off', off && cancel.shown && cancel.locked && cancel.still && on.sync && on.same && on.sw && sent && offAgain, JSON.stringify({ off, cancel, on, sent, offAgain }));
+        await C.close();
+    }
+
+    /* 16. scheduling, checked against Anki's own rules (rslib): early review, fuzz range, "Difficile" on a single step, review cap, optimizer guard */
+    const sch = await page.evaluate(async () => {
+        const now = Date.now(), DAY = 864e5, sm2 = buildCfg({ ...OPT_DEFAULTS }), out = {};
+        const early = schedule({ state: 'review', step: 0, interval: 30, ease: 2.5, due: addDays(now, 29), lapses: 0, lastReview: now - DAY, fs: null }, 3, now, true, sm2);
+        out.early = early.interval;
+        const onTime = schedule({ state: 'review', step: 0, interval: 30, ease: 2.5, due: now - 1000, lapses: 0, lastReview: now - 30 * DAY, fs: null }, 3, now, false, sm2);
+        out.onTime = onTime.interval;
+        let outside = 0;
+        for (let i = 0; i < 300; i++) { const m = new Map(); for (let d = 0; d < 10; d++) m.set(startOfDay(addDays(now, d)), Math.floor(Math.random() * 30)); SCHED_LOAD = i % 2 ? m : null; const v = spreadIvl(3, now, '0000000', 36500); if (v < 2 || v > 4) outside++; }
+        SCHED_LOAD = null; out.fuzzOutside = outside;
+        const h = schedule({ state: 'new', step: 0, interval: 0, ease: 2.5, due: now, lapses: 0, lastReview: null, fs: null }, 2, now, false, buildCfg({ ...OPT_DEFAULTS, learnSteps: '10' }));
+        out.hardMin = Math.round((h.due - now) / 6e4);
+        const st = app.data.settings; st.reviewCapV1 = false; st.maxReviews = 9999; app.migrateReviewCap(); out.cap = st.maxReviews;
+        const d = app.data.decks.find(x => !x.parent).id, made = [];
+        for (let i = 0; i < 260; i++) { const id = 'cap_' + i; made.push(id); app.data.cards.push({ ...freshCard(), id, deckId: d, front: 'q' + i, back: 'r', hint: '', detail: '', tags: [], created: now, nid: '', kind: 'basic', ord: 0, nf: null, state: 'review', interval: 5, due: now - i * 1000 - DAY, lastReview: now - 6 * DAY }); }
+        app.data.stats.revSeen = { date: dayKey(), count: 0, by: {} }; app.data.stats.newSeen = { date: dayKey(), count: 0, by: {} };
+        const plan = app.studyPlan(null); out.planReviews = plan.reviews.length; out.planNew = plan.news.length;
+        app.data.cards = app.data.cards.filter(c => !made.includes(c.id)); app.save();
+        const fake = []; for (let c = 0; c < 40; c++) for (let k = 0; k < 6; k++) fake.push([now - (60 - k * 9) * DAY + c, 'opt' + c, k === 3 ? 1 : 3, 1]);
+        const r = await fsrsTrain(fsrsSequences(fake), null); out.optSmall = !!r.small;
+        return out;
+    });
+    ok('SM-2 early review as in Anki (30 j card seen yesterday stays 30 j; on time still 75 j)', sch.early === 30 && sch.onTime === 75, JSON.stringify({ early: sch.early, onTime: sch.onTime }));
+    ok('fuzz + load balancing stay inside Anki\'s range', sch.fuzzOutside === 0, String(sch.fuzzOutside));
+    ok('"Difficile" on a single 10 min step = 15 min (Anki)', sch.hardMin === 15, String(sch.hardMin));
+    ok('review cap 200 (old default migrated), backlog first, no new cards on top', sch.cap === 200 && sch.planReviews === 200 && sch.planNew === 0, JSON.stringify(sch));
+    ok('optimizer: too few reviews to check -> standard parameters kept', sch.optSmall);
+
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));
     console.log(R.join('\n') + `\n\n${R.length - failed}/${R.length} checks passed`);
     await browser.close(); server.close(); process.exit(failed ? 1 : 0);

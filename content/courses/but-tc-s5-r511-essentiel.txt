@@ -6,7 +6,7 @@ Idée 1 : de quoi parle ce cours, en une phrase ? ;; Comment transformer une ID�
 Idée 2 : le fil rouge du cours en 2 parties ? ;; Partie 1 = le DÉVELOPPEMENT d'innovations (de l'idée à l'offre). Partie 2 = la COMMERCIALISATION (prévoir les ventes, tester, lancer, contrôler). ;; Développer puis commercialiser
 Idée 3 : les 6 étapes dans l'ordre ? ;; 1 Émergence des idées (génération + filtrage) · 2 Concept (développement et test) · 3 Élaboration de l'offre (du prototype au produit définitif) · 4 Choix des conditions de mise en marché (marketing opérationnel) · 5 Préparation du lancement (prévision des ventes, marchés-tests) · 6 Production et lancement (+ contrôle). ;; Idée → concept → offre → mise en marché → préparation → lancement
 Idée 4 : pourquoi les innovations échouent-elles si souvent ? ;; Parce qu'elles ne « trouvent pas leur marché » : le produit ne répond pas à un besoin, ou est mal lancé, ou arrive trop tard/trop tôt. Le marketing doit donc intervenir avant, pendant et après le lancement. ;; Marketing = avant, pendant, après
-Idée 5 : les 2 façons d'innover (processus) ? ;; Market push : on part d'un besoin/insatisfaction du marché. Technology pull : on part d'une technologie/invention et on cherche son application. ;; Besoin → solution / Invention → usage
+Idée 5 : les 2 façons d'innover (processus) ? ;; Market pull : on part d'un besoin/insatisfaction du marché. Technology push : on part d'une technologie/invention et on cherche son application. ;; Besoin → solution / Invention → usage
 Idée 6 : comment mesure-t-on « à quel point » c'est innovant ? ;; Par les degrés d'innovation : rupture / technologique / comportementale / incrémentale (Abell) et continuité / semi-continuité / discontinuité (Robertson). Plus c'est nouveau, plus c'est risqué et dur à prévoir. ;; Nouveauté ↑ = risque ↑
 Idée 7 : la règle d'or du concept ? ;; Un concept = une idée travaillée sous un angle marketing : PAR QUI (cible), QUAND/COMMENT (contexte), POURQUOI (bénéfices) + raison de croire. On le teste auprès des consommateurs AVANT de produire. ;; Cible · contexte · bénéfices
 Idée 8 : pourquoi prévoir les ventes est vital ? ;; Les volumes prévus fixent la production, les coûts, le prix et la rentabilité. Sous-estimer = ruptures ; surestimer = invendus. Plus c'est innovant, plus c'est dur. ;; Volumes → coûts → prix → rentabilité
@@ -17,7 +17,7 @@ Idée 10 : lancer = quoi décider ? ;; La tactique (masse OU progressive), le mo
 Quelle est la différence entre invention et innovation ? ;; L'invention est une nouveauté technique ; l'innovation est une invention (ou une idée) qui est transformée en offre commercialisée et adoptée par un marché. ;; Inventer ≠ vendre
 Notes de cours : comment sont évalués les cours/TD ? ;; Note 1 : TD (30 %) · Note 2 : partiel (70 %). Partiel le jeudi 22 octobre. ;; 30 % TD · 70 % partiel
 Que raconte l'histoire du Post-it (3M) ? ;; 1968 : une colle ultra-forte ratée (« une colle qui ne colle pas »). 1974 : un ingénieur de chorale imagine le marque-page adhésif (un USAGE est trouvé). 1977 : tests clients, le marketing rejette l'idée ; mais les tests en interne montrent une adoption rapide. Échantillons distribués à des agences d'intérim : 90 % d'achat après essai. 1980 : lancement. ;; 12 ans de la colle au produit
-Que montre l'histoire du Post-it sur l'innovation ? ;; Qu'il faut TESTER le produit pour comprendre son utilité : le marketing l'avait rejeté, l'usage a prouvé le contraire. C'est un exemple de technology pull. ;; Tester pour comprendre l'utilité
+Que montre l'histoire du Post-it sur l'innovation ? ;; Qu'il faut TESTER le produit pour comprendre son utilité : le marketing l'avait rejeté, l'usage a prouvé le contraire. C'est un exemple de technology push. ;; Tester pour comprendre l'utilité
 Combien de temps a-t-il fallu pour mettre au point le Post-it ? ;; 12 ans (de 1968 à 1980). ;; 1968 → 1980
 Pourquoi certaines idées mettent-elles des années à être commercialisées ? ;; Pour des raisons techniques, de coûts, ou marketing (acceptation par les consommateurs). ;; Technique · coûts · acceptation
 Donne des durées de mise sur le marché vues en cours. ;; Nylon : 11 ans · photocopie : 13 ans · télévision : 22 ans · GPS : 25 ans · voiture électrique : 185 ans. ;; 11 · 13 · 22 · 25 · 185
@@ -29,16 +29,16 @@ Lien entre besoins et motivations pour adopter un produit ? ;; Les besoins crée
 Sur quoi faut-il travailler pour faire adopter une innovation ? ;; À la fois sur les motivations (à renforcer) ET sur les freins (à lever). ;; Motivations + freins
 
 ## 2 · Comment innover : les processus | 🧭
-Quels sont les 2 types de processus d'innovation ? ;; Market push et technology pull. ;; Marché → idée / Techno → idée
-Market push : point de départ ? ;; Une insatisfaction des clients sur le marché, à laquelle l'entreprise cherche à répondre. Exemple vu : Quirky (forme de la multiprise). ;; Insatisfaction client
-Market push : rôle du marketing ? ;; Observer le marché pour faire émerger l'idée, suivre le processus de conception pour que le produit corresponde, élaborer les conditions de commercialisation. ;; Observer · suivre · commercialiser
-Market push : rôle de la R&D ? ;; Concevoir le produit selon le cahier des charges établi au départ. ;; Suit le cahier des charges
-Technology pull : point de départ ? ;; Une nouvelle technologie ou un nouveau procédé technique (une invention). On ne sait pas toujours à quoi elle servira ni si elle intéresse le marché. Exemple : le Post-it. ;; Invention d'abord
-Technology pull : rôle du marketing ? ;; Identifier une application qui réponde à une attente du marché, influencer la mise au point du produit, élaborer le plan de lancement et les conditions de commercialisation. ;; Trouver l'application
-Technology pull : rôle de la R&D ? ;; Rechercher/inventer, puis mettre au point le produit final à commercialiser. ;; Inventer puis finaliser
-Pourquoi le dialogue marketing/R&D doit-il être mis en place très tôt en technology pull ? ;; Pour passer de l'invention à l'innovation : sans le marketing, la R&D invente sans savoir à quoi ça sert ni si le marché en veut. ;; Invention → innovation
-Quel est l'exemple type de technology pull ? Et de market push ? ;; Technology pull : le Post-it (colle ratée → usage trouvé). Market push : Quirky (la multiprise repensée à partir d'un problème client). ;; Post-it / Quirky
-C: Market push : on part d'une {{c1::insatisfaction des clients}} ; technology pull : on part d'{{c2::une invention (nouvelle technologie ou procédé)}} et on cherche une {{c3::application}}. ;; À ne jamais confondre.
+Quels sont les 2 types de processus d'innovation ? ;; Market pull et technology push. ;; Marché → idée / Techno → idée
+Market pull : point de départ ? ;; Une insatisfaction des clients sur le marché, à laquelle l'entreprise cherche à répondre. Exemple vu : Quirky (forme de la multiprise). ;; Insatisfaction client
+Market pull : rôle du marketing ? ;; Observer le marché pour faire émerger l'idée, suivre le processus de conception pour que le produit corresponde, élaborer les conditions de commercialisation. ;; Observer · suivre · commercialiser
+Market pull : rôle de la R&D ? ;; Concevoir le produit selon le cahier des charges établi au départ. ;; Suit le cahier des charges
+Technology push : point de départ ? ;; Une nouvelle technologie ou un nouveau procédé technique (une invention). On ne sait pas toujours à quoi elle servira ni si elle intéresse le marché. Exemple : le Post-it. ;; Invention d'abord
+Technology push : rôle du marketing ? ;; Identifier une application qui réponde à une attente du marché, influencer la mise au point du produit, élaborer le plan de lancement et les conditions de commercialisation. ;; Trouver l'application
+Technology push : rôle de la R&D ? ;; Rechercher/inventer, puis mettre au point le produit final à commercialiser. ;; Inventer puis finaliser
+Pourquoi le dialogue marketing/R&D doit-il être mis en place très tôt en technology push ? ;; Pour passer de l'invention à l'innovation : sans le marketing, la R&D invente sans savoir à quoi ça sert ni si le marché en veut. ;; Invention → innovation
+Quel est l'exemple type de technology push ? Et de market pull ? ;; Technology push : le Post-it (colle ratée → usage trouvé). Market pull : Quirky (la multiprise repensée à partir d'un problème client). ;; Post-it / Quirky
+C: Market pull : on part d'une {{c1::insatisfaction des clients}} ; technology push : on part d'{{c2::une invention (nouvelle technologie ou procédé)}} et on cherche une {{c3::application}}. ;; À ne jamais confondre.
 
 ## 3 · Évolutions de la manière d'innover | 🌍
 Qu'est-ce que l'open innovation ? ;; Innover avec des acteurs externes (laboratoires de recherche publics, fournisseurs, agences de design, partenaires…). Exemples : le LIUM (laboratoire du Mans, bras robotisés avec des dentistes), Agorize. ;; Innovation ouverte
@@ -91,8 +91,8 @@ Les décisions à chaque étape sont-elles toujours rationnelles ? ;; Non : elle
 « L'idée surgit rarement de façon inattendue et la créativité ne suffit pas » : que faut-il faire pour générer des idées ? ;; Procéder par étapes (voir les 6 étapes de la créativité ci-après). ;; Méthode > inspiration
 Quelles sont les 6 étapes pour générer des idées ? ;; 1 Énoncer le problème · 2 Le reformuler/redéfinir de façon atypique · 3 Collecter des informations (problème et solutions existantes) · 4 Oublier momentanément les solutions existantes (même fantaisistes) · 5 Travail mental inconscient (prendre du recul) · 6 Moments de prise de conscience où les idées émergent. ;; Énoncer · reformuler · collecter · oublier · recul · émergence
 C: Pour générer des idées : énoncer le {{c1::problème}}, le {{c2::reformuler}} de façon atypique, {{c3::collecter}} des informations, {{c4::oublier}} les solutions existantes, prendre du {{c5::recul}} (travail inconscient), puis laisser les idées {{c6::émerger}}. ;; Les 6 étapes.
-De quelles 2 façons le problème peut-il émerger ? ;; Du marché (insatisfaction des clients → approche market push) ou de la R&D (nouvelle technologie/procédé à qui il faut trouver une application → technology pull). ;; Marché / R&D
-Qu'est-ce que l'idéation ? ;; La phase de génération d'idées pour trouver une solution à un problème ; obligatoire dans les deux cas (market push et technology pull). ;; Générer des idées
+De quelles 2 façons le problème peut-il émerger ? ;; Du marché (insatisfaction des clients → approche market pull) ou de la R&D (nouvelle technologie/procédé à qui il faut trouver une application → technology push). ;; Marché / R&D
+Qu'est-ce que l'idéation ? ;; La phase de génération d'idées pour trouver une solution à un problème ; obligatoire dans les deux cas (market pull et technology push). ;; Générer des idées
 Exemple de R&D : le téflon ? ;; Invention de 1945 pour réaliser des joints d'étanchéité utilisés pour la production d'uranium ; ses applications actuelles : architecture, poêles… (une technologie ancienne qui trouve une nouvelle application). ;; Techno ancienne, nouvel usage
 Quelles sources d'information favorisent la génération d'idées ? ;; Évolutions technologiques, échanges avec les distributeurs, force de vente, observation des marchés étrangers, évolution de la réglementation, évolutions sociétales, pratiques des concurrents, évolutions dans d'autres secteurs. ;; Multiples sources
 Qu'est-ce que la veille approfondie ? Exemples ? ;; Surveiller et analyser en profondeur les données disponibles : « on va plus loin ». Exemples : le marché de la voiture devient le marché de la mobilité ; l'économie collaborative questionne la frontière entre sphère perso et pro. ;; Voiture → mobilité
@@ -241,8 +241,8 @@ Manque d'intérêt pour le produit : que faire ? ;; Changer de message. ;; Messa
 Problème de réachat : que faire ? ;; Changer le positionnement, modifier le produit, nouvelle communication sur les occasions d'utilisation. ;; Produit insatisfaisant
 
 ## 16 · Exemples à associer (très utile pour le partiel) | 🏷️
-Quirky ? ;; Exemple de market push (forme de la multiprise repensée). ;; Besoin client
-Post-it (3M) ? ;; Exemple de technology pull : colle ratée → usage trouvé (marque-page) → lancé en 1980 après 12 ans. ;; Techno → usage
+Quirky ? ;; Exemple de market pull (forme de la multiprise repensée). ;; Besoin client
+Post-it (3M) ? ;; Exemple de technology push : colle ratée → usage trouvé (marque-page) → lancé en 1980 après 12 ans. ;; Techno → usage
 Wii ? ;; Océan bleu : marché saturé, baisse des caractéristiques techniques, ajout d'une fonction sans fil qui fait bouger. ;; Nouvel espace
 Renault Kwid (3 500 € en Inde) ? ;; Innovation inversée (pensée pour les segments pauvres des pays émergents). ;; Bas de la pyramide
 Vélo indien, frigo marocain, yaourt bangladais ? ;; Innovation frugale (Jugaad). ;; Astuce peu coûteuse
@@ -270,7 +270,7 @@ Evian (brevet 1993-1997) ? ;; Brevet sur une bouteille plastique écrasable ; un
 Heinz (ketchup) ? ;; Étude de cas SCAMPER : évolutions de l'emballage et des recettes (verre, sans conservateur, bio, moins de sucre, capsule recyclable, double bouchon…) dans le contexte de la loi AGEC. ;; Cas SCAMPER
 
 ## 17 · Mini-cas : applique le cours | 🧩
-Une start-up invente une colle ultra-faible réutilisable, sans savoir à quoi elle sert. Quel processus ? Que fait le marketing ? ;; Technology pull (on part d'une invention). Le marketing doit identifier une application répondant à une attente, influencer la mise au point et préparer le plan de lancement (comme pour le Post-it). ;; Invention → application
+Une start-up invente une colle ultra-faible réutilisable, sans savoir à quoi elle sert. Quel processus ? Que fait le marketing ? ;; Technology push (on part d'une invention). Le marketing doit identifier une application répondant à une attente, influencer la mise au point et préparer le plan de lancement (comme pour le Post-it). ;; Invention → application
 Un fabricant ajoute juste un nouveau parfum à sa gamme de chips. Quel degré d'innovation ? ;; Innovation incrémentale (techno et usages anciens) et de continuité : peu risquée mais peu différenciante. ;; Faible risque
 Une marque lance une gourde de compote pour manger en marchant. Quelle innovation (Abell) ? ;; Comportementale (même techno, nouveau comportement/usage) → risque commercial car il faut changer les habitudes (cas des Pom'Potes). ;; Nouveaux usages
 Une entreprise garde 30 idées sur 100 et en jette une bonne. Quelle erreur ? ;; Une erreur d'abandon (comme P&G avec la lessive en tablettes) ; l'erreur inverse, garder une mauvaise idée, est l'erreur de sélection. ;; Bonne idée jetée

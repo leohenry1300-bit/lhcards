@@ -22,13 +22,13 @@ C: Il faut que l'innovation {{c1::trouve son marché}} : qu'elle réponde à des
 Sur quoi faut-il travailler pour faire adopter une innovation ? ;; À la fois sur les motivations (à renforcer) et sur les freins (à lever). ;; Motivations + freins
 
 ## Intro · Comment innover | 🧭
-Quels sont les 2 types de processus d'innovation ? ;; Market push et technology pull. ;; Marché → idée / Technologie → idée
-Définis l'approche « market push ». ;; Le processus part d'une insatisfaction des clients sur le marché, à laquelle l'entreprise cherche à répondre. ;; Besoin client → solution
-Définis l'approche « technology pull ». ;; Le processus part d'une nouvelle technologie ou d'un nouveau procédé technique (une invention) ; on ne sait pas toujours à quoi elle servira ni si elle intéresse le marché. ;; Invention → recherche d'application
-Market push : rôle du marketing ? ;; Observer le marché pour faire émerger l'idée, suivre la conception pour que le produit corresponde, élaborer les conditions de commercialisation. ;; Observer · suivre · commercialiser
-Market push : rôle de la R&D ? ;; Concevoir le produit selon le cahier des charges établi au départ. ;; La R&D suit le cahier des charges
-Technology pull : rôle du marketing ? ;; Identifier une application qui réponde à une attente du marché, influencer la mise au point du produit, élaborer le plan de lancement et les conditions de commercialisation. ;; Trouver l'application
-Technology pull : rôle de la R&D ? ;; Rechercher / inventer, puis mettre au point le produit final à commercialiser. ;; Inventer puis finaliser
+Quels sont les 2 types de processus d'innovation ? ;; Market pull et technology push. ;; Marché → idée / Technologie → idée
+Définis l'approche « market pull ». ;; Le processus part d'une insatisfaction des clients sur le marché, à laquelle l'entreprise cherche à répondre. ;; Besoin client → solution
+Définis l'approche « technology push ». ;; Le processus part d'une nouvelle technologie ou d'un nouveau procédé technique (une invention) ; on ne sait pas toujours à quoi elle servira ni si elle intéresse le marché. ;; Invention → recherche d'application
+Market pull : rôle du marketing ? ;; Observer le marché pour faire émerger l'idée, suivre la conception pour que le produit corresponde, élaborer les conditions de commercialisation. ;; Observer · suivre · commercialiser
+Market pull : rôle de la R&D ? ;; Concevoir le produit selon le cahier des charges établi au départ. ;; La R&D suit le cahier des charges
+Technology push : rôle du marketing ? ;; Identifier une application qui réponde à une attente du marché, influencer la mise au point du produit, élaborer le plan de lancement et les conditions de commercialisation. ;; Trouver l'application
+Technology push : rôle de la R&D ? ;; Rechercher / inventer, puis mettre au point le produit final à commercialiser. ;; Inventer puis finaliser
 Pourquoi le dialogue marketing / R&D doit-il être mis en place très tôt ? ;; Pour passer de l'invention à l'innovation. ;; Invention ≠ innovation
 Quelles sont les évolutions dans la manière d'innover (5) ? ;; Innovation ouverte (open innovation), co-innovation avec les clients, innovation frugale (jugaad), innovation inversée, stratégie océan bleu. ;; Ouverte · co-innover · frugale · inversée · océan bleu
 Qu'est-ce que l'open innovation ? ;; Innover avec des acteurs externes (laboratoires de recherche publique, fournisseurs, agences de design, partenaires…). ;; Innovation de plus en plus ouverte
@@ -65,7 +65,7 @@ Partie 2 du cours : quelles étapes couvre-t-elle ? ;; La commercialisation d'in
 
 ## Partie 1 · Émergence des idées | 💡
 « La créativité ne suffit pas ! » : quelles étapes pour générer des idées ? ;; Énoncer le problème ; le reformuler de manière atypique ; collecter une masse d'informations ; oublier momentanément les solutions existantes ; laisser un travail mental inconscient (prendre du recul) ; avoir des moments de prise de conscience où les idées émergent. ;; Problème → reformuler → informations → oublier → recul → déclic
-Comment le problème à l'origine d'une idée peut-il émerger ? ;; Du marché (insatisfaction des clients : market push) ou de la R&D (nouvelle technologie à laquelle trouver une application : technology pull). ;; Marché ou R&D
+Comment le problème à l'origine d'une idée peut-il émerger ? ;; Du marché (insatisfaction des clients : market pull) ou de la R&D (nouvelle technologie à laquelle trouver une application : technology push). ;; Marché ou R&D
 Qu'est-ce que l'idéation ? ;; La génération d'idées pour trouver une solution à un problème (passage obligé dans les deux cas). ;; Idéation = produire des idées
 Cite des sources d'informations qui favorisent la génération d'idées. ;; Évolutions technologiques, échanges avec distributeurs et force de vente, observation des marchés étrangers, évolution de la réglementation, évolutions sociétales, pratiques des concurrents, évolutions dans d'autres secteurs. ;; Multiples sources
 Qu'est-ce qu'un cabinet de tendances ? ;; Un cabinet qui développe des « cahiers de tendances » (couleurs, matières…) annonçant les tendances des prochaines années. ;; Suivi des tendances

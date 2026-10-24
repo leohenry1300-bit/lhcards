@@ -145,10 +145,11 @@ function levenshtein(a, b) {
     }
     return prev[b.length];
 }
-function loadScript(src, timeout = 8000) {
+function loadScript(src, timeout = 8000, integrity = '') {
     return new Promise((resolve, reject) => {
         const s = document.createElement('script');
         s.src = src; s.async = true;
+        if (integrity) { s.integrity = integrity; s.crossOrigin = 'anonymous'; }   // the browser refuses the file if it is not exactly the expected one
         const t = setTimeout(() => reject(new Error('timeout')), timeout);
         s.onload = () => { clearTimeout(t); resolve(); };
         s.onerror = () => { clearTimeout(t); reject(new Error('load error')); };
@@ -263,7 +264,7 @@ const CARD_SIZES = { s: '1.1rem', m: '1.35rem', l: '1.6rem', xl: '1.9rem', xxl: 
 const OPT_DEFAULTS = {
     scheduler: 'sm2', retention: 0.9, learnSteps: '1 10', relearnSteps: '10', gradIvl: 1, easyIvl: 4,
     startEase: 2.5, easyBonus: 1.3, hardMult: 1.2, ivlMult: 1, lapseMult: 0.5, maxIvl: 3650,
-    leechThreshold: 8, leechAction: 'suspend', newPerDay: 20, maxReviews: 9999,
+    leechThreshold: 8, leechAction: 'suspend', newPerDay: 20, maxReviews: 200,
     minIvl: 1, buryNewSib: true, buryRevSib: true, buryLearnSib: true, newOrder: 'random', newReviewOrder: 'mix', reviewSort: 'random',
     maxAnswerSecs: 60, autoQSecs: 0, autoASecs: 0, autoAAction: 'none', easyDays: '0000000'
 };
@@ -306,7 +307,7 @@ function buildCfg(o) {
         autoQSecs: clamp(num(g('autoQSecs', 0), 0), 0, 300), autoASecs: clamp(num(g('autoASecs', 0), 0), 0, 300),
         autoAAction: ['none', 'bury', 'again', 'hard', 'good', 'easy'].includes(g('autoAAction', 'none')) ? g('autoAAction', 'none') : 'none',
         easyDays: /^[012]{7}$/.test(String(g('easyDays', '0000000'))) ? String(g('easyDays', '0000000')) : '0000000',
-        newPerDay: clamp(Math.round(num(g('newPerDay', 20), 20)), 0, 9999), maxReviews: clamp(Math.round(num(g('maxReviews', 9999), 9999)), 0, 9999),
+        newPerDay: clamp(Math.round(num(g('newPerDay', 20), 20)), 0, 9999), maxReviews: clamp(Math.round(num(g('maxReviews', 200), 200)), 0, 9999),
         fsrsW: Array.isArray(o.fsrsW) && o.fsrsW.length === 19 && o.fsrsW.every(Number.isFinite) ? o.fsrsW : null
     };
 }
@@ -489,9 +490,26 @@ const Storage = {
             t.onabort = () => reject(t.error);
         });
     },
+    /* readFailed: the database is there but could not be read (iOS sometimes loses its connection for a moment).
+       That is not the same as "nothing saved yet": the caller must then never write the starter cards over it. */
+    readFailed: false,
     async load() {
-        if (this.db) { try { const v = await this.tx('readonly', s => s.get('state')); if (v) return v; } catch (e) { /* fall through */ } }
+        this.readFailed = false;
+        if (this.db) {
+            for (let i = 0; i < 3; i++) {
+                try { const v = await this.tx('readonly', s => s.get('state')); this.readFailed = false; if (v) return v; break; }
+                catch (e) { this.readFailed = true; await new Promise(r => setTimeout(r, 250 * (i + 1))); }
+            }
+        }
         try { return localStorage.getItem(LS_KEY); } catch { return null; }
+    },
+    /* newest backup that can still be read: { json, data, at } or null */
+    async latestBackup() {
+        const list = (await this.backups()).sort((a, b) => b.at - a.at);
+        for (const b of list) {
+            try { const json = await this.backupLoad(b.key), data = json && normalizeState(json); if (data && data.cards.length) return { json, data, at: b.at }; } catch { /* next one */ }
+        }
+        return null;
     },
     async save(json) {
         if (this.db) {
@@ -527,25 +545,29 @@ const Storage = {
 /* ============================================================
    Spaced repetition (SM-2 as in Anki, with learning steps)
    ============================================================ */
-/* "Easy days": among the days a card could land on, prefer weekdays you marked as normal over reduced / minimum ones */
+/* Fuzz, as in Anki (rslib fuzz.rs): a review interval of 2.5 days or more is moved by up to ±15 % of its part between 2.5 and 7 days,
+   ±10 % between 7 and 20, ±5 % beyond, plus one day. */
 let SCHED_LOAD = null;   // Map(start of day -> review cards already due that day), set while answering when load balancing is on
-function pickEasyDay(ivl, base, now, easyDays) {
-    const easy = easyDays && easyDays !== '0000000';
-    if ((!easy && !SCHED_LOAD) || base < 3) return ivl;
-    const spread = Math.max(1, Math.round(base * 0.05));
-    let best = ivl, bestW = -1, bestL = Infinity;
-    for (let d = Math.max(1, ivl - spread); d <= ivl + spread; d++) {
+const FUZZ_RANGES = [[2.5, 7, 0.15], [7, 20, 0.1], [20, Infinity, 0.05]];
+function fuzzBounds(ivl, maxIvl = 36500) {
+    const delta = FUZZ_RANGES.reduce((d, [a, b, f]) => d + f * Math.max(Math.min(ivl, b) - a, 0), 1);
+    const hi = Math.min(Math.round(ivl + delta), maxIvl);
+    return [Math.min(Math.max(2, Math.round(ivl - delta)), hi), hi];
+}
+/* Picks the day a review lands on, always inside the fuzz range above: at random, or (load balancing / "easy days")
+   the least loaded day of that range, preferring the weekdays marked normal over reduced / minimum ones */
+function spreadIvl(ivl, now, easyDays, maxIvl) {
+    if (ivl < 2.5) return ivl;
+    const [lo, hi] = fuzzBounds(ivl, maxIvl), easy = easyDays && easyDays !== '0000000';
+    if (!easy && !SCHED_LOAD) return lo + Math.floor(Math.random() * (hi - lo + 1));
+    let best = Math.round(ivl), bestW = -1, bestL = Infinity;
+    for (let d = lo; d <= hi; d++) {
         const day = addDays(now, d), wd = new Date(day).getDay(), w = easy ? ([2, 1, 0][Number(easyDays[wd])] ?? 2) : 0;
         const load = SCHED_LOAD ? (SCHED_LOAD.get(startOfDay(day)) || 0) : 0;
-        const better = w > bestW || (w === bestW && (load < bestL || (load === bestL && Math.abs(d - base) < Math.abs(best - base))));
+        const better = w > bestW || (w === bestW && (load < bestL || (load === bestL && Math.abs(d - ivl) < Math.abs(best - ivl))));
         if (better) { best = d; bestW = w; bestL = load; }
     }
     return best;
-}
-function fuzzIvl(ivl) {
-    if (ivl < 3) return ivl;
-    const f = Math.max(1, Math.round(ivl * 0.05));
-    return ivl + Math.floor(Math.random() * (2 * f + 1)) - f;
 }
 /* Returns the new scheduling fields for `card` after answering `grade` (1 = raté .. 4 = facile). */
 function schedule(card, grade, now = Date.now(), useFuzz = false, cfg = buildCfg(OPT_DEFAULTS)) {
@@ -553,9 +575,10 @@ function schedule(card, grade, now = Date.now(), useFuzz = false, cfg = buildCfg
     cfg = cfg.fsrsW ? { ...cfg, w: cfg.fsrsW } : cfg;
     const r = { state: card.state, step: card.step || 0, interval: card.interval || 0, ease: card.ease || 2.5, lapses: card.lapses || 0, due: card.due, fs: card.fs || null };
     const inMin = m => now + Math.round(m * MIN);
+    const hardFirst = steps => (steps[1] ? (steps[0] + steps[1]) / 2 : Math.min(steps[0] * 1.5, steps[0] + 1440));   // "Difficile" on the first step, as in Anki
     let fs = fsr ? fsrsFromCard(card) : null;
-    const finish = ivl => {
-        ivl = clamp(Math.round(useFuzz ? pickEasyDay(fuzzIvl(ivl), ivl, now, cfg.easyDays) : ivl), 1, cfg.maxIvl);
+    const finish = (ivl, fuzz = true) => {
+        ivl = clamp(Math.round(useFuzz && fuzz ? spreadIvl(ivl, now, cfg.easyDays, cfg.maxIvl) : ivl), 1, cfg.maxIvl);
         r.state = 'review'; r.step = 0; r.interval = ivl; r.due = addDays(now, ivl);
     };
     const keepFs = () => { if (fs) r.fs = { s: fs.s, d: fs.d, t: now }; };
@@ -572,7 +595,7 @@ function schedule(card, grade, now = Date.now(), useFuzz = false, cfg = buildCfg
            capped by the preset's "graduating" (Good) / "easy" intervals (1 and 4 days by default). The memory state is kept as is. */
         const grad = g => finish(fsr ? Math.max(1, Math.min(fsrsIvl(fs.s, cfg.retention), g === 4 ? cfg.easyIvl : cfg.gradIvl)) : (g === 4 ? cfg.easyIvl : cfg.gradIvl));
         if (grade === 1) { r.state = 'learning'; r.step = 0; r.due = inMin(steps[0]); }
-        else if (grade === 2) { r.state = 'learning'; r.due = inMin(r.step === 0 && steps[1] ? (steps[0] + steps[1]) / 2 : cur); }
+        else if (grade === 2) { r.state = 'learning'; r.due = inMin(r.step === 0 ? hardFirst(steps) : cur); }
         else if (grade === 3) {
             if (r.step + 1 < steps.length) { r.state = 'learning'; r.step++; r.due = inMin(steps[r.step]); }
             else grad(3);
@@ -582,7 +605,7 @@ function schedule(card, grade, now = Date.now(), useFuzz = false, cfg = buildCfg
         if (fsr && fs) { fs.s = fsrsShortS(fs.s, grade, cfg.w); fs.d = fsrsNextD(fs.d, grade, cfg.w); keepFs(); }
         const back = bonus => finish(fsr && fs ? Math.max(1, fsrsIvl(fs.s, cfg.retention)) : Math.max(1, r.interval) + bonus);
         if (grade === 1) { r.step = 0; r.due = inMin(steps[0]); }
-        else if (grade === 2) { r.due = inMin(steps[Math.min(r.step, steps.length - 1)]); }
+        else if (grade === 2) { r.due = inMin(r.step === 0 ? hardFirst(steps) : steps[Math.min(r.step, steps.length - 1)]); }
         else if (grade === 3) {
             if (r.step + 1 < steps.length) { r.step++; r.due = inMin(steps[r.step]); }
             else back(0);
@@ -614,6 +637,14 @@ function schedule(card, grade, now = Date.now(), useFuzz = false, cfg = buildCfg
             r.ease = Math.max(1.3, r.ease - 0.2);
             r.interval = Math.max(cfg.minIvl, Math.round(ivl * cfg.lapseMult));
             r.state = 'relearning'; r.step = 0; r.due = inMin(cfg.relearnSteps[0]);
+        } else if (Number.isFinite(card.due) && daysBetweenKeys(dayKey(now), dayKey(card.due)) > 0) {
+            /* answered before its due day (filtered deck, "réviser en avance"): Anki's early-review rule, without fuzz
+               (elapsed counted as Anki does: interval minus the days still to go). Otherwise a card seen yesterday with a 30-day interval jumped to 75 days. */
+            const el = Math.max(0, ivl - daysBetweenKeys(dayKey(now), dayKey(card.due))), m = v => clamp(Math.round(v * cfg.ivlMult), 1, cfg.maxIvl);
+            const good = Math.max(el * r.ease, ivl);
+            if (grade === 2) { const h = m(Math.max(el * cfg.hardMult, ivl * cfg.hardMult / 2)); r.ease = Math.max(1.3, r.ease - 0.15); finish(h, false); }
+            else if (grade === 3) finish(m(good), false);
+            else { const e = m(good * (cfg.easyBonus - (cfg.easyBonus - 1) / 2)); r.ease = r.ease + 0.15; finish(e, false); }
         } else {
             const hard = Math.max(ivl + 1, Math.round(ivl * cfg.hardMult * cfg.ivlMult));
             const good = Math.max(hard + 1, Math.round((ivl + delay / 2) * r.ease * cfg.ivlMult));
@@ -752,6 +783,32 @@ class SuperAnki {
         this.save();
     }
 
+    /* One-time: the innovation course had "market push / technology pull" the wrong way round (it is market pull / technology push).
+       The course cards already on the device are corrected in place: same cards, progress kept. */
+    migratePushPull() {
+        const st = this.data.settings;
+        if (st.fixPushPullV1) return;
+        st.fixPushPullV1 = true;
+        const fix = v => (typeof v === 'string' ? v.replace(/\b(market|technology)([ -])(push|pull)\b/gi, (m, w, sep, d) => { const n = w.toLowerCase() === 'market' ? 'pull' : 'push'; return w + sep + (d === d.toUpperCase() ? n.toUpperCase() : n); }) : v);
+        this.data.cards.forEach(c => {
+            if (!c.id.startsWith('co_')) return;
+            ['front', 'back', 'hint', 'detail'].forEach(k => { c[k] = fix(c[k]); });
+            if (c.nf) { ['front', 'back', 'text', 'extra'].forEach(k => { c.nf[k] = fix(c.nf[k]); }); materializeCard(c); }
+        });
+        this.save();
+    }
+
+    /* One-time: the daily review cap takes Anki's default (200, was "no limit" = 9999), so that coming back after days away
+       gives a few manageable days instead of one session of several hundred cards. A value chosen by hand is kept. */
+    migrateReviewCap() {
+        const st = this.data.settings;
+        if (st.reviewCapV1) return;
+        st.reviewCapV1 = true;
+        if (st.maxReviews === 9999) st.maxReviews = 200;
+        this.data.presets.forEach(p => { if (p.opts && p.opts.maxReviews === 9999) p.opts = { ...p.opts, maxReviews: 200 }; });
+        this.save();
+    }
+
     /* One-time: English / TOEIC decks use FSRS at 90 % retention (cards already reviewed with SM-2 are converted on the fly). */
     migrateTunedPreset() {
         const st = this.data.settings;
@@ -772,6 +829,7 @@ class SuperAnki {
         el._tail = { stack, nodes };
     }
     flushTail(el, sync = false) {
+        if (sync && el && el._pending) { el._pending(); return; }   // the rest is already arriving piece by piece: it is all put on the page now
         const t = el && el._tail; if (!t) return;
         el._tail = null;
         const queue = t.nodes.map(n => [t.stack, n]);
@@ -792,10 +850,16 @@ class SuperAnki {
             }
         };
         if (sync) { work(Infinity); done(); return; }
+        let finished = false;
+        const finish = () => { finished = true; if (el._pending === pending) el._pending = null; done(); };
+        const pending = () => { if (finished) return; if (t.stack.parentNode !== el) { finished = true; el._pending = null; return; } work(Infinity); finish(); };
+        el._pending = pending;
         const tick = () => {
-            if (t.stack.parentNode !== el) return;   // the tab was redrawn meanwhile: this rest is obsolete
+            if (finished) return;
+            if (t.stack.parentNode !== el) { finished = true; if (el._pending === pending) el._pending = null; return; }   // the tab was redrawn meanwhile: this rest is obsolete
             work(el.classList.contains('hidden') ? Infinity : 130);
-            if (queue.length) setTimeout(tick, 24); else done();
+            if (el.id === 'view-stats' && !el.classList.contains('hidden')) this.fixCharts();   // the charts that just arrived are drawn
+            if (queue.length) setTimeout(tick, 24); else finish();
         };
         requestAnimationFrame(() => requestAnimationFrame(tick));
     }
@@ -820,9 +884,10 @@ class SuperAnki {
         setTimeout(tick, 3500);
     }
     /* a screen prepared while hidden was measured at zero width: charts are drawn again if the real width differs */
+    /* charts are drawn only once their box is on the page (not while the tab is being built): a chart not drawn yet, or drawn at another width, is drawn now */
     fixCharts() {
-        const off = $$('[data-chart-box]').some(b => b.clientWidth && Math.abs(b.clientWidth - Number(b.dataset.w || 0)) > 8);
-        if (off) this.drawCharts();
+        const todo = $$('[data-chart-box]').map(box => ({ box, id: box.dataset.chartBox, W: box.clientWidth })).filter(o => o.W && this.chartDefs && this.chartDefs[o.id] && (o.box.dataset.w === undefined || Math.abs(o.W - Number(o.box.dataset.w)) > 8));
+        todo.forEach(o => { const W = Math.max(260, Math.floor(o.W)); o.box.dataset.w = W; o.box.innerHTML = this.chartDefs[o.id](W); });
     }
     /* ---------- how the app was started (to tell a normal launch from a system cut) ---------- */
     noteBoot() {
@@ -856,16 +921,28 @@ class SuperAnki {
         this.bindGlobalEvents();
         await Storage.init();
         prog(30);
-        let data = null, source = 'seed';
+        if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});   // asks the browser not to clear this storage when space runs low
+        let data = null, source = 'seed', stored = null;
         try {
-            const stored = await Storage.load();
+            stored = await Storage.load();
             if (stored) { data = normalizeState(stored); source = 'local'; }
         } catch (e) { console.error(e); }
+        /* saved data that cannot be read is never replaced by the starter cards */
+        if (!data && Storage.readFailed) throw new Error('tes cartes n\'ont pas pu être lues pour l\'instant (rien n\'a été effacé). Ferme complètement l\'app puis rouvre-la');
+        if (!data && Storage.db) {
+            const b = await Storage.latestBackup().catch(() => null);
+            if (b) {
+                if (stored) await Storage.backupSave('illisible', String(stored), { cards: [], decks: [] }).catch(() => {});   // the unreadable copy is kept aside
+                data = b.data; source = 'backup';
+                setTimeout(() => this.toast(`Tes cartes ont été récupérées depuis la sauvegarde du ${new Date(b.at).toLocaleDateString('fr-FR')}`, 'warning'), 900);
+            } else if (stored) throw new Error('tes données sont illisibles et aucune sauvegarde n\'a été trouvée (rien n\'a été effacé)');
+        }
         if (!data) {
             const legacy = Storage.legacy();
             if (legacy) { data = normalizeState(legacy); source = 'legacy'; }
         }
         if (!data || !data.cards.length && !data.decks.length) { data = seedState(); source = 'seed'; }
+        if (!Storage.db) setTimeout(() => this.toast('Stockage principal indisponible : ce qui sera fait maintenant risque de ne pas être gardé. Ferme puis rouvre l\'app.', 'warning'), 900);
         prog(55);
         this.data = data;
         this.gcMedia(data);
@@ -874,6 +951,8 @@ class SuperAnki {
         this.migrateButTc();
         this.migrateCourses();
         this.migrateTunedPreset();
+        this.migratePushPull();
+        this.migrateReviewCap();
         this.checkStreak();
         this.writeNow();
         this.autoBackup(source);
@@ -894,6 +973,7 @@ class SuperAnki {
         this.extrasInit();
         this.ambInit();
         this.warmViews();
+        this.backupAutoStart();   // cloud backup: off by default (Réglages > Données); an old unencrypted sync gets a code
         if (this.data.settings.cloudSync) Cloud.sync();
         else Cloud.setStatus('off');
     }
@@ -946,7 +1026,9 @@ class SuperAnki {
         this.detectChanges(this.data.updatedAt);
         this.cfgCache.clear();
         clearTimeout(this.saveTimer);
-        this.saveTimer = setTimeout(() => this.writeNow(), 250);
+        /* during a review the whole collection is not written after every answer (a long pause right when the next card slides in):
+           answers are grouped, and anything pending is written at once when the app goes to the background (see bindGlobalEvents) */
+        this.saveTimer = setTimeout(() => this.writeNow(), this.session ? 2500 : 250);
         if (sync) Cloud.schedulePush();
     }
     async writeNow() {
@@ -1123,7 +1205,9 @@ class SuperAnki {
         const now = Date.now(), eod = endOfDay(now), by = new Map(this.data.decks.map(d => [d.id, d])), out = new Map();
         by.forEach((d, id) => out.set(id, { total: 0, seen: 0, new: 0, learn: 0, due: 0, mature: 0, susp: 0 }));
         this.data.cards.forEach(c => {
-            const k = c.state === 'new' ? 'new' : c.state === 'review' ? (c.due <= eod ? 'due' : c.interval >= MATURE_IVL ? 'mature' : 'learn') : (c.due <= now ? 'due' : 'learn');
+            /* same rules as cardStatus (home tiles, "Réviser (n)"): a suspended or buried card is never counted as due */
+            const off = c.suspended || c.buriedUntil > now;
+            const k = c.state === 'new' ? 'new' : c.state === 'review' ? (c.due <= eod && !off ? 'due' : c.interval >= MATURE_IVL ? 'mature' : 'learn') : (c.due <= now && !off ? 'due' : 'learn');
             let d = by.get(c.deckId), n = 0;
             while (d && n++ < 10) {
                 const st = out.get(d.id);
@@ -1208,7 +1292,7 @@ class SuperAnki {
     }
     rollSeen() {
         const st = this.data.stats, t = dayKey();
-        ['newSeen', 'revSeen'].forEach(k => { if (!st[k] || st[k].date !== t) st[k] = { date: t, count: 0, by: {} }; });
+        ['newSeen', 'revSeen'].forEach(k => { if (!st[k] || st[k].date !== t) st[k] = { date: t, count: 0, by: {} }; else if (!st[k].by) st[k].by = {}; });
     }
     newBudget() {
         this.rollSeen();
@@ -1237,9 +1321,11 @@ class SuperAnki {
         const learning = pool.filter(c => c.state === 'learning' || c.state === 'relearning').map(c => ({ id: c.id, due: c.due }));
         const dueAll = pool.filter(c => c.state === 'review' && c.due <= eod).sort((a, b) => a.due - b.due);
         const reviews = this.applyLimit(dueAll, 'maxReviews', st.revSeen, Math.max(0, this.data.settings.maxReviews - st.revSeen.count));
+        /* as in Anki: the review limit also holds new cards back, so a backlog (after days away) is caught up first, most overdue cards first */
+        const newRoom = Math.max(0, this.data.settings.maxReviews - st.revSeen.count - st.newSeen.count - reviews.length);
         let fresh = pool.filter(c => c.state === 'new');
         fresh = this.data.settings.newOrder === 'random' ? shuffle(fresh) : fresh.sort((a, b) => a.created - b.created);
-        const news = extraNew ? fresh.slice(0, extraNew) : this.applyLimit(fresh, 'newPerDay', st.newSeen, this.newBudget());
+        const news = extraNew ? fresh.slice(0, extraNew) : this.applyLimit(fresh, 'newPerDay', st.newSeen, Math.min(this.newBudget(), newRoom));
         return { reviews, news, learning, learningDue: learning.filter(l => l.due <= now).length, freshTotal: fresh.length, dueTotal: dueAll.length };
     }
     nextDueTime() {
@@ -1372,9 +1458,10 @@ class SuperAnki {
     /* Léo's mood follows the day: asleep late at night or when everything is done, cheering once today's review is done */
     mascotMood(toStudy) {
         const h = new Date().getHours(), done = this.data.stats.lastStudyDate === dayKey();
-        if (toStudy === 0) return 'calm';
-        if ((h >= 23 || h < 5) && !done) return 'calm';
-        return done ? 'happy' : 'ready';
+        const night = h >= 23 || h < 5;
+        if (toStudy === 0) return done && !night ? 'happy' : 'calm';   // "mission accomplie" only once nothing is left for today
+        if (night) return 'calm';
+        return 'ready';
     }
     /* Léo speaks first when something is worth it (at most once a day per event): a streak milestone, an exam coming up, a missed day */
     mascotAuto() {
@@ -1603,6 +1690,7 @@ class SuperAnki {
                 </div>
             </div>
 
+            ${this.backupBannerHtml()}
             ${this.resumeHtml()}
             ${this.goalsHtml()}
             <div class="status-grid">
@@ -2253,14 +2341,13 @@ class SuperAnki {
                     <div class="txt"><b>Synchroniser entre mes appareils</b><span id="sync-status">Synchronisation désactivée</span></div>
                     <div style="display:flex;gap:10px;align-items:center">
                         <button class="btn btn-soft btn-sm" data-action="sync-now" ${s.cloudSync ? '' : 'disabled'}>${ic('refresh')}Synchroniser</button>
-                        ${sw('cloudSync', 'Synchronisation cloud')}
                     </div>
                 </div>
                 <div class="set-row">
-                    <div class="txt"><b>${ic('lock')} Clé de synchronisation (chiffrement)</b><span>Une phrase secrète que toi seul connais. Tes données sont chiffrées sur ton appareil avant d'être envoyées : sans la clé, personne ne peut les lire. <b>Entre la même phrase sur tous tes appareils</b> et garde-la : elle ne peut pas être récupérée.</span></div>
-                    <div class="opt-ctl" style="min-width:260px;display:flex;gap:8px"><input class="input" id="sync-key-input" type="password" value="${esc(s.syncKey)}" placeholder="${s.syncKey ? '••••••••' : 'au moins 8 caractères'}" autocomplete="off"><button class="btn btn-soft" data-action="save-sync-key">OK</button></div>
+                    <div class="txt"><b>${ic('lock')} Code de sauvegarde (chiffrement)</b><span>Créé tout seul à l'activation. Tes données sont chiffrées sur ton appareil avant d'être envoyées : sans ce code, personne ne peut les lire. <b>Entre le même code sur tous tes appareils</b> et garde-le (Notes, capture d'écran) : il ne peut pas être récupéré.</span></div>
+                    <div class="opt-ctl" style="min-width:260px;display:flex;gap:8px"><input class="input" id="sync-key-input" type="text" value="${esc(s.syncKey)}" placeholder="LHC-XXXX-XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false"><button class="btn btn-soft" data-action="save-sync-key">OK</button>${s.syncKey ? `<button class="icon-btn" data-action="bk-copy" title="Copier le code" aria-label="Copier le code">${ic('copy')}</button>` : ''}</div>
                 </div>
-                ${s.syncKey ? '' : `<p class="small" style="color:var(--learn)">${ic('alert')} Sans clé, tes données sont stockées sans chiffrement dans un espace partagé.</p>`}
+                ${s.syncKey ? '' : `<p class="small" style="color:var(--learn)">${ic('alert')} Sans code, aucune copie n'est envoyée dans le cloud. Active « Sauvegarde cloud automatique » dans Données : un code est créé et affiché.</p>`}
                 <p class="small muted">Les appareils sont <b>fusionnés carte par carte</b> : tu peux réviser hors ligne sur plusieurs appareils sans rien perdre.</p>
             </div>
 
@@ -2279,6 +2366,10 @@ class SuperAnki {
                         <button class="btn btn-soft btn-sm" data-action="import">${ic('import')}Importer</button>
                         <button class="btn btn-soft btn-sm" data-action="export-txt">${ic('export')}Exporter en TXT</button>
                     </div>
+                </div>
+                <div class="set-row">
+                    <div class="txt"><b>${ic('cloud')} Sauvegarde cloud automatique</b><span>Copie chiffrée de tes cartes dans le cloud, mise à jour toute seule. À l'activation, un code s'affiche : note-le, il te rend tout sur un nouveau téléphone.</span></div>
+                    <label class="switch"><input type="checkbox" data-input="backup-toggle" ${s.cloudSync ? 'checked' : ''} aria-label="Sauvegarde cloud automatique"><span></span></label>
                 </div>
                 <div class="set-row" style="align-items:flex-start">
                     <div class="txt"><b>Sauvegardes automatiques</b><span>Une copie est faite chaque jour dans ton navigateur (7 gardées). Utile en cas d'erreur.</span></div>
@@ -2438,6 +2529,7 @@ class SuperAnki {
         clearTimeout(this.autoTimer);
         if ('speechSynthesis' in window) speechSynthesis.cancel();
         this.session = null;
+        if (this.saveTimer) this.writeNow();   // the answers grouped during the session are written now
         document.body.classList.remove('in-session');
         if (Cloud.deferred) { Cloud.deferred = false; setTimeout(() => Cloud.sync(), 300); }
         if (goHome) this.goBack();
@@ -3597,6 +3689,10 @@ class SuperAnki {
             else if (k === 'goal-deck') { if (el.value) { const f = this.goalFormSync(); if (!f.decks.includes(el.value)) f.decks.push(el.value); this.renderSettings(); } }
             else if (k === 'stats-deck') { this.statsUi.deck = el.value; this.renderStats(); }
             else if (k === 'stats-check') { this.statsUi[el.dataset.key] = el.checked; this.renderStats(); }
+            else if (k === 'backup-toggle') {
+                if (el.checked) { el.checked = false; this.backupEnable(); }   // switched on only once the code is confirmed as written down
+                else this.backupDisable();
+            }
             else if (k === 'toggle') {
                 this.setSetting(el.dataset.key, el.checked);
                 if (el.dataset.key === 'cloudSync') {
@@ -3649,7 +3745,7 @@ class SuperAnki {
         const flush = () => { if (this.saveTimer) this.writeNow(); };
         window.addEventListener('pagehide', flush);
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'hidden') { flush(); if (Cloud.timer) { clearTimeout(Cloud.timer); Cloud.push(); } }
+            if (document.visibilityState === 'hidden') { flush(); if (Cloud.timer || Cloud.deferred) Cloud.push(); }
             else if (this.data && this.data.settings.cloudSync && !this.session && Date.now() - Cloud.lastPull > 60000) Cloud.sync();
         });
     }
@@ -3850,7 +3946,7 @@ class SuperAnki {
                 const now = Date.now();
                 this.data.cards.forEach(c => Object.assign(c, { state: 'new', step: 0, interval: 0, ease: this.deckCfg(c.deckId).startEase, due: now, reps: 0, lapses: 0, lastReview: null, errors: 0, fs: null, buriedUntil: 0 }));
                 this.data.revlog = [];
-                this.data.stats.newSeen = { date: dayKey(), count: 0 };
+                this.data.stats.newSeen = { date: dayKey(), count: 0, by: {} };
                 this.save(); this.render();
                 this.toast('Progression remise à zéro', 'success', undefined, { label: 'Annuler', ms: 15000, fn: () => this.sensitiveUndo() });
                 break;
@@ -3958,17 +4054,19 @@ class SuperAnki {
                 break;
             }
             case 'save-sync-key': {
-                const v = ($('#sync-key-input') || {}).value || '';
+                const v = backupCodeClean(($('#sync-key-input') || {}).value || '');
                 if (v && v.length < 8) { this.toast('Choisis une phrase d\'au moins 8 caractères.', 'warning'); break; }
-                this.data.settings.syncKey = v.trim();
+                this.data.settings.syncKey = v;
+                if (!v) this.data.settings.cloudSync = false;   // no code = no cloud copy (never the old shared, readable space)
+                else { this.data.settings.backupCode = { at: Date.now(), seen: true }; Cloud.needCode = false; }
                 this.data.settings.settingsMod = Date.now();
                 this.save(false);
-                Cloud.client && 0;
-                this.toast(v ? 'Clé enregistrée : synchronisation chiffrée' : 'Clé supprimée', 'success', ic('lock'));
-                Cloud.sync(true);
+                this.toast(v ? 'Code enregistré : sauvegarde chiffrée' : 'Code supprimé : sauvegarde cloud désactivée', 'success', ic('lock'));
+                if (v) Cloud.sync(true); else Cloud.setStatus('off');
                 this.renderSettings();
                 break;
             }
+            case 'bk-copy': case 'bk-seen': case 'bk-enter': this.backupAction(action); break;
             case 'quit-session': this.quitSession(); break;
             case 'reveal': this.reveal(); break;
             case 'submit-typed': this.submitTyped(); break;

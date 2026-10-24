@@ -4,7 +4,7 @@
    towards the default values and a held-out check so a worse result is never applied).
    ============================================================ */
 const FSRS_BOUNDS = [[0.001, 100], [0.001, 100], [0.001, 100], [0.001, 100], [1, 10], [0.001, 4], [0.001, 4], [0.001, 0.75], [0, 4.5], [0, 0.8], [0.001, 3.5], [0.001, 5], [0.001, 0.25], [0.001, 0.9], [0, 4], [0, 1], [1, 6], [0, 2], [0, 2]];
-const FSRS_MIN_REVIEWS = 150, FSRS_GOOD_REVIEWS = 1000;
+const FSRS_MIN_REVIEWS = 400, FSRS_GOOD_REVIEWS = 1000, FSRS_MIN_CHECK = 80;   // (with fewer reviews the fit follows noise; the check set must be large enough to judge)
 
 /* review log -> one sequence per card: times and grades of learning / review / relearning answers */
 function fsrsSequences(revlog) {
@@ -51,7 +51,9 @@ function fsrsReplay(rows, w) {
 
 async function fsrsTrain(seqs, onProgress) {
     const split = seqs.filter(s => toeicHash(String(s.id)) % 5 !== 0), test = seqs.filter(s => toeicHash(String(s.id)) % 5 === 0);
-    const val = fsrsScored(test) >= 60 ? test : split;
+    /* the result is only judged on reviews kept aside (never on the ones it learned from): too few of them, no change */
+    if (fsrsScored(test) < FSRS_MIN_CHECK) return { w: FSRS_W0.slice(), before: 0, after: 0, nVal: fsrsScored(test), nTrain: fsrsScored(split), small: true };
+    const val = test;
     const N = Math.max(1, fsrsScored(split));
     const w0 = FSRS_W0.slice(), eff = FSRS_BOUNDS.map(([lo, hi]) => Math.min(hi - lo, 5));
     const total = w => { const l = fsrsLoss(split, w); let reg = 0; w.forEach((v, i) => { const z = (v - w0[i]) / eff[i]; reg += z * z; }); return l.sum / Math.max(1, l.n) + (5 / N) * reg; };
@@ -68,7 +70,8 @@ async function fsrsTrain(seqs, onProgress) {
             m[i] = b1 * m[i] + (1 - b1) * grad[i]; v[i] = b2 * v[i] + (1 - b2) * grad[i] * grad[i];
             return x - lr * eff[i] * (m[i] / (1 - Math.pow(b1, e))) / (Math.sqrt(v[i] / (1 - Math.pow(b2, e))) + 1e-8);
         }));
-        if (e % 4 === 0) { if (onProgress) onProgress(e / EPOCHS); await new Promise(r => setTimeout(r, 0)); }
+        if (onProgress) onProgress(e / EPOCHS);
+        await new Promise(r => setTimeout(r, 0));   // a pause after every round: the screen never stays frozen for long
     }
     const L0 = fsrsLoss(val, FSRS_W0), L1 = fsrsLoss(val, w);
     return { w: w.map(x => Math.round(x * 10000) / 10000), before: L0.sum / Math.max(1, L0.n), after: L1.sum / Math.max(1, L1.n), nVal: L0.n, nTrain: N };
@@ -109,6 +112,7 @@ Object.assign(SuperAnki.prototype, {
         m._onClose = () => { closed = true; };
         fsrsTrain(t.seqs, p => { const b = $('#fo-bar', m); if (b) b.style.width = `${Math.round(p * 100)}%`; }).then(r => {
             if (closed) return;
+            if (r.small) { $('#fo-bar', m).style.width = '100%'; $('#fo-msg', m).textContent = `Pas assez de révisions mises de côté pour vérifier le résultat (${r.nVal} sur ${FSRS_MIN_CHECK} nécessaires) : les paramètres standards sont gardés. Réessaie plus tard.`; return; }
             const gain = (r.before - r.after) / r.before * 100, better = r.after < r.before - 0.0005;
             $('#fo-msg', m).textContent = '';
             $('#fo-bar', m).style.width = '100%';
