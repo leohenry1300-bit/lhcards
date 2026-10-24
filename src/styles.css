@@ -2307,3 +2307,6 @@ html[data-vt="l"]::view-transition-new(root) { animation-name: vtInL; }
 .leo-fig.tap { animation: leoTapSquash .4s cubic-bezier(.3,1.5,.5,1); transform-origin: 50% 96%; }
 @keyframes leoTapSquash { 0% { transform: scale(1); } 30% { transform: scale(1.05, .94); } 62% { transform: scale(.98, 1.04); } 100% { transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .leo-fig.tap { animation: none; } }
+
+/* slow device: no entrance animations on the screens (everything else stays) */
+[data-lite] .view-in, [data-lite] .view-in *, [data-lite] .cascade > *, [data-lite] .cascade .panel { animation: none !important; }

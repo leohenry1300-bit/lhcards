@@ -765,11 +765,33 @@ class SuperAnki {
         this.save();
     }
 
+    /* ---------- how the app was started (to tell a normal launch from a system cut) ---------- */
+    noteBoot() {
+        try {
+            const nav = (performance.getEntriesByType('navigation')[0] || {}).type || 'navigate';
+            const prev = localStorage.getItem('lh_alive');   // fg: died while open · bg: was in the background, then closed or cut by the system · off: closed normally
+            const kind = prev === 'fg' ? 'crash' : prev === 'bg' ? 'bg' : nav === 'reload' ? 'reload' : 'cold';
+            let log = []; try { log = JSON.parse(localStorage.getItem('lh_boots') || '[]'); } catch { log = []; }
+            log.push({ t: Date.now(), k: kind }); log = log.slice(-20);
+            localStorage.setItem('lh_boots', JSON.stringify(log));
+            localStorage.setItem('lh_alive', 'fg');
+            document.addEventListener('visibilitychange', () => { try { localStorage.setItem('lh_alive', document.visibilityState === 'hidden' ? 'bg' : 'fg'); } catch { /* ignore */ } });
+            window.addEventListener('pagehide', e => { try { localStorage.setItem('lh_alive', e.persisted ? 'bg' : 'off'); } catch { /* ignore */ } });
+        } catch { /* private mode */ }
+    }
+    bootSummary() {
+        try {
+            const log = JSON.parse(localStorage.getItem('lh_boots') || '[]').filter(b => Date.now() - b.t < 864e5);
+            if (!log.length) return '';
+            const n = k => log.filter(b => b.k === k).length;
+            return `Démarrages sur 24 h : ${log.length} (${n('bg')} après arrière-plan, ${n('crash')} arrêt anormal, ${n('reload')} rechargement)`;
+        } catch { return ''; }
+    }
     /* ---------- boot ---------- */
     async init() {
         const barEl = document.querySelector('#boot .boot-bar span');
         const prog = p => { if (barEl) barEl.style.width = p + '%'; };
-        const bootT0 = performance.now();   // the bar always runs for the same time, however long the page took to arrive
+        this.noteBoot();
         prog(12);
         injectSprite();
         this.bindGlobalEvents();
@@ -796,15 +818,13 @@ class SuperAnki {
         this.checkStreak();
         this.writeNow();
         this.autoBackup(source);
-        /* the loading bar fills up completely (about 1.4 s from launch, and once the fonts are ready) before the app opens */
+        /* the loading screen leaves as soon as the app is ready (fonts get a short moment so the text does not jump) */
         prog(80);
         const bootEl = $('#boot');
-        await Promise.race([document.fonts ? document.fonts.ready : null, new Promise(r => setTimeout(r, 1500))]);
-        const wait = 1100 - (performance.now() - bootT0);
-        if (wait > 0) { await new Promise(r => setTimeout(r, wait / 2)); prog(92); await new Promise(r => setTimeout(r, wait / 2)); }
+        await Promise.race([document.fonts ? document.fonts.ready : null, new Promise(r => setTimeout(r, 700))]);
         prog(100);
-        await new Promise(r => setTimeout(r, 550));
-        if (bootEl) { bootEl.classList.add('boot-out'); await new Promise(r => setTimeout(r, 260)); bootEl.remove(); }
+        await new Promise(r => setTimeout(r, 120));
+        if (bootEl) { bootEl.classList.add('boot-out'); await new Promise(r => setTimeout(r, 200)); bootEl.remove(); }
         this.go('dashboard');
         if (source === 'legacy') this.toast('Tes cartes et ta progression ont été récupérées', 'success');
         this.initRipple();
@@ -1186,6 +1206,7 @@ class SuperAnki {
         this.render(true, reuse);
         const mem = (this.scrollMem || {})[view];
         const restore = mem && prevView !== view && opts.deck === undefined && ['dashboard', 'decks', 'stats', 'settings', 'toeic'].includes(view) && ['dashboard', 'decks', 'stats', 'settings', 'toeic'].includes(prevView);   // coming back to a tab: same place as before
+        this.watchSpeed(performance.now(), reuse);
         const wantY = restore ? mem : 0;
         if (Math.abs(window.scrollY - wantY) > 1) window.scrollTo({ top: wantY, behavior: 'instant' in window ? 'instant' : 'auto' });   // (already there: no forced layout)
         const el = $(`#view-${view}`);
@@ -1199,6 +1220,16 @@ class SuperAnki {
         }
         if (view === 'dashboard') { clearTimeout(this._leoT); this._leoT = setTimeout(() => this.mascotAuto(), 1700); }
         if (view === 'dashboard' && prevView !== 'dashboard' && !this._vtOn) this.countUp('#view-dashboard .status-num, #view-dashboard .btn-hero .cnt');
+    }
+    /* on a slow device the entrance animations are switched off by themselves (and come back if it turns out to be fast again) */
+    watchSpeed(t0, reuse) {
+        if (reuse) return;
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            const dt = performance.now() - t0, h = (this._speed = (this._speed || []).concat(dt).slice(-4));
+            const root = document.documentElement;
+            if (h.length >= 3 && h.filter(x => x > 320).length >= 2) root.dataset.lite = '1';
+            else if (h.length >= 4 && h.every(x => x < 160)) delete root.dataset.lite;
+        }));
     }
     /* pull the page down (at the top of an overview tab) to refresh the numbers and sync: finger on a phone,
        two-finger scroll up / mouse drag down on a computer */
@@ -2232,7 +2263,7 @@ class SuperAnki {
                 </div>
             </div>
 
-            <p class="tiny faint" style="text-align:center;margin:44px 0 28px">LH Cards · version ${(() => { const m = document.querySelector('meta[name=app-build]'), t = m ? Number(m.content) : 0; return t ? new Date(t).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '?'; })()} · ${s.scheduler === 'fsrs' ? 'FSRS' : 'SM-2'} · ${plural(this.data.cards.length, 'carte')} · Stockage ${Storage.db ? 'IndexedDB' : 'local'}</p>
+            <p class="tiny faint" style="text-align:center;margin:44px 0 28px">LH Cards · version ${(() => { const m = document.querySelector('meta[name=app-build]'), t = m ? Number(m.content) : 0; return t ? new Date(t).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '?'; })()} · ${s.scheduler === 'fsrs' ? 'FSRS' : 'SM-2'} · ${plural(this.data.cards.length, 'carte')} · Stockage ${Storage.db ? 'IndexedDB' : 'local'}${this.bootSummary() ? `<br>${esc(this.bootSummary())}` : ''}</p>
         </div>`;
         this.bindOptionsForm($('#study-options'));
         this.renderSyncIndicator();

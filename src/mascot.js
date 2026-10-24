@@ -10,12 +10,18 @@ function leoInstall() {
     st.textContent = `:root{--leo-s1:url(${LEO_STILL.s1});--leo-s0:url(${LEO_STILL.s0});--leo-sleep:url(${LEO_STILL.sleep})}`;
     document.head.appendChild(st);
 }
-/* a clip is fetched once, kept in memory as a blob (the service worker also keeps it for offline use) */
+/* a clip is read from the device's storage (the service worker keeps them) as a blob; only the last few stay in memory, the others are let go (iOS closes apps that use too much) */
+const LEO_KEEP = 3;
 function leoLoad(key) {
-    if (!LEO_CACHE.has(key)) {
-        LEO_CACHE.set(key, fetch(LEO_CLIPS[key].f).then(r => { if (!r.ok) throw new Error('clip'); return r.blob(); }).then(b => URL.createObjectURL(b)).catch(e => { LEO_CACHE.delete(key); throw e; }));
+    const hit = LEO_CACHE.get(key);
+    if (hit) { LEO_CACHE.delete(key); LEO_CACHE.set(key, hit); return hit; }
+    const pr = fetch(LEO_CLIPS[key].f).then(r => { if (!r.ok) throw new Error('clip'); return r.blob(); }).then(b => URL.createObjectURL(b)).catch(e => { LEO_CACHE.delete(key); throw e; });
+    LEO_CACHE.set(key, pr);
+    while (LEO_CACHE.size > LEO_KEEP) {
+        const [k, v] = LEO_CACHE.entries().next().value; LEO_CACHE.delete(k);
+        v.then(u => setTimeout(() => URL.revokeObjectURL(u), 9000)).catch(() => {});
     }
-    return LEO_CACHE.get(key);
+    return pr;
 }
 function leoImg(url, cls, key) {
     const img = new Image(); img.className = cls; const r = LEO_CLIPS[key].r, c = LEO_CLIPS[key], l = c.flip ? 2 * LEO_GEO.ax - r[0] - r[2] : r[0]; img.style.cssText = `left:${l}%;top:${r[1]}%;width:${r[2]}%;height:${r[3]}%`; img.alt = ''; img.draggable = false; img.decoding = 'async'; img.src = url;
@@ -99,7 +105,7 @@ function leoBoot() {
         const intro = root.dataset.intro, amb = (root.dataset.amb || '').split(',').filter(Boolean);
         if (leoMotionOff()) return;
         if (root.dataset.state === 's1') leoIdle(root);
-        if (intro) setTimeout(() => leoPlay(root, intro, { fallback: 's1', intro: true }), 380);
+        if (intro) { const go = () => { if (document.getElementById('boot')) setTimeout(go, 150); else leoPlay(root, intro, { fallback: 's1', intro: true }); }; setTimeout(go, 380); }
         if (root.dataset.amb) leoPrefetch();
         if (amb.length) {
             const tick = () => {
@@ -116,7 +122,7 @@ let LEO_PRE = false;
 function leoPrefetch() {
     if (LEO_PRE || (navigator.connection && navigator.connection.saveData)) return;
     LEO_PRE = true;
-    leoLoad('idle').catch(() => {}); leoWarm();
+    leoWarm();
 }
 /* off screen (scrolled away, another tab) he stops: no idle loop, no CSS animation */
 const LEO_IO = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => {
@@ -134,7 +140,7 @@ function leoWarm() {
     LEO_WARM = true;
     const list = ['talk', 'tablet', 'wave', 'pointwave', 'sitwave', 'roar', 'think', 'foot', 'yawn', 'nap', 'toss', 'sleep'];
     let i = 0;
-    const next = () => { if (i >= list.length) return; if (document.hidden || !navigator.onLine) { setTimeout(next, 5000); return; } leoLoad(list[i++]).catch(() => {}).then(() => setTimeout(next, 1800)); };
+    const next = () => { if (i >= list.length) return; if (document.hidden || !navigator.onLine) { setTimeout(next, 5000); return; } fetch(LEO_CLIPS[list[i++]].f).then(r => r.ok ? r.blob() : null).catch(() => {}).then(() => setTimeout(next, 1800)); };
     setTimeout(next, 6000);
 }
 let LEO_WARM = false;
