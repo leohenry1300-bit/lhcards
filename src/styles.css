@@ -44,7 +44,7 @@
 }
 
 /* ---------- Dark family ---------- */
-[data-theme="nuit"], [data-theme="oled"], [data-theme="foret"], [data-theme="neon"], [data-theme="terminal"], [data-theme="nord"], [data-theme="dracula"], [data-theme="cafe"], [data-theme="luxe"], [data-theme="synthwave"], [data-theme="craie"], [data-theme="contraste"] { color-scheme: dark; }
+[data-theme="nuit"], [data-theme="oled"], [data-theme="neon"], [data-theme="cafe"], [data-theme="luxe"], [data-theme="synthwave"], [data-theme="contraste"]{ color-scheme: dark; }
 
 [data-theme="nuit"] {
   --bg: #0b1020; --surface: #131a2e; --surface-2: #1a2238; --surface-3: #232d47;
@@ -85,20 +85,6 @@
   --shadow: 0 1px 0 rgba(90,60,20,.12), 0 2px 8px rgba(90,60,20,.08);
   --hero: #3b2c1c; --on-hero: #fbf2df;
   --heading-spacing: 0;
-}
-
-/* ---------- Forêt ---------- */
-[data-theme="foret"] {
-  --font: 'Nunito', system-ui, sans-serif;
-  --bg: #0d1712; --surface: #14231b; --surface-2: #1a2e23; --surface-3: #22392c;
-  --border: #213a2c; --border-strong: #2f4f3d;
-  --text: #e3f1e8; --text-muted: #9dbba8; --text-faint: #6f8f7b;
-  --primary: #4ade80; --primary-2: #a3e635; --on-primary: #06220f;
-  --new: #7dd3fc; --learn: #fcd34d; --due: #fda4af; --mature: #4ade80;
-  --again: #fb7185; --hard: #fcd34d; --good: #7dd3fc; --easy: #4ade80;
-  --shadow: 0 6px 20px rgba(0,0,0,.3);
-  --hero: linear-gradient(135deg, #166534, #3f6212);
-  --radius: 22px;
 }
 
 /* ---------- Océan ---------- */
@@ -155,34 +141,6 @@
 [data-theme="neon"] .btn-primary { box-shadow: 0 0 18px rgba(255,43,214,.55); }
 [data-theme="neon"] .logo-mark { box-shadow: 0 0 16px rgba(255,43,214,.7); }
 [data-theme="neon"] .panel { backdrop-filter: blur(6px); }
-
-/* ---------- Terminal (retro) ---------- */
-[data-theme="terminal"] {
-  --font: 'JetBrains Mono', ui-monospace, 'Cascadia Code', Menlo, monospace;
-  --font-display: var(--font); --font-card: var(--font);
-  --bg: #020a03; --bg-accent: none;
-  --surface: #031205; --surface-2: #062009; --surface-3: #0a2c0e;
-  --border: #0f4a18; --border-strong: #1a7a2a;
-  --text: #4dff7a; --text-muted: #2fbf55; --text-faint: #1f8a3c;
-  --primary: #4dff7a; --primary-2: #4dff7a; --on-primary: #021004;
-  --primary-soft: #06260b;
-  --new: #5ee6ff; --learn: #ffe066; --due: #ff6b6b; --mature: #4dff7a;
-  --again: #ff6b6b; --hard: #ffe066; --good: #5ee6ff; --easy: #4dff7a;
-  --radius: 0; --radius-sm: 0; --radius-xs: 0;
-  --shadow: none; --shadow-lg: 0 0 0 1px var(--border-strong);
-  --hero: #031205; --on-hero: #4dff7a;
-  --heading-transform: uppercase; --heading-spacing: 0.06em;
-  --card-size: 1.2rem;
-}
-[data-theme="terminal"] body::after {
-  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 200;
-  background: repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0 1px, transparent 1px 3px);
-}
-[data-theme="terminal"] .hero { border: 1px solid var(--border-strong); }
-[data-theme="terminal"] .hero-title::before { content: "> "; }
-[data-theme="terminal"] .hero-title::after { content: "_"; animation: blink 1s steps(1) infinite; }
-[data-theme="terminal"] * { text-shadow: 0 0 6px rgba(77,255,122,.25); }
-@keyframes blink { 50% { opacity: 0; } }
 
 /* ---------- Brutaliste ---------- */
 [data-theme="brutal"] {
@@ -249,7 +207,7 @@ img { max-width: 100%; }
 .topbar-inner { max-width: 1120px; margin: 0 auto; height: 64px; padding: 0 16px; display: flex; align-items: center; gap: 12px; }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-family: var(--font-display); font-size: 1.05rem; letter-spacing: var(--heading-spacing); text-transform: var(--heading-transform); }
 .logo-mark { width: 36px; height: 36px; border-radius: 11px; background: var(--hero); color: var(--on-hero); display: grid; place-items: center; box-shadow: var(--shadow); }
-[data-theme="terminal"] .logo-mark, [data-theme="brutal"] .logo-mark { border-radius: 0; border: var(--border-w) solid var(--border-strong); }
+[data-theme="brutal"] .logo-mark{ border-radius: 0; border: var(--border-w) solid var(--border-strong); }
 .brand small { display: block; font-size: .7rem; font-weight: 500; color: var(--text-muted); letter-spacing: 0; text-transform: none; }
 .nav { display: flex; gap: 4px; margin-left: auto; }
 .nav-btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: var(--radius-sm); color: var(--text-muted); font-weight: 600; font-size: .9rem; transition: background .15s, color .15s; }
@@ -372,7 +330,7 @@ img { max-width: 100%; }
    ============================================================ */
 .hero { background: var(--hero); color: var(--on-hero); border-radius: var(--radius); padding: 28px; box-shadow: var(--shadow-lg); position: relative; overflow: visible; }
 .hero::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: radial-gradient(circle 150px at 100% 0, rgba(255,255,255,.09) 0 149px, transparent 150px); pointer-events: none; }
-[data-theme="terminal"] .hero::after, [data-theme="brutal"] .hero::after, [data-theme="oled"] .hero::after, [data-theme="papier"] .hero::after { display: none; }
+[data-theme="brutal"] .hero::after, [data-theme="oled"] .hero::after, [data-theme="papier"] .hero::after{ display: none; }
 .hero-inner { position: relative; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; }
 .hero-kicker { display: inline-block; font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; opacity: .85; margin-bottom: 8px; }
 .hero-title { font-size: clamp(1.5rem, 4vw, 2rem); font-weight: 800; }
@@ -382,8 +340,8 @@ img { max-width: 100%; }
 .btn-hero:hover { background: #f1f1f7; }
 .btn-hero-ghost { background: rgba(255,255,255,.14); color: inherit; border-color: rgba(255,255,255,.28); }
 .btn-hero-ghost:hover { background: rgba(255,255,255,.22); }
-[data-theme="terminal"] .btn-hero, [data-theme="oled"] .btn-hero { background: var(--primary); color: var(--on-primary); }
-[data-theme="terminal"] .btn-hero-ghost, [data-theme="oled"] .btn-hero-ghost { border-color: var(--border-strong); }
+[data-theme="oled"] .btn-hero{ background: var(--primary); color: var(--on-primary); }
+[data-theme="oled"] .btn-hero-ghost{ border-color: var(--border-strong); }
 @media (max-width: 560px) {
   .hero { padding: 22px 20px; }
   .hero-actions { width: 100%; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
@@ -619,7 +577,7 @@ img { max-width: 100%; }
 .toast .i { flex: none; }
 .toast.success .i { color: var(--mature); } .toast.warning .i { color: var(--learn); } .toast.error .i { color: var(--due); }
 .toast button { margin-left: auto; font-weight: 800; color: var(--primary); padding-left: 8px; }
-[data-theme="nuit"] .toast .i, [data-theme="oled"] .toast .i, [data-theme="foret"] .toast .i, [data-theme="neon"] .toast .i, [data-theme="terminal"] .toast .i { filter: brightness(.7); }
+[data-theme="nuit"] .toast .i, [data-theme="oled"] .toast .i, [data-theme="neon"] .toast .i{ filter: brightness(.7); }
 @keyframes toastIn { from { opacity: 0; transform: translateY(12px); } }
 @keyframes toastOut { to { opacity: 0; transform: translateY(12px); } }
 
@@ -745,29 +703,6 @@ code { font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace; font-size:
 [data-theme="cahier"] .hero .btn-hero-ghost { border-color: rgba(58,50,0,.35); background: rgba(255,255,255,.4); }
 [data-theme="cahier"] h2, [data-theme="cahier"] h3, [data-theme="cahier"] h4 { font-weight: 400 !important; font-size: 1.15em; }
 
-[data-theme="nord"] {
-  --bg: #2e3440; --bg-accent: none; --surface: #3b4252; --surface-2: #434c5e; --surface-3: #4c566a;
-  --border: #434c5e; --border-strong: #4c566a;
-  --text: #eceff4; --text-muted: #d8dee9; --text-faint: #a3adbf;
-  --primary: #88c0d0; --primary-2: #81a1c1; --on-primary: #2e3440;
-  --new: #81a1c1; --learn: #ebcb8b; --due: #c97980; --mature: #a3be8c;
-  --again: #bf616a; --hard: #d08770; --good: #81a1c1; --easy: #a3be8c;
-  --hero: linear-gradient(135deg, #516f94, #4f6f78); --on-hero: #eceff4;
-  --radius: 12px; --radius-sm: 8px;
-  --shadow: 0 2px 10px rgba(0,0,0,.18);
-}
-
-[data-theme="dracula"] {
-  --bg: #282a36; --bg-accent: none; --surface: #303241; --surface-2: #383a4a; --surface-3: #44475a;
-  --border: #44475a; --border-strong: #565a73;
-  --text: #f8f8f2; --text-muted: #c6c9dc; --text-faint: #8a90b4;
-  --primary: #bd93f9; --primary-2: #ff79c6; --on-primary: #282a36;
-  --new: #8be9fd; --learn: #ffb86c; --due: #ff5555; --mature: #50fa7b;
-  --again: #ff5555; --hard: #ffb86c; --good: #8be9fd; --easy: #50fa7b;
-  --hero: linear-gradient(135deg, #5f6f9f, #7f63a8 60%, #ac5185);
-  --shadow: 0 4px 18px rgba(0,0,0,.28);
-}
-
 [data-theme="cafe"] {
   --font: 'Nunito', system-ui, sans-serif; --font-display: 'Lora', Georgia, serif; --font-card: 'Lora', Georgia, serif;
   --bg: #1c1512; --bg-accent: radial-gradient(900px 500px at 100% 0%, rgba(212,163,115,.10), transparent 60%);
@@ -823,49 +758,6 @@ code { font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace; font-size:
 [data-theme="synthwave"] .hero .btn-hero { background: #1a0b2e; color: #ffb800; }
 [data-theme="synthwave"] .hero .btn-hero-ghost { border-color: rgba(26,11,46,.4); color: #1a0b2e; background: rgba(255,255,255,.2); }
 [data-theme="synthwave"] h2, [data-theme="synthwave"] .section-title { text-shadow: 0 0 12px rgba(255,60,172,.6); }
-
-[data-theme="gameboy"] {
-  --font: 'VT323', ui-monospace, monospace; --font-display: 'Press Start 2P', ui-monospace, monospace; --font-card: 'VT323', ui-monospace, monospace;
-  --bg: #9bbc0f; --bg-accent: none;
-  --surface: #8bac0f; --surface-2: #9bbc0f; --surface-3: #7a9a0d;
-  --border: #306230; --border-strong: #0f380f;
-  --text: #0f380f; --text-muted: #1a3e1a; --text-faint: #306230;
-  --primary: #0f380f; --primary-2: #306230; --on-primary: #9bbc0f;
-  --primary-soft: #7a9a0d;
-  --new: #1d4f7a; --learn: #605000; --due: #7a1d1d; --mature: #0f380f;
-  --again: #7a1d1d; --hard: #6d5a00; --good: #1d4f7a; --easy: #0f380f;
-  --hero: #306230; --on-hero: #c4d872;
-  --radius: 0; --radius-sm: 0; --radius-xs: 0; --border-w: 3px;
-  --shadow: 4px 4px 0 #0f380f; --shadow-lg: 6px 6px 0 #0f380f;
-  --card-size: 1.9rem;
-}
-[data-theme="gameboy"] body { font-size: 20px; line-height: 1.25; }
-[data-theme="gameboy"] .page-title, [data-theme="gameboy"] .hero-title { font-size: 1.05rem; line-height: 1.6; }
-[data-theme="gameboy"] h3, [data-theme="gameboy"] h4, [data-theme="gameboy"] .brand { font-size: .72rem !important; line-height: 1.6; }
-[data-theme="gameboy"] .status-num, [data-theme="gameboy"] .kpi b, [data-theme="gameboy"] .chrono-num { font-size: 1.2rem; }
-[data-theme="gameboy"] .btn, [data-theme="gameboy"] .grade-btn { border: 3px solid #0f380f; }
-[data-theme="gameboy"] .input, [data-theme="gameboy"] .select, [data-theme="gameboy"] .textarea { font-size: 20px; }
-[data-theme="gameboy"] img { image-rendering: pixelated; }
-
-[data-theme="craie"] {
-  --font: 'Patrick Hand', 'Comic Sans MS', cursive; --font-display: 'Patrick Hand', cursive; --font-card: 'Patrick Hand', cursive;
-  --bg: #1d372b; --bg-accent: radial-gradient(1200px 700px at 50% 30%, rgba(255,255,255,.07), transparent 70%);
-  --surface: #25453a; --surface-2: #2b4f42; --surface-3: #33594b;
-  --border: #3f6656; --border-strong: #6c9483;
-  --text: #f1f5ef; --text-muted: #c9d6cf; --text-faint: #93a89d;
-  --primary: #f7f3d6; --primary-2: #9fd8ef; --on-primary: #1d372b;
-  --new: #9fd8ef; --learn: #ffe08a; --due: #ff9e9e; --mature: #b5f2a4;
-  --again: #ff9e9e; --hard: #ffe08a; --good: #9fd8ef; --easy: #b5f2a4;
-  --hero: #2b4f42; --on-hero: #f7f3d6;
-  --radius: 8px; --radius-sm: 6px;
-  --shadow: 0 2px 0 rgba(0,0,0,.25);
-  --card-size: 1.65rem;
-}
-[data-theme="craie"] body { font-size: 17px; }
-@media (min-width: 900px) { [data-theme="craie"] body { box-shadow: inset 0 0 0 12px #6b4423, inset 0 0 0 14px #4e3019; } }
-[data-theme="craie"] .panel, [data-theme="craie"] .hero { border-style: dashed; }
-[data-theme="craie"] .hero { border: 2px dashed rgba(247,243,214,.45); }
-[data-theme="craie"] h2, [data-theme="craie"] h3, [data-theme="craie"] h4 { font-weight: 400 !important; }
 
 [data-theme="contraste"] {
   --bg: #000; --bg-accent: none; --surface: #000; --surface-2: #111; --surface-3: #222;
@@ -2218,11 +2110,6 @@ html[data-vt="l"]::view-transition-new(root) { animation-name: vtInL; }
 .clean-hello { text-align: center; }
 .lib-mascot .leo-glow, .lib-mascot .leo-star, .empty-mascot.sm .leo-glow, .empty-mascot.sm .leo-star { display: none; }
 .lib-hello { align-items: center; }
-
-/* Léo follows the retro themes: green phosphor on the terminal, olive monochrome on the Game Boy */
-[data-theme="terminal"] .leo-fig { filter: grayscale(1) sepia(1) hue-rotate(75deg) saturate(2.4) brightness(1.05); }
-[data-theme="gameboy"] .leo-fig { filter: grayscale(1) sepia(1) hue-rotate(28deg) saturate(1.4) contrast(1.15); }
-[data-theme="gameboy"] .leo-glow, [data-theme="terminal"] .leo-star { display: none; }
 .leo-fig.tap { animation: leoTapSquash .4s cubic-bezier(.3,1.5,.5,1); transform-origin: 50% 96%; }
 @keyframes leoTapSquash { 0% { transform: scale(1); } 30% { transform: scale(1.05, .94); } 62% { transform: scale(.98, 1.04); } 100% { transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .leo-fig.tap { animation: none; } }

@@ -247,16 +247,10 @@ const THEMES = [
     { id: 'cahier', group: 'clair', name: 'Cahier', desc: 'Lignes et écriture', font: 'Patrick Hand', p: { bg: 'repeating-linear-gradient(#fdfdf8 0 9px,#c9dcf3 9px 10px)', surface: '#fffef9', primary: '#2f5bd3', text: '#1f2a44', line: '#d8e3f0', hero: '#fff3a8' } },
     { id: 'nuit', group: 'sombre', name: 'Nuit', desc: 'Sombre et doux', font: 'Inter', p: { bg: '#0b1020', surface: '#131a2e', primary: '#818cf8', text: '#e8ebf5', line: '#2b3553', hero: 'linear-gradient(135deg,#4f46e5,#7c3aed)' } },
     { id: 'oled', group: 'sombre', name: 'Noir OLED', desc: 'Noir pur, économe', font: 'Inter', p: { bg: '#000', surface: '#0b0b0c', primary: '#f4f4f5', text: '#f4f4f5', line: '#27272a', hero: '#0b0b0c' } },
-    { id: 'nord', group: 'sombre', name: 'Nordique', desc: 'Bleu glacier apaisant', font: 'Inter', p: { bg: '#2e3440', surface: '#3b4252', primary: '#88c0d0', text: '#eceff4', line: '#4c566a', hero: 'linear-gradient(135deg,#516f94,#4f6f78)' } },
-    { id: 'dracula', group: 'sombre', name: 'Dracula', desc: 'Le classique des devs', font: 'Inter', p: { bg: '#282a36', surface: '#303241', primary: '#bd93f9', text: '#f8f8f2', line: '#44475a', hero: 'linear-gradient(135deg,#5f6f9f,#7f63a8,#ac5185)' } },
-    { id: 'foret', group: 'sombre', name: 'Forêt', desc: 'Vert profond', font: 'Nunito', p: { bg: '#0d1712', surface: '#14231b', primary: '#4ade80', text: '#e3f1e8', line: '#2a4636', hero: 'linear-gradient(135deg,#166534,#3f6212)' } },
     { id: 'cafe', group: 'sombre', name: 'Café', desc: 'Brun chaleureux', font: 'Lora', p: { bg: '#1c1512', surface: '#261d18', primary: '#d4a373', text: '#f3e7dc', line: '#3b2e26', hero: 'linear-gradient(135deg,#7f5539,#8a6b52)' } },
     { id: 'luxe', group: 'sombre', name: 'Luxe', desc: 'Noir et or', font: 'Playfair Display', p: { bg: '#0c0b09', surface: '#15130f', primary: '#d4af37', text: '#f4ecd8', line: '#4a3f2a', hero: 'linear-gradient(135deg,#1d1a15,#2c2416)' } },
     { id: 'neon', group: 'fun', name: 'Néon', desc: 'Cyberpunk lumineux', font: 'Space Grotesk', p: { bg: '#07000f', surface: '#120823', primary: '#ff2bd6', text: '#f5e9ff', line: '#3a1a5c', hero: 'linear-gradient(120deg,#ce23ad,#7b2bff,#00808f)' } },
     { id: 'synthwave', group: 'fun', name: 'Synthwave', desc: 'Coucher de soleil rétro', font: 'Space Grotesk', p: { bg: 'linear-gradient(180deg,#1a0b2e,#53196b)', surface: '#2a1147', primary: '#ff3cac', text: '#fdf0ff', line: '#4b2380', hero: 'linear-gradient(180deg,#ffb800,#ff3cac 55%,#9572b5)' } },
-    { id: 'terminal', group: 'fun', name: 'Terminal', desc: 'Rétro, vert sur noir', font: 'JetBrains Mono', p: { bg: '#020a03', surface: '#031205', primary: '#4dff7a', text: '#4dff7a', line: '#0f4a18', hero: '#031205' } },
-    { id: 'gameboy', group: 'fun', name: 'Game Boy', desc: '8 bits, 4 couleurs', font: 'VT323', p: { bg: '#9bbc0f', surface: '#8bac0f', primary: '#0f380f', text: '#0f380f', line: '#306230', hero: '#306230' } },
-    { id: 'craie', group: 'fun', name: 'Tableau noir', desc: 'Craie sur ardoise', font: 'Patrick Hand', p: { bg: '#1f3a2e', surface: '#25453a', primary: '#f7f3d6', text: '#f1f5ef', line: '#5d8576', hero: '#2b4f42' } },
     { id: 'brutal', group: 'fun', name: 'Brutaliste', desc: 'Contrasté, audacieux', font: 'Space Grotesk', p: { bg: '#fff8e7', surface: '#ffffff', primary: '#ffd400', text: '#111', line: '#111', hero: '#ff5c8a' } },
     { id: 'contraste', group: 'fun', name: 'Contraste élevé', desc: 'Lisibilité maximale', font: 'Inter', p: { bg: '#000', surface: '#000', primary: '#ffff00', text: '#fff', line: '#fff', hero: '#000' } }
 ];
@@ -1028,8 +1022,8 @@ class SuperAnki {
         const fallback = prim || [79, 70, 229];
         const bg = stops.length ? stops : [fallback];
         const A = bg[0], C = bg[bg.length - 1], B = bg.length === 3 ? bg[1] : mix(A, C, .5);
-        const mono = ['terminal', 'gameboy', 'oled', 'contraste', 'craie'].includes(root.dataset.theme);
-        const card = { gameboy: [196, 216, 114], craie: [247, 243, 214], terminal: [3, 18, 5], oled: [244, 244, 245] }[root.dataset.theme] || [255, 255, 255];
+        const mono = ['oled', 'contraste'].includes(root.dataset.theme);
+        const card = { oled: [244, 244, 245] }[root.dataset.theme] || [255, 255, 255];
         const cands = [...bg, prim, prim2, onHero].filter(Boolean);
         let ok = cands.filter(c => ratio(c, card) >= 3).sort((p, q) => sat(q) - sat(p) || ratio(q, card) - ratio(p, card));
         if (mono) { const byL = cands.slice().sort((p, q) => lum(p) - lum(q)); ok = [lum(card) > .4 ? byL[0] : byL[byL.length - 1]]; }
