@@ -200,7 +200,7 @@ Object.assign(SuperAnki.prototype, {
             const cardsByNote = new Map();
             cardsT.forEach(r => { const nid = r.c[1]; (cardsByNote.get(nid) || cardsByNote.set(nid, []).get(nid)).push({ did: r.c[2], ord: r.c[3] }); });
             const deckName = did => (decks[did] && decks[did].name) || 'Importé';
-            const now = Date.now(), made = [], deckIds = new Set();
+            const now = Date.now(), deckIds = new Set();
             const deckFor = path => {
                 let parent = null, found = null;
                 String(path).split('::').map(x => x.trim()).filter(Boolean).forEach(name => {

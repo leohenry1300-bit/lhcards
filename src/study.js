@@ -142,7 +142,7 @@ Object.assign(SuperAnki.prototype, {
     sessionDecor() {
         const s = this.session;
         if (!s || !s.current || !$('#view-session .session-top')) return;
-        const top = $('#view-session .session-top'), usable = s.kind === 'srs' || s.kind === 'practice';
+        const usable = s.kind === 'srs' || s.kind === 'practice';
         if (!s.focusSeen) { s.focusSeen = true; if (this.focus && this.focus.open && !this.focus.collapsed) this.focusSet({ collapsed: true }); }
         this.audioBarSync(usable);
         if (usable && this.voice && this.voice.on && !this.voice.rec && !this.voice.starting) this.voiceRun();

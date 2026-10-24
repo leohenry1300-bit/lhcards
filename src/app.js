@@ -1361,7 +1361,6 @@ class SuperAnki {
         if (acc >= 50) return leoSvg('ready', { intro: 'think' });
         return leoSvg('tough', { state: 's0', intro: 'shrug0' });
     }
-    mascotSvg(mood = 'ready', opts = {}) { return leoSvg(mood, opts); }
     /* how Léo shows up on the home card: the very first time in a session he pulls out his ✓ tablet (or hops if today is done, or dozes if it is late and nothing is due) */
     mascotHome(mood) {
         const night = (new Date().getHours() >= 23 || new Date().getHours() < 5), first = !window._leoIntro;
@@ -1665,12 +1664,6 @@ class SuperAnki {
             <li><b>👆 Glisser</b> : en révision libre, glisse la carte vers la droite si tu savais, vers la gauche si tu as raté.</li></ul>
             <button class="btn btn-primary btn-sm" data-action="tips-dismiss">Compris</button></div>`;
     }
-    recentsHtml() {
-        const ids = (this.data.settings.recentDecks || []).filter(id => this.deck(id)).slice(0, 6);
-        if (!ids.length) return '';
-        const open = this.homeOpen('recents', true);
-        return `<div>${this.secToggle('recents', 'Récemment', '', true)}<div class="recents${open ? '' : ' hidden'}">${ids.map(id => { const d = this.deck(id), path = this.deckPath(id).split(' › '); return `<div class="recent-item"><button class="recent-chip" data-action="open-deck" data-deck="${esc(id)}" title="${esc(this.deckPath(id))}"><span>${esc(d.emoji)}</span><span class="nm">${esc(d.name)}</span>${path.length > 1 ? `<small>${esc(path[path.length - 2])}</small>` : ''}</button><button class="recent-x" data-action="recent-del" data-deck="${esc(id)}" aria-label="Retirer ${esc(d.name)} des récents" title="Retirer">${ic('x')}</button></div>`; }).join('')}</div></div>`;
-    }
     deckCompact() {
         const v = this.data.settings.deckView;
         return v ? v === 'compact' : window.matchMedia('(max-width: 767px)').matches;
@@ -1711,7 +1704,7 @@ class SuperAnki {
             </div>${kids.length && isOpen ? `<div class="sub-open-link" style="--d:${depth + 1}"><button class="link" data-action="open-deck" data-deck="${esc(k.id)}">${ic('layers')}Voir les cartes de « ${esc(k.name)} »</button></div>${subRows(k.id, depth + 1)}` : ''}`;
         }).join('');
         return rows.map(({ deck, cards, c, todo }) => {
-            const st = stats.get(deck.id), total = st.total || 1;
+            const st = stats.get(deck.id);
             const kids = this.childrenOf(deck.id), nSub = this.descendantIds(deck.id).length - 1, isOpen = openD.has(deck.id);
             return `
             <div class="panel deck-card ${kids.length && isOpen ? 'wide' : ''}" data-action="dash-open" data-deck="${esc(deck.id)}">
@@ -2101,7 +2094,7 @@ class SuperAnki {
             title = `${ic('target')} Mes erreurs`;
             actions = statusCounts.all ? `<button class="btn btn-primary btn-sm" data-action="practice-errors">${ic('play')}Retravailler</button>` : '';
         } else {
-            const chain = this.deckChain(deck.id), parent = chain.length > 1 ? chain[chain.length - 2] : null, dst = this.deckStats().get(deck.id);
+            const chain = this.deckChain(deck.id), parent = chain.length > 1 ? chain[chain.length - 2] : null;
             title = `${parent ? `<button class="crumb-back" data-action="select-deck" data-deck="${esc(parent.id)}">${ic('chevronLeft')}${esc(parent.name)}</button>` : `<button class="crumb-back" data-action="select-deck" data-deck="all">${ic('chevronLeft')}Tous les paquets</button>`}${chain.length > 2 ? `<span class="crumb-path">${esc(chain.slice(0, -1).map(d => d.name).join(' › '))}</span>` : ''}<span class="deck-title">${esc(deck.emoji)} ${esc(deck.name)}</span>`;
             actions = `
                 <button class="btn btn-primary btn-sm" data-action="study" data-deck="${esc(deck.id)}">${ic('play')}Réviser</button>

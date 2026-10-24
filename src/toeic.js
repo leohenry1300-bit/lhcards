@@ -248,7 +248,7 @@ function toeicExpand(sel, seed) {
     const units = [], qs = [];
     const partOf = id => id.startsWith('p7') ? 'p7' : id.slice(0, 2);
     const mkQ = (uid, src, part, unit) => {
-        const rnd = toeicRng(`${seed}|${uid}`), n = src.o.length;
+        const rnd = toeicRng(`${seed}|${uid}`);
         const order = src.f ? src.o.map((_, i) => i) : toeicShuffle(src.o.map((_, i) => i), rnd);
         const q = { i: qs.length, n: qs.length + 1, uid, part, unit, stem: src.q || '', opts: order.map(k => ({ t: src.o[k], k })), ans: order.indexOf(src.a), x: src.x, t: src.t || '' };
         qs.push(q);
@@ -502,7 +502,6 @@ Object.assign(SuperAnki.prototype, {
     },
 
     /* ---------- exam rendering ---------- */
-    exSec() { const u = this.ex.units[this.ex.run.unit]; return u ? u.sec : 'R'; },
     exTitle() {
         const { run, units } = this.ex, u = units[run.unit];
         return `${TOEIC_KIND[run.kind]}${u ? ` · ${TOEIC_PARTS[u.part].label}` : ''}`;
@@ -536,7 +535,7 @@ Object.assign(SuperAnki.prototype, {
         return `<div class="progress ex-prog"><i style="width:${Math.round(at / Math.max(1, total) * 100)}%;background:var(--primary)"></i></div>`;
     },
     exIntroHtml() {
-        const { run, qs, units } = this.ex;
+        const { run, qs } = this.ex;
         const nL = qs.filter(q => TOEIC_PARTS[q.part].sec === 'L').length, nR = qs.length - nL;
         const parts = Object.keys(TOEIC_PARTS).map(p => ({ p, n: qs.filter(q => q.part === p).length })).filter(x => x.n);
         const audio = TTS.available();
@@ -970,7 +969,6 @@ Object.assign(SuperAnki.prototype, {
         return { units: ex.units, qs: ex.qs, by };
     },
     toeicShow(att) {
-        const run = this.ex ? this.ex.run : null;
         if (this.ex && this.ex.timer) clearInterval(this.ex.timer);
         TTS.stop();
         this.ex = { run: { phase: 'done', unit: 0 }, units: [], qs: [], result: att, rv: this.toeicReview(att), filter: 'all', timer: null };
@@ -1192,7 +1190,6 @@ Object.assign(SuperAnki.prototype, {
     toeicWordTap(e) {
         if (!this.toeicWordOn() || e.target.closest('button,a,input,textarea,select,summary,.modal-back,.tq-opt,label')) return;
         if (!e.target.closest('.tq-doc,.tq-rv-stim')) return;
-        const sel = window.getSelection && String(window.getSelection()).trim();
         const hit = this.toeicWordAt(e.clientX, e.clientY);
         if (!hit) return;
         this.toeicWordAsk(hit.word, hit.sent);

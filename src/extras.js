@@ -188,7 +188,7 @@ Object.assign(SFX, {
         [NOTE.E6, NOTE.G6, NOTE.C7].forEach((h, k) => iGlass(ac, o, t + 0.62 + k * 0.08, h, v * 0.12, 0.7));
     }
 });
-let SND_LAST = 0, SND_LAST_NAME = '';
+let SND_LAST = 0;
 function sfxUi(name) {
     if (!SND.on || !SND.ui) return;
     const now = performance.now();
@@ -199,7 +199,7 @@ function sfx(name) {
     if (!SND.on || !SFX[name]) return;
     try { if (navigator.vibrate) { if (name === 'right' || name === 'g3' || name === 'g4') navigator.vibrate(12); else if (name === 'wrong' || name === 'g1') navigator.vibrate([18, 40, 18]); } } catch { /* ignore */ }
     const ac = sndCtx(); if (!ac) return;
-    SND_LAST = performance.now(); SND_LAST_NAME = name;
+    SND_LAST = performance.now();
     if (sndClipsOk()) { sndPlayKey(name, SFX[name], name === 'done' ? 3 : 1.6); return; }
     try { SFX[name](ac, sndChain(ac).bus, ac.currentTime + 0.02, SND.vol); } catch { /* ignore */ }
 }

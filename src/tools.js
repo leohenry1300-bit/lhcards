@@ -223,7 +223,7 @@ Object.assign(SuperAnki.prototype, {
     },
     openLoadSim() {
         const st = this.data.settings, state = { n: Math.min(st.newPerDay, 100), r: 0 };
-        const secsPer = (() => { const h = st.studySeconds; const tot = Object.values(this.data.stats.history).reduce((a, b) => a + b, 0); return tot > 50 ? clamp(this.data.stats.studySeconds / tot, 3, 40) : 9; })();
+        const secsPer = (() => { const tot = Object.values(this.data.stats.history).reduce((a, b) => a + b, 0); return tot > 50 ? clamp(this.data.stats.studySeconds / tot, 3, 40) : 9; })();
         const m = this.openModal({
             title: 'Simulateur de charge de révision', size: 'wide',
             body: `<p class="small muted">Estime combien de cartes tu auras à réviser chaque jour dans les 60 prochains jours, selon ton planning actuel, en supposant que tu les révises toutes.</p>

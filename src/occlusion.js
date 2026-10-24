@@ -106,7 +106,7 @@ Object.assign(SuperAnki.prototype, {
             const nf = { front: ref, back: JSON.stringify({ m: masks, mode }), text: '', extra };
             const now = Date.now();
             this.lastDeckUsed = dId;
-            const made = this.change(card ? 'modification d\'image à masquer' : 'nouvelle image à masquer', sibs.map(c => c.id), () => {
+            this.change(card ? 'modification d\'image à masquer' : 'nouvelle image à masquer', sibs.map(c => c.id), () => {
                 const created = [];
                 const nid = card ? card.nid : uid('n');
                 masks.forEach((r, i) => {
