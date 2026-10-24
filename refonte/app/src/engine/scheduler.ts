@@ -134,9 +134,10 @@ export function review(card: string, st: Sched, g: Grade, now: number, ctx: Ctx,
 export function preview(card: string, st: Sched, now: number, ctx: Ctx): Record<Grade, number> {
     const out = {} as Record<Grade, number>;
     for (const g of [1, 2, 3, 4] as Grade[]) out[g] = review(card, st, g, now, { ...ctx, load: undefined, weekWeight: undefined }).next.due - now;
-    const day = 86_400_000;
-    if (out[3] >= day && out[2] > out[3]) out[2] = out[3];
-    if (out[4] >= day && out[4] <= out[3]) out[4] = out[3] + day;
+    // comparaison en jours d'étude (une échéance « demain 4 h » vue à 23 h n'est qu'à 5 h, mais c'est bien 1 jour)
+    const today = ctx.dayOf(now), dayN = (g: Grade) => ctx.dayOf(now + out[g]) - today;
+    if (dayN(3) >= 1 && dayN(2) > dayN(3)) out[2] = out[3];
+    if (dayN(3) >= 1 && dayN(4) <= dayN(3)) out[4] = ctx.dayStart(today + dayN(3) + 1) - now;
     return out;
 }
 

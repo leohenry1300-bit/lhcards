@@ -1,0 +1,98 @@
+/* ==========================================================================
+   LH Cards — jetons de design. TOUTE couleur, durée, rayon ou taille vient d'ici.
+   Mise en page : une colonne de 640 px max sur téléphone, rail latéral + colonne sur ordinateur.
+   Les thèmes ne redéfinissent QUE des jetons de couleur (jamais de règles de composant).
+   ========================================================================== */
+:root {
+    /* --- couleur : Clair (par défaut) — gris légèrement bleuté, accent safran (la crinière de Léo) --- */
+    --bg: #f3f4f7;
+    --surface: #ffffff;
+    --surface-2: #e9ebf0;
+    --fg: #14161c;
+    --muted: #596070;          /* 6,1:1 sur --bg */
+    --line: #d8dbe3;
+    --accent: #b85a0e;         /* 4,9:1 avec du blanc : texte blanc lisible (AA) */
+    --accent-soft: #fbe7d4;
+    --on-accent: #ffffff;
+    --g1: #c8343a;             /* Raté */
+    --g2: #9a6a12;             /* Difficile */
+    --g3: #23804f;             /* Bien */
+    --g4: #2a62c4;             /* Facile */
+    --focus: #2a62c4;
+    /* Léo garde ses couleurs dans tous les thèmes (c'est un personnage, pas un élément d'interface) */
+    --leo-mane: #d9822b; --leo-mane-2: #b5611a; --leo-face: #f3c077; --leo-muzzle: #fbe3bd; --leo-nose: #6b3a1e; --leo-ink: #2a1a10; --leo-blush: #f29a7a;
+    --shadow: 0 1px 2px rgb(20 22 28 / .06), 0 8px 24px rgb(20 22 28 / .08);
+    --card-shadow: 0 2px 4px rgb(20 22 28 / .06), 0 18px 40px -12px rgb(20 22 28 / .22);
+    color-scheme: light;
+
+    /* --- typographie : Bricolage Grotesque (titres, chiffres) + Atkinson Hyperlegible Next (lecture, conçue pour la lisibilité) --- */
+    --font-display: "Bricolage Grotesque", ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+    --font-body: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --t-xs: .78rem; --t-s: .875rem; --t-m: 1rem; --t-l: 1.2rem; --t-xl: 1.6rem; --t-2xl: 2.4rem; --t-card: clamp(1.25rem, 4.6vw, 1.7rem);
+
+    /* --- espace (base 4) et formes --- */
+    --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px;
+    --r-s: 10px; --r-m: 16px; --r-l: 24px; --r-pill: 999px;
+    --tap: 48px;               /* cible tactile minimale (≥ 44 px demandés par Apple) */
+
+    /* --- mouvement : 4 durées, 3 courbes. Seuls transform et opacity sont animés. --- */
+    --d-instant: 90ms;         /* retour d'appui (bouton enfoncé) */
+    --d-rapide: 160ms;         /* changement d'état local (onglet actif, case) */
+    --d-standard: 260ms;       /* changement d'écran, retournement de carte */
+    --d-emphase: 480ms;        /* moments rares : fin de séance, palier de série */
+    --e-sortie: cubic-bezier(.2, .8, .2, 1);      /* décélération : ce qui arrive */
+    --e-entree: cubic-bezier(.4, 0, 1, 1);        /* accélération : ce qui part */
+    --e-ressort: linear(0, .22 8%, .64 18%, .96 30%, 1.07 40%, 1.06 50%, 1.01 64%, .99 78%, 1);  /* léger rebond, sans librairie */
+}
+
+/* Sombre : suit le système quand aucune ambiance n'est choisie (et l'hôte d'artefact via data-theme) */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]):not([data-ambiance]) {
+        --bg: #0f1116; --surface: #171a21; --surface-2: #20242e; --fg: #eceef3; --muted: #9ba2b3; --line: #2a2f3b;
+        --accent: #f0954a; --accent-soft: #3a2615; --on-accent: #1b1006;
+        --g1: #ff7a7f; --g2: #e6b24f; --g3: #4cc98a; --g4: #7aa7ff; --focus: #7aa7ff;
+        --shadow: 0 1px 2px rgb(0 0 0 / .4), 0 8px 24px rgb(0 0 0 / .35);
+        --card-shadow: 0 2px 4px rgb(0 0 0 / .4), 0 22px 48px -14px rgb(0 0 0 / .7);
+        color-scheme: dark;
+    }
+}
+:root[data-theme="dark"]:not([data-ambiance]), :root[data-ambiance="sombre"] {
+    --bg: #0f1116; --surface: #171a21; --surface-2: #20242e; --fg: #eceef3; --muted: #9ba2b3; --line: #2a2f3b;
+    --accent: #f0954a; --accent-soft: #3a2615; --on-accent: #1b1006;
+    --g1: #ff7a7f; --g2: #e6b24f; --g3: #4cc98a; --g4: #7aa7ff; --focus: #7aa7ff;
+    --shadow: 0 1px 2px rgb(0 0 0 / .4), 0 8px 24px rgb(0 0 0 / .35);
+    --card-shadow: 0 2px 4px rgb(0 0 0 / .4), 0 22px 48px -14px rgb(0 0 0 / .7);
+    color-scheme: dark;
+}
+/* OLED : noir pur, économise la batterie des écrans OLED d'iPhone */
+:root[data-ambiance="oled"] {
+    --bg: #000; --surface: #0c0d10; --surface-2: #17191e; --fg: #f2f3f6; --muted: #9aa0ad; --line: #22252c;
+    --accent: #f0954a; --accent-soft: #2c1c0f; --on-accent: #1b1006;
+    --g1: #ff7a7f; --g2: #e6b24f; --g3: #4cc98a; --g4: #7aa7ff; --focus: #7aa7ff;
+    --shadow: none; --card-shadow: 0 0 0 1px #22252c;
+    color-scheme: dark;
+}
+/* Savane (signature) : crépuscule chaud, or de la crinière */
+:root[data-ambiance="savane"] {
+    --bg: #19130e; --surface: #231b14; --surface-2: #2f241a; --fg: #f5eadb; --muted: #c0ab92; --line: #3b2e22;
+    --accent: #f2b33d; --accent-soft: #3d2c12; --on-accent: #231503;
+    --g1: #ff8a72; --g2: #e9c25a; --g3: #8fd48a; --g4: #8fb8ff; --focus: #f2b33d;
+    --shadow: 0 1px 2px rgb(0 0 0 / .45), 0 10px 28px rgb(0 0 0 / .4);
+    --card-shadow: 0 2px 4px rgb(0 0 0 / .45), 0 22px 48px -14px rgb(0 0 0 / .75);
+    color-scheme: dark;
+}
+/* Encre (signature claire) : papier bleuté, encre bleu nuit */
+:root[data-ambiance="encre"] {
+    --bg: #edf0f7; --surface: #ffffff; --surface-2: #e2e7f2; --fg: #111933; --muted: #4f5a78; --line: #cfd6e6;
+    --accent: #2c43c4; --accent-soft: #dde3fb; --on-accent: #ffffff;
+    --g1: #c32f45; --g2: #8f6510; --g3: #1d7a50; --g4: #2c43c4; --focus: #2c43c4;
+    --shadow: 0 1px 2px rgb(17 25 51 / .06), 0 8px 24px rgb(17 25 51 / .09);
+    --card-shadow: 0 2px 4px rgb(17 25 51 / .06), 0 18px 40px -12px rgb(17 25 51 / .25);
+    color-scheme: light;
+}
+:root[data-ambiance="clair"] { color-scheme: light; }
+
+/* Mouvement réduit : les durées tombent à zéro, les fondus courts restent (ils ne donnent pas le mal des transports) */
+@media (prefers-reduced-motion: reduce) {
+    :root { --d-rapide: 1ms; --d-standard: 120ms; --d-emphase: 160ms; --e-ressort: linear; }
+}

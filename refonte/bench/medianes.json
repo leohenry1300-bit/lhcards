@@ -1,0 +1,223 @@
+{
+ "actuelle": {
+  "poidsKo": 2913,
+  "premierDemarrage": 2359,
+  "relance": 2275,
+  "domAccueil": 1784,
+  "onglets": {
+   "decks": {
+    "premier": 200,
+    "retour": 97,
+    "tacheMax": 184,
+    "dom": 1218
+   },
+   "stats": {
+    "premier": 261,
+    "retour": 189,
+    "tacheMax": 245,
+    "dom": 1500
+   },
+   "settings": {
+    "premier": 221,
+    "retour": 53,
+    "tacheMax": 203,
+    "dom": 1155
+   },
+   "toeic": {
+    "premier": 87,
+    "retour": 81,
+    "tacheMax": 61,
+    "dom": 179
+   },
+   "dashboard": {
+    "premier": 111,
+    "retour": 61,
+    "tacheMax": 82,
+    "dom": 1382
+   }
+  },
+  "flip": 44,
+  "note": 40,
+  "tacheRevMed": 82,
+  "tacheRevMax": 145,
+  "domRevision": 949,
+  "save": [
+   {
+    "detectChanges": 28,
+    "serialisation": 177,
+    "ecritureIDB": 427,
+    "Ko": 4055
+   },
+   {
+    "detectChanges": 13,
+    "serialisation": 165,
+    "ecritureIDB": 675,
+    "Ko": 4055
+   },
+   {
+    "detectChanges": 4,
+    "serialisation": 184,
+    "ecritureIDB": 499,
+    "Ko": 4055
+   },
+   {
+    "detectChanges": 14,
+    "serialisation": 188,
+    "ecritureIDB": 448,
+    "Ko": 4055
+   },
+   {
+    "detectChanges": 7,
+    "serialisation": 169,
+    "ecritureIDB": 416,
+    "Ko": 4055
+   },
+   {
+    "detectChanges": 27,
+    "serialisation": 231,
+    "ecritureIDB": 501,
+    "Ko": 4055
+   },
+   {
+    "detectChanges": 14,
+    "serialisation": 229,
+    "ecritureIDB": 315,
+    "Ko": 4055
+   },
+   {
+    "detectChanges": 29,
+    "serialisation": 151,
+    "ecritureIDB": 93,
+    "Ko": 4055
+   },
+   {
+    "detectChanges": 16,
+    "serialisation": 173,
+    "ecritureIDB": 74,
+    "Ko": 4055
+   },
+   {
+    "detectChanges": 17,
+    "serialisation": 164,
+    "ecritureIDB": 71,
+    "Ko": 4055
+   },
+   {
+    "detectChanges": 25,
+    "serialisation": 153,
+    "ecritureIDB": 369,
+    "Ko": 4055
+   },
+   {
+    "detectChanges": 20,
+    "serialisation": 172,
+    "ecritureIDB": 551,
+    "Ko": 4055
+   },
+   {
+    "detectChanges": 4,
+    "serialisation": 192,
+    "ecritureIDB": 312,
+    "Ko": 4055
+   },
+   {
+    "detectChanges": 12,
+    "serialisation": 176,
+    "ecritureIDB": 339,
+    "Ko": 4055
+   },
+   {
+    "detectChanges": 14,
+    "serialisation": 197,
+    "ecritureIDB": 455,
+    "Ko": 4055
+   }
+  ]
+ },
+ "prototype": {
+  "poidsKo": 314,
+  "premierDemarrage": 1228,
+  "relance": 377,
+  "domAccueil": 175,
+  "onglets": {
+   "paquets": {
+    "premier": 107,
+    "retour": 61,
+    "tacheMax": 0,
+    "dom": 89
+   },
+   "progres": {
+    "premier": 104,
+    "retour": 76,
+    "tacheMax": 0,
+    "dom": 167
+   },
+   "toeic": {
+    "premier": 80,
+    "retour": 63,
+    "tacheMax": 0,
+    "dom": 63
+   },
+   "reglages": {
+    "premier": 68,
+    "retour": 58,
+    "tacheMax": 0,
+    "dom": 65
+   },
+   "accueil": {
+    "premier": 73,
+    "retour": 63,
+    "tacheMax": 0,
+    "dom": 120
+   }
+  },
+  "flip": 17,
+  "note": 14,
+  "tacheRevMed": 0,
+  "tacheRevMax": 0,
+  "domRevision": 89
+ },
+ "prototype-3700": {
+  "poidsKo": 314,
+  "premierDemarrage": 1600,
+  "relance": 411,
+  "domAccueil": 175,
+  "onglets": {
+   "paquets": {
+    "premier": 97,
+    "retour": 62,
+    "tacheMax": 0,
+    "dom": 88
+   },
+   "progres": {
+    "premier": 122,
+    "retour": 83,
+    "tacheMax": 0,
+    "dom": 167
+   },
+   "toeic": {
+    "premier": 60,
+    "retour": 62,
+    "tacheMax": 0,
+    "dom": 63
+   },
+   "reglages": {
+    "premier": 73,
+    "retour": 45,
+    "tacheMax": 0,
+    "dom": 65
+   },
+   "accueil": {
+    "premier": 90,
+    "retour": 76,
+    "tacheMax": 0,
+    "dom": 120
+   }
+  },
+  "flip": 19,
+  "note": 15,
+  "tacheRevMed": 0,
+  "tacheRevMax": 0,
+  "domRevision": 89
+ }
+}

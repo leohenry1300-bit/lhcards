@@ -50,8 +50,9 @@ test('les boutons affichent toujours Difficile ≤ Bien < Facile', () => {
     const now = Date.UTC(2026, 9, 1, 10);
     let st: Sched = newSched(now);
     for (let i = 0; i < 300; i++) {
-        const p = preview('c' + i, st, now + i * DAY * 3, utcCtx);
-        if (p[3] >= DAY) { assert.ok(p[2] <= p[3]); assert.ok(p[4] > p[3]); }
+        const t = now + i * DAY * 3 + (i % 7) * 3_600_000 * 3, d = (ms: number) => utcCtx.dayOf(t + ms) - utcCtx.dayOf(t);
+        const p = preview('c' + i, st, t, utcCtx);
+        if (d(p[3]) >= 1) { assert.ok(d(p[2]) <= d(p[3])); assert.ok(d(p[4]) > d(p[3]), `facile ${d(p[4])} j > bien ${d(p[3])} j`); }
         st = review('c', st, ([3, 3, 2, 4, 1, 3] as Grade[])[i % 6], now + i * DAY * 3, utcCtx).next;
     }
 });

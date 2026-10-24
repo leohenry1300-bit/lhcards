@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>LH Cards</title>
+    <meta name="theme-color" content="#f3f4f7" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0f1116" media="(prefers-color-scheme: dark)">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="icon-192.png">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&display=swap">
+    <!-- l'ambiance choisie est appliquée AVANT le premier affichage : pas de flash de thème -->
+    <script>try { var a = localStorage.getItem('lh-ambiance'); if (a && a !== 'auto') document.documentElement.dataset.ambiance = a; } catch (e) {}</script>
+    <style>
+        /* coquille instantanée : fond et barre d'onglets visibles dès le premier octet, avant le JavaScript */
+        html, body { margin: 0; height: 100%; background: #f3f4f7; }
+        @media (prefers-color-scheme: dark) { html:not([data-ambiance]), html:not([data-ambiance]) body { background: #0f1116; } }
+        html[data-ambiance="sombre"] body { background: #0f1116; } html[data-ambiance="oled"] body { background: #000; }
+        html[data-ambiance="savane"] body { background: #19130e; } html[data-ambiance="encre"] body { background: #edf0f7; }
+    </style>
+  <script type="module" crossorigin src="./assets/index-DsSPX4CZ.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-24tjm0wZ.css">
+</head>
+<body>
+    <div id="app"></div>
+</body>
+</html>

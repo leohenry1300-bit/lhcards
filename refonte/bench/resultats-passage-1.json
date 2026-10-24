@@ -1,0 +1,426 @@
+{
+  "prototype-3700": {
+    "app": "prototype-3700",
+    "accueilInteractifMs_cpu4": 1685,
+    "poidsDemarrageKo": 314,
+    "fichiersDemarrage": [
+      "assets/seed-B-WuoOk3.js 188 Ko",
+      "assets/index-DsSPX4CZ.js 82 Ko",
+      "assets/index-24tjm0wZ.css 18 Ko",
+      "assets/Revision-CQkupb_K.js 8 Ko",
+      "assets/Revision-mkmI0NDz.css 6 Ko",
+      "assets/Progres-DLDhcS1t.js 5 Ko"
+    ],
+    "domAccueil": 175,
+    "relanceMs_cpu4": 407,
+    "onglets": {
+      "paquets": {
+        "premier": {
+          "ms": 97,
+          "tachesLongues": 0,
+          "tacheLaPlusLongueMs": 0,
+          "domTotal": 143,
+          "domEcran": 88
+        },
+        "retour": {
+          "ms": 62,
+          "tachesLongues": 0,
+          "tacheLaPlusLongueMs": 0,
+          "domTotal": 143,
+          "domEcran": 88
+        }
+      },
+      "progres": {
+        "premier": {
+          "ms": 122,
+          "tachesLongues": 0,
+          "tacheLaPlusLongueMs": 0,
+          "domTotal": 222,
+          "domEcran": 167
+        },
+        "retour": {
+          "ms": 111,
+          "tachesLongues": 0,
+          "tacheLaPlusLongueMs": 0,
+          "domTotal": 222,
+          "domEcran": 167
+        }
+      },
+      "toeic": {
+        "premier": {
+          "ms": 60,
+          "tachesLongues": 0,
+          "tacheLaPlusLongueMs": 0,
+          "domTotal": 118,
+          "domEcran": 63
+        },
+        "retour": {
+          "ms": 62,
+          "tachesLongues": 0,
+          "tacheLaPlusLongueMs": 0,
+          "domTotal": 118,
+          "domEcran": 63
+        }
+      },
+      "reglages": {
+        "premier": {
+          "ms": 73,
+          "tachesLongues": 0,
+          "tacheLaPlusLongueMs": 0,
+          "domTotal": 120,
+          "domEcran": 65
+        },
+        "retour": {
+          "ms": 65,
+          "tachesLongues": 0,
+          "tacheLaPlusLongueMs": 0,
+          "domTotal": 120,
+          "domEcran": 65
+        }
+      },
+      "accueil": {
+        "premier": {
+          "ms": 74,
+          "tachesLongues": 0,
+          "tacheLaPlusLongueMs": 0,
+          "domTotal": 175,
+          "domEcran": 120
+        },
+        "retour": {
+          "ms": 76,
+          "tachesLongues": 0,
+          "tacheLaPlusLongueMs": 0,
+          "domTotal": 175,
+          "domEcran": 120
+        }
+      }
+    },
+    "revision": [
+      {
+        "flip": 51,
+        "note": 29,
+        "tacheLaPlusLongue": 0
+      },
+      {
+        "flip": 12,
+        "note": 15,
+        "tacheLaPlusLongue": 0
+      },
+      {
+        "flip": 19,
+        "note": 15,
+        "tacheLaPlusLongue": 0
+      },
+      {
+        "flip": 21,
+        "note": 15,
+        "tacheLaPlusLongue": 0
+      },
+      {
+        "flip": 16,
+        "note": 26,
+        "tacheLaPlusLongue": 0
+      }
+    ],
+    "domRevision": 89,
+    "erreursConsole": [
+      "Failed to load resource: net::ERR_FAILED",
+      "Failed to load resource: net::ERR_FAILED"
+    ]
+  },
+  "actuelle": {
+    "app": "actuelle",
+    "accueilInteractifMs_cpu4": 2359,
+    "poidsDemarrageKo": 2913,
+    "fichiersDemarrage": [
+      "index.html 2911 Ko",
+      "sw.js?v=1792883150303 3 Ko"
+    ],
+    "domAccueil": 1784,
+    "relanceMs_cpu4": 2295,
+    "onglets": {
+      "decks": {
+        "premier": {
+          "ms": 191,
+          "tachesLongues": 1,
+          "tacheLaPlusLongueMs": 173,
+          "domTotal": 1712,
+          "domEcran": 1218
+        },
+        "retour": {
+          "ms": 92,
+          "tachesLongues": 1,
+          "tacheLaPlusLongueMs": 69,
+          "domTotal": 2023,
+          "domEcran": 1218
+        }
+      },
+      "stats": {
+        "premier": {
+          "ms": 261,
+          "tachesLongues": 7,
+          "tacheLaPlusLongueMs": 245,
+          "domTotal": 2084,
+          "domEcran": 1500
+        },
+        "retour": {
+          "ms": 189,
+          "tachesLongues": 6,
+          "tacheLaPlusLongueMs": 170,
+          "domTotal": 2280,
+          "domEcran": 1500
+        }
+      },
+      "settings": {
+        "premier": {
+          "ms": 219,
+          "tachesLongues": 1,
+          "tacheLaPlusLongueMs": 201,
+          "domTotal": 1854,
+          "domEcran": 1155
+        },
+        "retour": {
+          "ms": 53,
+          "tachesLongues": 1,
+          "tacheLaPlusLongueMs": 54,
+          "domTotal": 2079,
+          "domEcran": 1201
+        }
+      },
+      "toeic": {
+        "premier": {
+          "ms": 87,
+          "tachesLongues": 1,
+          "tacheLaPlusLongueMs": 61,
+          "domTotal": 895,
+          "domEcran": 179
+        },
+        "retour": {
+          "ms": 81,
+          "tachesLongues": 1,
+          "tacheLaPlusLongueMs": 53,
+          "domTotal": 895,
+          "domEcran": 179
+        }
+      },
+      "dashboard": {
+        "premier": {
+          "ms": 111,
+          "tachesLongues": 4,
+          "tacheLaPlusLongueMs": 82,
+          "domTotal": 2185,
+          "domEcran": 1382
+        },
+        "retour": {
+          "ms": 61,
+          "tachesLongues": 4,
+          "tacheLaPlusLongueMs": 60,
+          "domTotal": 2185,
+          "domEcran": 1382
+        }
+      }
+    },
+    "revision": [
+      {
+        "flip": 60,
+        "note": 70,
+        "tacheLaPlusLongue": 145
+      },
+      {
+        "flip": 59,
+        "note": 28,
+        "tacheLaPlusLongue": 88
+      },
+      {
+        "flip": 36,
+        "note": 48,
+        "tacheLaPlusLongue": 82
+      },
+      {
+        "flip": 36,
+        "note": 33,
+        "tacheLaPlusLongue": 81
+      },
+      {
+        "flip": 36,
+        "note": 27,
+        "tacheLaPlusLongue": 80
+      }
+    ],
+    "domRevision": 949,
+    "enregistrement": {
+      "detectChangesMs_cpu1": 1,
+      "serialiseMs_cpu1": 12,
+      "tailleEtatKo": 965,
+      "cartes": 1427,
+      "revlog": 5
+    },
+    "erreursConsole": [
+      "Failed to load resource: net::ERR_FAILED",
+      "Failed to load resource: net::ERR_FAILED"
+    ],
+    "enregistrementVolumeReel_cpu4": [
+      {
+        "detectChanges": 28,
+        "serialisation": 177,
+        "ecritureIDB": 427,
+        "Ko": 4055
+      },
+      {
+        "detectChanges": 13,
+        "serialisation": 165,
+        "ecritureIDB": 675,
+        "Ko": 4055
+      },
+      {
+        "detectChanges": 4,
+        "serialisation": 184,
+        "ecritureIDB": 499,
+        "Ko": 4055
+      },
+      {
+        "detectChanges": 14,
+        "serialisation": 188,
+        "ecritureIDB": 448,
+        "Ko": 4055
+      },
+      {
+        "detectChanges": 7,
+        "serialisation": 169,
+        "ecritureIDB": 416,
+        "Ko": 4055
+      }
+    ]
+  },
+  "prototype": {
+    "app": "prototype",
+    "accueilInteractifMs_cpu4": 1228,
+    "poidsDemarrageKo": 314,
+    "fichiersDemarrage": [
+      "assets/seed-B-WuoOk3.js 188 Ko",
+      "assets/index-DsSPX4CZ.js 82 Ko",
+      "assets/index-24tjm0wZ.css 18 Ko",
+      "assets/Revision-CQkupb_K.js 8 Ko",
+      "assets/Revision-mkmI0NDz.css 6 Ko",
+      "assets/Progres-DLDhcS1t.js 5 Ko"
+    ],
+    "domAccueil": 175,
+    "relanceMs_cpu4": 396,
+    "onglets": {
+      "paquets": {
+        "premier": {
+          "ms": 97,
+          "tachesLongues": 0,
+          "tacheLaPlusLongueMs": 0,
+          "domTotal": 144,
+          "domEcran": 89
+        },
+        "retour": {
+          "ms": 80,
+          "tachesLongues": 0,
+          "tacheLaPlusLongueMs": 0,
+          "domTotal": 144,
+          "domEcran": 89
+        }
+      },
+      "progres": {
+        "premier": {
+          "ms": 121,
+          "tachesLongues": 0,
+          "tacheLaPlusLongueMs": 0,
+          "domTotal": 222,
+          "domEcran": 167
+        },
+        "retour": {
+          "ms": 76,
+          "tachesLongues": 0,
+          "tacheLaPlusLongueMs": 0,
+          "domTotal": 222,
+          "domEcran": 167
+        }
+      },
+      "toeic": {
+        "premier": {
+          "ms": 62,
+          "tachesLongues": 0,
+          "tacheLaPlusLongueMs": 0,
+          "domTotal": 118,
+          "domEcran": 63
+        },
+        "retour": {
+          "ms": 45,
+          "tachesLongues": 0,
+          "tacheLaPlusLongueMs": 0,
+          "domTotal": 118,
+          "domEcran": 63
+        }
+      },
+      "reglages": {
+        "premier": {
+          "ms": 59,
+          "tachesLongues": 0,
+          "tacheLaPlusLongueMs": 0,
+          "domTotal": 120,
+          "domEcran": 65
+        },
+        "retour": {
+          "ms": 90,
+          "tachesLongues": 0,
+          "tacheLaPlusLongueMs": 0,
+          "domTotal": 120,
+          "domEcran": 65
+        }
+      },
+      "accueil": {
+        "premier": {
+          "ms": 104,
+          "tachesLongues": 0,
+          "tacheLaPlusLongueMs": 0,
+          "domTotal": 175,
+          "domEcran": 120
+        },
+        "retour": {
+          "ms": 63,
+          "tachesLongues": 0,
+          "tacheLaPlusLongueMs": 0,
+          "domTotal": 175,
+          "domEcran": 120
+        }
+      }
+    },
+    "revision": [
+      {
+        "flip": 49,
+        "note": 26,
+        "tacheLaPlusLongue": 0
+      },
+      {
+        "flip": 23,
+        "note": 21,
+        "tacheLaPlusLongue": 0
+      },
+      {
+        "flip": 21,
+        "note": 10,
+        "tacheLaPlusLongue": 0
+      },
+      {
+        "flip": 9,
+        "note": 21,
+        "tacheLaPlusLongue": 0
+      },
+      {
+        "flip": 17,
+        "note": 12,
+        "tacheLaPlusLongue": 0
+      }
+    ],
+    "domRevision": 89,
+    "erreursConsole": [
+      "Failed to load resource: net::ERR_FAILED",
+      "Failed to load resource: net::ERR_FAILED"
+    ]
+  },
+  "date": "2026-10-24T23:06:57.132Z",
+  "machine": "Chromium (Playwright) sans GPU, conteneur Linux ; CPU ralenti x4 = approximation d'un iPhone de milieu de gamme ancien"
+}

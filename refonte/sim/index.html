@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Simulateur de révision</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&display=swap">
+<style>
+/* Une colonne de lecture ; graphiques pleine largeur ; une couleur fixe par scénario (jamais par rang). */
+:root {
+    --bg: #f3f4f7; --surface: #ffffff; --fg: #14161c; --muted: #596070; --line: #d8dbe3; --grid: #e8eaef; --accent: #b85a0e;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --target: #14161c;
+    --font-display: "Bricolage Grotesque", system-ui, sans-serif; --font-body: "Atkinson Hyperlegible Next", system-ui, -apple-system, sans-serif;
+    color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #0f1116; --surface: #171a21; --fg: #eceef3; --muted: #9ba2b3; --line: #2a2f3b; --grid: #22262f; --accent: #f0954a; --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --target: #eceef3; color-scheme: dark; } }
+:root[data-theme="dark"] { --bg: #0f1116; --surface: #171a21; --fg: #eceef3; --muted: #9ba2b3; --line: #2a2f3b; --grid: #22262f; --accent: #f0954a; --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --target: #eceef3; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 400 16px/1.55 var(--font-body); }
+main { max-width: 900px; margin: 0 auto; padding-block: 32px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 24px; }
+h1, h2 { font-family: var(--font-display); margin: 0; line-height: 1.15; text-wrap: balance; }
+h1 { font-size: clamp(1.8rem, 5vw, 2.6rem); } h2 { font-size: 1.25rem; }
+p { margin: 0; max-width: 68ch; }
+.muted { color: var(--muted); }
+.panel { background: var(--surface); border-radius: 20px; padding: 20px; display: grid; gap: 12px; min-width: 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: .88rem; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 14px; height: 4px; border-radius: 2px; display: inline-block; }
+.legend i.dash { background: repeating-linear-gradient(90deg, var(--target) 0 4px, transparent 4px 7px); height: 2px; }
+.chart { position: relative; }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+.axis text { fill: var(--muted); font: 11px var(--font-body); }
+.grid line { stroke: var(--grid); }
+.tip { position: absolute; pointer-events: none; background: var(--fg); color: var(--bg); font-size: .8rem; padding: 6px 9px; border-radius: 8px; white-space: nowrap; transform: translate(-50%, -110%); opacity: 0; transition: opacity 120ms; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; white-space: normal; min-width: 220px; }
+thead th { color: var(--muted); font-weight: 700; font-size: .78rem; letter-spacing: .04em; text-transform: uppercase; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+form { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; align-items: end; }
+label { display: grid; gap: 4px; font-size: .88rem; color: var(--muted); }
+select, input { font: inherit; min-height: 44px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
+button { font: 700 1rem var(--font-body); min-height: 48px; border: 0; border-radius: 999px; background: var(--accent); color: #fff; padding: 0 22px; cursor: pointer; }
+:root:not([data-theme="light"]) button { color: var(--bg); }
+@media (prefers-color-scheme: light) { button { color: #fff; } }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid var(--s1); outline-offset: 2px; }
+#status { font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+    <header style="display:grid;gap:8px">
+        <p class="muted">LH Cards · refonte · banc de simulation</p>
+        <h1>Un élève virtuel révise 1&nbsp;000 cartes pendant un an</h1>
+        <p>Chaque scénario utilise le vrai moteur de la refonte (FSRS-6, file automatique, optimiseur). L'élève a sa propre mémoire, inconnue du moteur ; on compare ce qu'il retient à ce que le moteur visait, et le temps passé chaque jour. Budget : 20 min/jour. Scénarios A à C : absence du jour 150 au jour 163, examen au jour 330.</p>
+    </header>
+
+    <section class="panel" aria-labelledby="t-min">
+        <h2 id="t-min">Minutes de révision par jour</h2>
+        <div class="legend" id="leg-min"></div>
+        <div class="chart" id="c-min"></div>
+        <p class="muted" style="font-size:.88rem">Moyenne glissante sur 7 jours. Le trait pointillé est le budget de 20 min. Survole le graphique pour lire les valeurs.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="t-ret">
+        <h2 id="t-ret">Rétention obtenue, par tranche de 30 jours</h2>
+        <div class="legend" id="leg-ret"></div>
+        <div class="chart" id="c-ret"></div>
+        <p class="muted" style="font-size:.88rem">Part des révisions « à long terme » réussies. Pointillé : rétention visée (90 %, puis montée vers 95 % avant l'examen).</p>
+    </section>
+
+    <section class="panel" aria-labelledby="t-tab">
+        <h2 id="t-tab">Synthèse (jours 60 à 365)</h2>
+        <div class="table-wrap"><table id="tab"></table></div>
+    </section>
+
+    <section class="panel" aria-labelledby="t-run">
+        <h2 id="t-run">Lancer ta propre simulation</h2>
+        <p class="muted">Le calcul tourne dans ton navigateur (Web Worker). Avec l'optimiseur, compte 30 s à 2 min selon l'appareil.</p>
+        <form id="f">
+            <label for="eleve">Élève<select id="eleve"><option value="rapide">Oublie vite</option><option value="moyen">Moyen (paramètres exacts)</option></select></label>
+            <label for="budget">Minutes par jour<input id="budget" type="number" min="5" max="90" value="20"></label>
+            <label for="politique">File<select id="politique"><option value="auto">Refonte (automatique)</option><option value="fixe">Actuelle (20 nouvelles/jour)</option></select></label>
+            <label for="opti">Optimiseur<select id="opti"><option value="0">Non (rapide)</option><option value="30">Tous les 30 jours</option></select></label>
+            <label for="absence">Absence<select id="absence"><option value="oui">Jours 150 à 163</option><option value="non">Aucune</option></select></label>
+            <button type="submit" id="go">Simuler</button>
+        </form>
+        <p id="status" role="status" class="muted"></p>
+    </section>
+</main>
+<script type="module">
+import { simulate, STUDENT_FAST_FORGETTER } from './moteur.js';
+
+const COLORS = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)'];
+const W = 860, H = 260, M = { l: 40, r: 12, t: 12, b: 28 };
+const series = [];   // { name, short, color, days: [[jour, revisions, nouvelles, minutes, lt, ok, cible, retard, sues]] }
+const SHORT = ['A. Refonte, élève qui oublie vite', 'B. Sans optimiseur ni calibration', 'C. File actuelle', 'D. Refonte, élève moyen'];
+
+function smooth(arr, k = 7) { return arr.map((_, i) => { const s = arr.slice(Math.max(0, i - k + 1), i + 1); return s.reduce((a, b) => a + b, 0) / s.length; }); }
+function windows(days) {
+    const out = [];
+    for (let w = 0; w < 12; w++) {
+        const ds = days.slice(w * 30, w * 30 + 30), lt = ds.reduce((a, d) => a + d[4], 0), ok = ds.reduce((a, d) => a + d[5], 0);
+        const tgt = ds.reduce((a, d) => a + d[6] * d[4], 0) / Math.max(1, lt);
+        out.push({ x: w * 30 + 15, y: lt ? ok / lt : null, t: tgt });
+    }
+    return out;
+}
+function legend(el, extra) {
+    el.innerHTML = series.map(s => `<span><i style="background:${s.color}"></i>${s.short}</span>`).join('') + (extra ? `<span><i class="dash"></i>${extra}</span>` : '');
+}
+function lineChart(host, { yMin, yMax, yFmt, lines, ref, refLabel, xs = 365 }) {
+    const x = v => M.l + v / xs * (W - M.l - M.r), y = v => M.t + (1 - (v - yMin) / (yMax - yMin)) * (H - M.t - M.b);
+    const ticks = 4, grid = Array.from({ length: ticks + 1 }, (_, i) => yMin + (yMax - yMin) * i / ticks);
+    const path = pts => pts.filter(p => p.y != null).map((p, i) => `${i ? 'L' : 'M'}${x(p.x).toFixed(1)},${y(p.y).toFixed(1)}`).join('');
+    host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${host.dataset.label || ''}">
+        <g class="grid">${grid.map(g => `<line x1="${M.l}" x2="${W - M.r}" y1="${y(g)}" y2="${y(g)}"/>`).join('')}</g>
+        <g class="axis">${grid.map(g => `<text x="${M.l - 6}" y="${y(g) + 4}" text-anchor="end">${yFmt(g)}</text>`).join('')}
+            ${[0, 60, 120, 180, 240, 300, 365].map(d => `<text x="${x(d)}" y="${H - 8}" text-anchor="middle">J${d}</text>`).join('')}</g>
+        ${ref ? `<path d="${path(ref)}" fill="none" stroke="var(--target)" stroke-width="1.5" stroke-dasharray="4 3"/>` : ''}
+        ${lines.map(l => `<path d="${path(l.pts)}" fill="none" stroke="${l.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`).join('')}
+        <line class="cross" x1="0" x2="0" y1="${M.t}" y2="${H - M.b}" stroke="var(--muted)" stroke-width="1" opacity="0"/>
+        <rect x="${M.l}" y="${M.t}" width="${W - M.l - M.r}" height="${H - M.t - M.b}" fill="transparent"/>
+    </svg><div class="tip"></div>`;
+    const svg = host.querySelector('svg'), tip = host.querySelector('.tip'), cross = host.querySelector('.cross');
+    svg.addEventListener('pointermove', e => {
+        const r = svg.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * W;
+        const day = Math.max(0, Math.min(xs, (px - M.l) / (W - M.l - M.r) * xs));
+        const near = pts => pts.reduce((b, p) => (p.y != null && Math.abs(p.x - day) < Math.abs(b.x - day) ? p : b), pts.find(p => p.y != null) || pts[0]);
+        const rows = lines.map(l => { const p = near(l.pts); return `<span style="color:${l.color}">●</span> ${l.short} ${yFmt(p.y)}`; });
+        const p0 = near(lines[0].pts);
+        if (ref) rows.push(`${refLabel} ${yFmt(near(ref).y)}`);
+        tip.innerHTML = `Jour ${Math.round(p0.x)}<br>` + rows.join('<br>');
+        tip.style.left = (x(p0.x) / W * 100) + '%'; tip.style.top = '20px'; tip.style.opacity = 1;
+        cross.setAttribute('x1', x(p0.x)); cross.setAttribute('x2', x(p0.x)); cross.setAttribute('opacity', .6);
+    });
+    svg.addEventListener('pointerleave', () => { tip.style.opacity = 0; cross.setAttribute('opacity', 0); });
+}
+function render() {
+    legend(document.getElementById('leg-min'), 'budget 20 min');
+    legend(document.getElementById('leg-ret'), 'rétention visée');
+    lineChart(document.getElementById('c-min'), {
+        yMin: 0, yMax: 60, yFmt: v => `${Math.round(v)} min`,
+        lines: series.map(s => ({ short: s.short, color: s.color, pts: smooth(s.days.map(d => d[3])).map((v, i) => ({ x: i, y: v })) })),
+        ref: [{ x: 0, y: 20 }, { x: 365, y: 20 }], refLabel: 'budget'
+    });
+    const win = series.map(s => windows(s.days));
+    lineChart(document.getElementById('c-ret'), {
+        yMin: .8, yMax: 1, yFmt: v => `${(v * 100).toFixed(0)} %`,
+        lines: series.map((s, i) => ({ short: s.short, color: s.color, pts: win[i] })),
+        ref: win[0].map(p => ({ x: p.x, y: p.t })), refLabel: 'visée'
+    });
+    const cols = [['retentionVisee', 'Visée', v => (v * 100).toFixed(1) + ' %'], ['retentionObservee', 'Obtenue', v => (v * 100).toFixed(1) + ' %'], ['retentionPredite', 'Prédite', v => (v * 100).toFixed(1) + ' %'],
+        ['minutesMoyennes', 'Min/jour', v => v], ['minutesP95', 'P95', v => v], ['minutesMax', 'Max', v => v], ['joursAuDessusBudget', 'Jours > 25 min', v => v], ['cartesSuesFin', 'Sues à J365', v => v]];
+    document.getElementById('tab').innerHTML = `<thead><tr><th>Scénario</th>${cols.map(c => `<th>${c[1]}</th>`).join('')}</tr></thead><tbody>` +
+        series.map(s => `<tr><td><span class="dot" style="background:${s.color}"></span>${s.name}</td>${cols.map(c => `<td>${c[2](s.summary[c[0]])}</td>`).join('')}</tr>`).join('') + '</tbody>';
+}
+
+const data = await (await fetch('./resultats-simulation.json')).json();
+Object.entries(data.scenarios).forEach(([name, s], i) => series.push({ name, short: SHORT[i] ?? name, color: COLORS[i], days: s.days, summary: s.summary }));
+render();
+
+/* simulation à la demande, dans un Worker pour ne jamais figer la page */
+const workerSrc = `import { simulate, STUDENT_FAST_FORGETTER } from '${new URL('./moteur.js', location.href)}';
+onmessage = e => { const o = e.data; if (o.eleve === 'rapide') o.wTrue = STUDENT_FAST_FORGETTER; const r = simulate(o); postMessage({ summary: r.summary, days: r.days.map(d => [d.day, d.reviews, d.news, +d.minutes.toFixed(1), d.ltReviews, d.ltSuccess, d.target, d.backlog, Math.round(d.known)]) }); };`;
+document.getElementById('f').addEventListener('submit', e => {
+    e.preventDefault();
+    const v = id => document.getElementById(id).value, st = document.getElementById('status'), go = document.getElementById('go');
+    const o = { cards: 1000, days: 365, seed: 7, eleve: v('eleve'), budgetMin: Number(v('budget')) || 20, policy: v('politique'), optimizeEvery: Number(v('opti')), absence: v('absence') === 'oui' ? [150, 163] : undefined, examDay: 330 };
+    go.disabled = true; st.textContent = 'Simulation en cours…';
+    const t = performance.now();
+    let w;
+    try { w = new Worker(URL.createObjectURL(new Blob([workerSrc], { type: 'text/javascript' })), { type: 'module' }); }
+    catch { st.textContent = 'Ce navigateur refuse les Workers : utilise « npm run sim » dans refonte/app.'; go.disabled = false; return; }
+    w.onmessage = ev => {
+        const name = `Ma simulation : élève ${o.eleve === 'rapide' ? '« oublie vite »' : 'moyen'}, ${o.budgetMin} min, file ${o.policy === 'auto' ? 'refonte' : 'actuelle'}${o.optimizeEvery ? ', optimiseur' : ''}`;
+        if (series.length > 4) series.pop();
+        series.push({ name, short: 'Ma simulation', color: 'var(--accent)', days: ev.data.days, summary: ev.data.summary });
+        render(); st.textContent = `Terminé en ${((performance.now() - t) / 1000).toFixed(1)} s.`; go.disabled = false; w.terminate();
+    };
+    w.onerror = () => { st.textContent = 'La simulation a échoué dans ce navigateur.'; go.disabled = false; };
+    w.postMessage(o);
+});
+</script>
+</body>
+</html>

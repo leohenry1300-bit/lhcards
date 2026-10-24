@@ -24,6 +24,7 @@ function serve(root, port) {
 
 /* Chaque application décrit comment l'ouvrir et comment naviguer. */
 const APPS = {
+    get 'prototype-3700'() { return { ...this.prototype, url: 'index.html?charge=3700' }; },
     actuelle: {
         root: REPO, url: 'index.html', ready: '.hero',
         tabs: ['decks', 'stats', 'settings', 'toeic', 'dashboard'],
@@ -35,7 +36,7 @@ const APPS = {
         grade: '[data-grade="3"]'
     },
     prototype: {
-        root: path.join(REPO, 'refonte/proto'), url: 'index.html', ready: '[data-ready]',
+        root: path.join(REPO, 'refonte/proto'), url: 'index.html', ready: '[data-ready] [data-screen]',
         tabs: ['paquets', 'progres', 'toeic', 'reglages', 'accueil'],
         tabSel: v => `.tabbar [data-tab="${v}"]`,
         viewSel: v => `[data-screen="${v}"]`,
@@ -71,6 +72,14 @@ async function measureApp(name, cfg, browser, port) {
     res.poidsDemarrageKo = Math.round(bytes / 1024);
     res.fichiersDemarrage = files.sort((a, b) => b[1] - a[1]).slice(0, 6).map(([u, b]) => `${u.slice(-40)} ${Math.round(b / 1024)} Ko`);
     res.domAccueil = await page.evaluate(() => document.querySelectorAll('*').length);
+    /* relance (cas courant : l'appli installée est rouverte, données déjà en base) */
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+    const t1 = Date.now();
+    await page.reload({ waitUntil: 'commit' });
+    await page.waitForSelector(cfg.ready, { timeout: 60000 });
+    res.relanceMs_cpu4 = Date.now() - t1;
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    await page.waitForTimeout(1500);
     await page.screenshot({ path: path.join(SHOTS, `${name}-accueil-390.png`) });
 
     /* 2. changement d'onglet, CPU ralenti x4 : temps entre le toucher et la 2e image peinte + tâches longues */
@@ -89,6 +98,7 @@ async function measureApp(name, cfg, browser, port) {
             return performance.now() - t;
         }, cfg.tabSel(v));
         await page.waitForTimeout(1600);   // les animations d'entrée et le rendu différé se terminent
+        if (cfg.root.endsWith('proto')) await page.evaluate(() => scrollTo(0, 0));
         const lt = await page.evaluate(() => window.__lt.slice());
         const dom = await page.evaluate(() => document.querySelectorAll('*').length);
         const domVue = await page.evaluate(sel => { const e = document.querySelector(sel); return e ? e.querySelectorAll('*').length : 0; }, cfg.viewSel(v));
