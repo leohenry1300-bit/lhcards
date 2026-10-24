@@ -1998,10 +1998,10 @@ body.in-session .focus-w:not(.collapsed) { width: min(300px, calc(100vw - 24px))
 /* ---- motion pass 2: tab slides, nav bounce, press + ripple, cascade, card flying away ---- */
 .view-in { animation: none; }
 .view-in-n { animation: viewIn .22s ease-out backwards; }
-.view-in-r { animation: viewInR .26s cubic-bezier(.2,.7,.2,1) backwards; }
-.view-in-l { animation: viewInL .26s cubic-bezier(.2,.7,.2,1) backwards; }
-@keyframes viewInR { from { opacity: 0; transform: translateX(22px); } }
-@keyframes viewInL { from { opacity: 0; transform: translateX(-22px); } }
+.view-in-r { animation: viewInR .2s cubic-bezier(.2,.7,.2,1) backwards; }
+.view-in-l { animation: viewInL .2s cubic-bezier(.2,.7,.2,1) backwards; }
+@keyframes viewInR { from { opacity: 0; } }
+@keyframes viewInL { from { opacity: 0; } }   /* (a fade only: sliding a whole screen of 1300 elements made phones stutter) */
 .bottom-nav button.active .i, .nav-btn.active .i { animation: navBounce .38s cubic-bezier(.3,1.6,.5,1); }
 @keyframes navBounce { 0% { transform: scale(.8) translateY(2px); } 60% { transform: scale(1.18) translateY(-3px); } 100% { transform: none; } }
 .deck-card:active, .tool-btn:active, .recent-chip:active, .card-row:active { transform: scale(.98); transition: transform .08s; }
@@ -2010,6 +2010,7 @@ body.in-session .focus-w:not(.collapsed) { width: min(300px, calc(100vw - 24px))
 @keyframes ripple { to { transform: scale(1); opacity: 0; } }
 @keyframes riseIn { from { opacity: 0; transform: translateY(7px); } }
 .cascade :is(.deck-grid, .exam-list, .mode-grid, .status-grid, .missed-list) > * { animation: riseIn .28s cubic-bezier(.2,.7,.2,1) backwards; animation-delay: calc(min(var(--i, 0), 5) * 35ms); }
+.cascade :is(.deck-grid, .exam-list, .mode-grid, .status-grid, .missed-list) > :nth-child(n+9) { animation: none; }   /* only the first ones rise: dozens of animated cards at once stutter on a phone */
 .deck-grid > :nth-child(1), .exam-list > :nth-child(1), .mode-grid > :nth-child(1), .status-grid > :nth-child(1) { --i: 0; }
 .deck-grid > :nth-child(2), .exam-list > :nth-child(2), .mode-grid > :nth-child(2), .status-grid > :nth-child(2) { --i: 1; }
 .deck-grid > :nth-child(3), .exam-list > :nth-child(3), .mode-grid > :nth-child(3), .status-grid > :nth-child(3) { --i: 2; }
@@ -2037,11 +2038,11 @@ body.in-session .focus-w:not(.collapsed) { width: min(300px, calc(100vw - 24px))
 .spark { position: fixed; z-index: 130; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: #f97316; box-shadow: 0 0 6px #fbbf24; pointer-events: none; animation: spark .7s ease-out forwards; }
 .spark:nth-of-type(even) { background: #fbbf24; }
 @keyframes spark { from { transform: translate(0, 0) scale(1); opacity: 1; } to { transform: translate(var(--dx), var(--dy)) scale(.2); opacity: 0; } }
-.cascade .chart svg rect:not(.hit) { transform-box: fill-box; transform-origin: 50% 100%; animation: barUp 1.3s cubic-bezier(.22,.8,.25,1) backwards; animation-delay: min(calc(var(--i, 0) * 22ms), 800ms); }
-@keyframes barUp { from { transform: scaleY(0); } }
+.cascade .chart svg { transform-origin: 50% 100%; animation: chartRise .7s cubic-bezier(.22,.8,.25,1) backwards; }   /* one animation per chart instead of one per bar */
+@keyframes chartRise { from { opacity: 0; transform: scaleY(.35); } }
 .cascade .chart svg path[stroke-linecap="round"] { stroke-dasharray: 1; animation: lineDraw 2s .3s ease-in-out backwards; }
 @keyframes lineDraw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
-.cascade .chart svg circle:not(.slice) { animation: dotIn .5s 1.9s ease-out backwards; transform-box: fill-box; transform-origin: center; }
+
 @keyframes dotIn { from { transform: scale(0); } }
 @media (prefers-reduced-motion: reduce) { .unfold, .btn-hero.breathe::before, .streak-chip.flame-pop, .spark, .cascade .chart svg * { animation: none !important; } }
 

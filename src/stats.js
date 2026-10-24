@@ -192,8 +192,8 @@ Object.assign(SuperAnki.prototype, {
     drawCharts(onlyId) {
         /* read every width first, then write: one layout instead of one per chart */
         const todo = $$('[data-chart-box]').map(box => ({ box, id: box.dataset.chartBox })).filter(o => this.chartDefs && this.chartDefs[o.id] && (!onlyId || o.id === onlyId));
-        todo.forEach(o => { o.W = Math.max(260, Math.floor(o.box.clientWidth)); });
-        todo.forEach(o => { o.box.innerHTML = this.chartDefs[o.id](o.W); });
+        todo.forEach(o => { o.W = Math.max(260, Math.floor(o.box.clientWidth) || Math.min(window.innerWidth, 920) - 40); });
+        todo.forEach(o => { o.box.dataset.w = o.box.clientWidth ? o.W : 0; o.box.innerHTML = this.chartDefs[o.id](o.W); });
     },
 
     /* ---------- Aujourd'hui ---------- */

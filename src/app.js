@@ -260,6 +260,8 @@ const THEMES = [
     { id: 'brutal', group: 'fun', name: 'Brutaliste', desc: 'Contrasté, audacieux', font: 'Space Grotesk', p: { bg: '#fff8e7', surface: '#ffffff', primary: '#ffd400', text: '#111', line: '#111', hero: '#ff5c8a' } },
     { id: 'contraste', group: 'fun', name: 'Contraste élevé', desc: 'Lisibilité maximale', font: 'Inter', p: { bg: '#000', surface: '#000', primary: '#ffff00', text: '#fff', line: '#fff', hero: '#000' } }
 ];
+/* how long a screen kept from earlier may be shown again without being rebuilt (anything that changes data makes it out of date at once) */
+const VIEW_TTL = { dashboard: 60000, decks: 300000, stats: 300000, settings: 1800000, toeic: 1800000 };
 const THEME_GROUPS = [['clair', 'Clairs'], ['sombre', 'Sombres'], ['fun', 'Originaux']];
 const CARD_SIZES = { s: '1.1rem', m: '1.35rem', l: '1.6rem', xl: '1.9rem', xxl: '2.4rem', xxxl: '3rem' };
 /* Study options: global defaults, can be overridden per deck (deck.opts) */
@@ -765,6 +767,31 @@ class SuperAnki {
         this.save();
     }
 
+    /* the other tabs are prepared while nothing is happening, so opening one is only a matter of showing it */
+    renderQuiet(v) {
+        const fn = { decks: 'renderDecks', stats: 'renderStats', settings: 'renderSettings' }[v]; if (!fn) return;
+        const keep = this.view; this.view = v;
+        try { this[fn](); (this._rv = this._rv || {})[v] = { v: this._ver || 0, t: Date.now(), d: dayKey() }; }
+        catch (e) { console.error(e); delete (this._rv || {})[v]; }
+        finally { this.view = keep; }
+    }
+    warmViews() {
+        ['pointerdown', 'keydown', 'touchstart', 'wheel'].forEach(ev => document.addEventListener(ev, () => { this._lastInput = Date.now(); }, { passive: true, capture: true }));
+        const stale = v => { const r = (this._rv || {})[v]; return !r || r.v !== (this._ver || 0) || Date.now() - r.t > (VIEW_TTL[v] || 60000) * .8 || r.d !== dayKey(); };
+        const idle = f => (window.requestIdleCallback ? requestIdleCallback(f, { timeout: 2500 }) : setTimeout(f, 50));
+        const tick = () => {
+            const busy = document.hidden || this.session || this.ex || (this.modals && this.modals.length) || Date.now() - (this._lastInput || 0) < 1500;
+            const todo = busy ? null : ['decks', 'settings', 'stats'].find(v => v !== this.view && stale(v));
+            if (todo) idle(() => { if (!document.hidden && !this.session && Date.now() - (this._lastInput || 0) >= 1000) this.renderQuiet(todo); setTimeout(tick, 600); });
+            else setTimeout(tick, busy ? 1500 : 8000);
+        };
+        setTimeout(tick, 3500);
+    }
+    /* a screen prepared while hidden was measured at zero width: charts are drawn again if the real width differs */
+    fixCharts() {
+        const off = $$('[data-chart-box]').some(b => b.clientWidth && Math.abs(b.clientWidth - Number(b.dataset.w || 0)) > 8);
+        if (off) this.drawCharts();
+    }
     /* ---------- how the app was started (to tell a normal launch from a system cut) ---------- */
     noteBoot() {
         try {
@@ -834,6 +861,7 @@ class SuperAnki {
         this.focusInit();
         this.extrasInit();
         this.ambInit();
+        this.warmViews();
         if (this.data.settings.cloudSync) Cloud.sync();
         else Cloud.setStatus('off');
     }
@@ -1202,8 +1230,9 @@ class SuperAnki {
         if (opts.filter !== undefined) this.ui.filter = opts.filter;
         const rv = (this._rv || {})[view];
         /* a tab seen a moment ago, with nothing changed since, is simply shown again: switching tabs stays instant */
-        const reuse = !!rv && prevView !== view && rv.v === (this._ver || 0) && Date.now() - rv.t < 60000 && rv.d === dayKey() && opts.deck === undefined && opts.filter === undefined && ['dashboard', 'decks', 'stats', 'settings', 'toeic'].includes(view);
+        const reuse = !!rv && prevView !== view && rv.v === (this._ver || 0) && Date.now() - rv.t < (VIEW_TTL[view] || 60000) && rv.d === dayKey() && opts.deck === undefined && opts.filter === undefined && ['dashboard', 'decks', 'stats', 'settings', 'toeic'].includes(view);
         this.render(true, reuse);
+        if (reuse && view === 'stats') requestAnimationFrame(() => this.fixCharts());
         const mem = (this.scrollMem || {})[view];
         const restore = mem && prevView !== view && opts.deck === undefined && ['dashboard', 'decks', 'stats', 'settings', 'toeic'].includes(view) && ['dashboard', 'decks', 'stats', 'settings', 'toeic'].includes(prevView);   // coming back to a tab: same place as before
         this.watchSpeed(performance.now(), reuse);
