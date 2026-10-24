@@ -2096,3 +2096,11 @@ html[data-vt="l"]::view-transition-new(root) { animation-name: vtInL; }
 
 /* slow device: no entrance animations on the screens (everything else stays) */
 [data-lite] .view-in, [data-lite] .view-in *, [data-lite] .cascade > *, [data-lite] .cascade .panel { animation: none !important; }
+
+/* ---- phone: Léo stands on the top edge of the banner (his feet overlap it a little), so the text keeps the whole width ---- */
+@media (max-width: 767px) {
+  #view-dashboard .hero { margin-top: 112px; grid-template-columns: minmax(0, 1fr); grid-template-areas: "text" "actions"; }
+  #view-dashboard .hero .mascot { position: absolute; right: 6px; top: auto; bottom: calc(100% - 46px); width: 184px; height: 171px; margin: 0; align-self: auto; }
+  #view-dashboard .hero-title { font-size: 1.4rem; line-height: 1.2; }
+}
+@media (max-width: 767px) { #view-dashboard .hero .leo-glow { width: 112%; filter: opacity(.62); } }
