@@ -137,7 +137,10 @@ Object.assign(SuperAnki.prototype, {
         this.chartDefs = {};
         const errCount = this.errorCards().length;
         const dstats = this.deckStats();
-        const deckRows = this.sortedDecks().map(dk => { const c = dstats.get(dk.id); return { dk, c, n: c.total, pct: this.pctMature(c), seen: this.pctSeen(c), depth: this.deckDepth(dk.id) }; });
+        /* one level at a time (the whole tree made this tab several times heavier): the decks of the chosen scope; a tap goes one level down */
+        const scopeId = ui.deck === 'all' ? null : ui.deck, kidsOf = this.childrenOf(scopeId);
+        const deckRows = (kidsOf.length ? kidsOf : scopeId && this.deck(scopeId) ? [this.deck(scopeId)] : []).map(dk => { const c = dstats.get(dk.id); return { dk, c, n: c.total, pct: this.pctMature(c), seen: this.pctSeen(c), kids: this.childrenOf(dk.id).length }; });
+        const upId = scopeId && this.deck(scopeId) ? (this.deck(scopeId).parent || 'all') : null;
 
         const sections = [
             this.statToday(scope),
@@ -178,16 +181,16 @@ Object.assign(SuperAnki.prototype, {
                 <p class="small muted">${errCount ? `${plural(errCount, 'carte')} ratée${errCount > 1 ? 's' : ''} récemment. Elles sortent de la liste dès que tu les réussis.` : 'Aucune erreur en attente. Les cartes ratées en révision, en quiz ou au chrono apparaîtront ici.'}</p>
             </div>
             <div class="panel panel-pad">
-                <h4 class="stat-title" style="margin-bottom:8px">Maîtrise par paquet</h4>
+                <div class="section-head" style="margin-bottom:8px"><h4 class="stat-title">Maîtrise par paquet</h4>${upId ? `<button class="link" data-action="stats-deck" data-deck="${esc(upId)}">${ic('chevronLeft')}Niveau au-dessus</button>` : ''}</div>
                 ${deckRows.map(r => `
                 <button class="deck-progress-row" data-action="stats-deck" data-deck="${esc(r.dk.id)}" data-tip="${esc(tipRows(`${esc(r.dk.emoji)} ${esc(this.deckPath(r.dk.id))}`, ['new', 'learn', 'due', 'mature'].map(k => ({ label: STATUS[k].label, value: r.c[k], color: STATUS[k].color }))))}">
-                    <span class="nm" style="padding-left:${r.depth * 18}px">${r.depth ? '<span class="faint">└</span> ' : ''}${esc(r.dk.emoji)} ${esc(r.dk.name)}</span>
+                    <span class="nm">${esc(r.dk.emoji)} ${esc(r.dk.name)}${r.kids ? ` <span class="faint">· ${plural(r.kids, 'sous-paquet')} ›</span>` : ''}</span>
                     <div class="progress"><i style="width:${r.n ? r.c.mature / r.n * 100 : 0}%;background:var(--mature)"></i><i style="width:${r.n ? r.c.learn / r.n * 100 : 0}%;background:var(--learn)"></i><i style="width:${r.n ? r.c.due / r.n * 100 : 0}%;background:var(--due)"></i></div>
                     <b title="${r.seen} % vu · ${r.pct} % maîtrisé">${r.pct}%</b>
                 </button>`).join('') || '<p class="small muted">Aucun paquet.</p>'}
             </div>
         </div>`;
-        this.drawCharts();
+        requestAnimationFrame(() => this.fixCharts());   // (drawn once on the page: measuring them now would lay the whole tab out before it shows)
     },
     drawCharts(onlyId) {
         /* read every width first, then write: one layout instead of one per chart */

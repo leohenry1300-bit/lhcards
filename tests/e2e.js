@@ -177,6 +177,50 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         await c2.close();
     }
 
+    /* 14. course correction: cards already installed now say "market pull / technology push", progress kept */
+    const pp = await page.evaluate(() => {
+        const d = app.data.decks[0].id, now = Date.now();
+        app.data.cards.push({ ...freshCard(), id: 'co_test_1', deckId: d, front: 'Market push et technology pull ?', back: 'MARKET PUSH', hint: '', detail: '', tags: [], created: now, nid: '', kind: 'basic', ord: 0, nf: null, state: 'review', interval: 12, reps: 4 });
+        app.data.cards.push({ ...freshCard(), id: 'co_test_2', deckId: d, front: '', back: '', hint: '', detail: '', tags: [], created: now, nid: 'co_test_2n', kind: 'cloze', ord: 1, nf: { front: '', back: '', text: 'Approche {{c1::market push}} ou technology pull', extra: '' } });
+        materializeCard(app.card('co_test_2'));
+        app.data.settings.fixPushPullV1 = false; app.migratePushPull();
+        const a = app.card('co_test_1'), c = app.card('co_test_2');
+        return { a: a.front + ' / ' + a.back, keep: a.interval === 12 && a.reps === 4, c: c.nf.text, back: c.back };
+    });
+    ok('course fix: market pull / technology push, progress kept', pp.a === 'Market pull et technology push ? / MARKET PULL' && pp.keep && pp.c === 'Approche {{c1::market pull}} ou technology push' && /market pull/.test(pp.back), JSON.stringify(pp));
+
+    /* 15. cloud backup (fake server): an old shared copy is taken in, encrypted under a new code and removed; another device gets everything back with the code */
+    {
+        const DB = new Map();
+        DB.set('main', { updated_at: new Date().toISOString(), data: { decks: [{ id: 'dmain', name: 'DECK MAIN', emoji: '📁', mod: Date.now() }], cards: [{ id: 'cmain', deckId: 'dmain', front: 'Q main', back: 'R', mod: Date.now() }], settings: {}, updatedAt: Date.now() } });
+        const fake = async route => {
+            const req = route.request(), m = /id=eq\.([^&]+)/.exec(new URL(req.url()).search), row = m && DB.get(decodeURIComponent(m[1]));
+            if (req.method() === 'GET') {
+                if (/object\+json/.test(req.headers().accept || '')) return row ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(row) }) : route.fulfill({ status: 406, contentType: 'application/json', body: JSON.stringify({ code: 'PGRST116', message: '0 rows', details: '', hint: null }) });
+                return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(row ? [row] : []) });
+            }
+            const b = JSON.parse(req.postData()); (Array.isArray(b) ? b : [b]).forEach(r => DB.set(r.id, { data: r.data, updated_at: r.updated_at }));
+            return route.fulfill({ status: 201, contentType: 'application/json', body: '[]' });
+        };
+        const device = async () => {
+            const c = await browser.newContext({ viewport: { width: 390, height: 800 } });
+            await c.route(/supabase\.co/, fake); await c.route(/fonts\.(googleapis|gstatic)/, r => r.abort());
+            const q = await c.newPage(); await q.goto(`http://localhost:${PORT}/index.html`); await q.waitForSelector('.hero', { timeout: 20000 });
+            await q.evaluate(async () => { Object.assign(app.data.settings, { cloudSync: true, backupLegacy: true, backupAutoDone: true, syncKey: '' }); app.save(false); await Cloud.sync(); });
+            return { c, q };
+        };
+        const A = await device();
+        const a = await A.q.evaluate(() => ({ key: app.data.settings.syncKey, deck: app.data.decks.some(d => d.name === 'DECK MAIN'), banner: !!document.querySelector('.backup-banner code') }));
+        const rows = [...DB.keys()].filter(k => k.startsWith('u_'));
+        ok('backup: old copy taken in, encrypted under a code, shared copy removed', /^LHC(-[A-Z0-9]{4}){4}$/.test(a.key) && a.deck && a.banner && rows.length === 1 && !!DB.get(rows[0]).data.enc && !!DB.get('main').data.moved, JSON.stringify(a));
+        const B = await device();
+        const need = await B.q.evaluate(() => !!Cloud.needCode && !app.data.settings.syncKey);
+        await B.q.evaluate(async k => { app.askText = async () => k.toLowerCase().replace(/-/g, ' '); await app.backupAction('bk-enter'); }, a.key);
+        const got = await B.q.evaluate(() => app.data.decks.some(d => d.name === 'DECK MAIN'));
+        ok('backup: other device asks for the code, then gets everything back', need && got, JSON.stringify({ need, got }));
+        await A.c.close(); await B.c.close();
+    }
+
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));
     console.log(R.join('\n') + `\n\n${R.length - failed}/${R.length} checks passed`);
     await browser.close(); server.close(); process.exit(failed ? 1 : 0);

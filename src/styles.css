@@ -2096,3 +2096,4 @@ html[data-vt="l"]::view-transition-new(root) { animation-name: vtInL; }
 
 /* slow device: no entrance animations on the screens (everything else stays) */
 [data-lite] .view-in, [data-lite] .view-in *, [data-lite] .cascade > *, [data-lite] .cascade .panel { animation: none !important; }
+.backup-code code { display: inline-block; margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line, var(--border)); font: 700 .95rem/1.2 'JetBrains Mono', ui-monospace, monospace; letter-spacing: .04em; user-select: all; }

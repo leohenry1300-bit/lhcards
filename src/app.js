@@ -145,10 +145,11 @@ function levenshtein(a, b) {
     }
     return prev[b.length];
 }
-function loadScript(src, timeout = 8000) {
+function loadScript(src, timeout = 8000, integrity = '') {
     return new Promise((resolve, reject) => {
         const s = document.createElement('script');
         s.src = src; s.async = true;
+        if (integrity) { s.integrity = integrity; s.crossOrigin = 'anonymous'; }   // the browser refuses the file if it is not exactly the expected one
         const t = setTimeout(() => reject(new Error('timeout')), timeout);
         s.onload = () => { clearTimeout(t); resolve(); };
         s.onerror = () => { clearTimeout(t); reject(new Error('load error')); };
@@ -769,6 +770,21 @@ class SuperAnki {
         this.save();
     }
 
+    /* One-time: the innovation course had "market push / technology pull" the wrong way round (it is market pull / technology push).
+       The course cards already on the device are corrected in place: same cards, progress kept. */
+    migratePushPull() {
+        const st = this.data.settings;
+        if (st.fixPushPullV1) return;
+        st.fixPushPullV1 = true;
+        const fix = v => (typeof v === 'string' ? v.replace(/\b(market|technology)([ -])(push|pull)\b/gi, (m, w, sep, d) => { const n = w.toLowerCase() === 'market' ? 'pull' : 'push'; return w + sep + (d === d.toUpperCase() ? n.toUpperCase() : n); }) : v);
+        this.data.cards.forEach(c => {
+            if (!c.id.startsWith('co_')) return;
+            ['front', 'back', 'hint', 'detail'].forEach(k => { c[k] = fix(c[k]); });
+            if (c.nf) { ['front', 'back', 'text', 'extra'].forEach(k => { c.nf[k] = fix(c.nf[k]); }); materializeCard(c); }
+        });
+        this.save();
+    }
+
     /* One-time: English / TOEIC decks use FSRS at 90 % retention (cards already reviewed with SM-2 are converted on the fly). */
     migrateTunedPreset() {
         const st = this.data.settings;
@@ -812,6 +828,7 @@ class SuperAnki {
         const tick = () => {
             if (t.stack.parentNode !== el) return;   // the tab was redrawn meanwhile: this rest is obsolete
             work(el.classList.contains('hidden') ? Infinity : 130);
+            if (el.id === 'view-stats' && !el.classList.contains('hidden')) this.fixCharts();   // the charts that just arrived are drawn
             if (queue.length) setTimeout(tick, 24); else done();
         };
         requestAnimationFrame(() => requestAnimationFrame(tick));
@@ -837,9 +854,10 @@ class SuperAnki {
         setTimeout(tick, 3500);
     }
     /* a screen prepared while hidden was measured at zero width: charts are drawn again if the real width differs */
+    /* charts are drawn only once their box is on the page (not while the tab is being built): a chart not drawn yet, or drawn at another width, is drawn now */
     fixCharts() {
-        const off = $$('[data-chart-box]').some(b => b.clientWidth && Math.abs(b.clientWidth - Number(b.dataset.w || 0)) > 8);
-        if (off) this.drawCharts();
+        const todo = $$('[data-chart-box]').map(box => ({ box, id: box.dataset.chartBox, W: box.clientWidth })).filter(o => o.W && this.chartDefs && this.chartDefs[o.id] && (o.box.dataset.w === undefined || Math.abs(o.W - Number(o.box.dataset.w)) > 8));
+        todo.forEach(o => { const W = Math.max(260, Math.floor(o.W)); o.box.dataset.w = W; o.box.innerHTML = this.chartDefs[o.id](W); });
     }
     /* ---------- how the app was started (to tell a normal launch from a system cut) ---------- */
     noteBoot() {
@@ -903,6 +921,7 @@ class SuperAnki {
         this.migrateButTc();
         this.migrateCourses();
         this.migrateTunedPreset();
+        this.migratePushPull();
         this.checkStreak();
         this.writeNow();
         this.autoBackup(source);
@@ -923,6 +942,7 @@ class SuperAnki {
         this.extrasInit();
         this.ambInit();
         this.warmViews();
+        this.backupAutoStart();   // automatic encrypted copy in the cloud (once, on by default)
         if (this.data.settings.cloudSync) Cloud.sync();
         else Cloud.setStatus('off');
     }
@@ -1637,6 +1657,7 @@ class SuperAnki {
                 </div>
             </div>
 
+            ${this.backupBannerHtml()}
             ${this.resumeHtml()}
             ${this.goalsHtml()}
             <div class="status-grid">
@@ -2291,10 +2312,10 @@ class SuperAnki {
                     </div>
                 </div>
                 <div class="set-row">
-                    <div class="txt"><b>${ic('lock')} Clé de synchronisation (chiffrement)</b><span>Une phrase secrète que toi seul connais. Tes données sont chiffrées sur ton appareil avant d'être envoyées : sans la clé, personne ne peut les lire. <b>Entre la même phrase sur tous tes appareils</b> et garde-la : elle ne peut pas être récupérée.</span></div>
-                    <div class="opt-ctl" style="min-width:260px;display:flex;gap:8px"><input class="input" id="sync-key-input" type="password" value="${esc(s.syncKey)}" placeholder="${s.syncKey ? '••••••••' : 'au moins 8 caractères'}" autocomplete="off"><button class="btn btn-soft" data-action="save-sync-key">OK</button></div>
+                    <div class="txt"><b>${ic('lock')} Code de sauvegarde (chiffrement)</b><span>Créé tout seul à l'activation. Tes données sont chiffrées sur ton appareil avant d'être envoyées : sans ce code, personne ne peut les lire. <b>Entre le même code sur tous tes appareils</b> et garde-le (Notes, capture d'écran) : il ne peut pas être récupéré.</span></div>
+                    <div class="opt-ctl" style="min-width:260px;display:flex;gap:8px"><input class="input" id="sync-key-input" type="text" value="${esc(s.syncKey)}" placeholder="LHC-XXXX-XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false"><button class="btn btn-soft" data-action="save-sync-key">OK</button>${s.syncKey ? `<button class="icon-btn" data-action="bk-copy" title="Copier le code" aria-label="Copier le code">${ic('copy')}</button>` : ''}</div>
                 </div>
-                ${s.syncKey ? '' : `<p class="small" style="color:var(--learn)">${ic('alert')} Sans clé, tes données sont stockées sans chiffrement dans un espace partagé.</p>`}
+                ${s.syncKey ? '' : `<p class="small" style="color:var(--learn)">${ic('alert')} Sans code, aucune copie n'est envoyée dans le cloud. Active la synchronisation : un code est créé tout seul.</p>`}
                 <p class="small muted">Les appareils sont <b>fusionnés carte par carte</b> : tu peux réviser hors ligne sur plusieurs appareils sans rien perdre.</p>
             </div>
 
@@ -3684,7 +3705,7 @@ class SuperAnki {
         const flush = () => { if (this.saveTimer) this.writeNow(); };
         window.addEventListener('pagehide', flush);
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'hidden') { flush(); if (Cloud.timer) { clearTimeout(Cloud.timer); Cloud.push(); } }
+            if (document.visibilityState === 'hidden') { flush(); if (Cloud.timer || Cloud.deferred) Cloud.push(); }
             else if (this.data && this.data.settings.cloudSync && !this.session && Date.now() - Cloud.lastPull > 60000) Cloud.sync();
         });
     }
@@ -3993,17 +4014,19 @@ class SuperAnki {
                 break;
             }
             case 'save-sync-key': {
-                const v = ($('#sync-key-input') || {}).value || '';
+                const v = backupCodeClean(($('#sync-key-input') || {}).value || '');
                 if (v && v.length < 8) { this.toast('Choisis une phrase d\'au moins 8 caractères.', 'warning'); break; }
-                this.data.settings.syncKey = v.trim();
+                this.data.settings.syncKey = v;
+                if (!v) this.data.settings.cloudSync = false;   // no code = no cloud copy (never the old shared, readable space)
+                else { this.data.settings.backupCode = { at: Date.now(), seen: true }; Cloud.needCode = false; }
                 this.data.settings.settingsMod = Date.now();
                 this.save(false);
-                Cloud.client && 0;
-                this.toast(v ? 'Clé enregistrée : synchronisation chiffrée' : 'Clé supprimée', 'success', ic('lock'));
-                Cloud.sync(true);
+                this.toast(v ? 'Code enregistré : sauvegarde chiffrée' : 'Code supprimé : sauvegarde cloud désactivée', 'success', ic('lock'));
+                if (v) Cloud.sync(true); else Cloud.setStatus('off');
                 this.renderSettings();
                 break;
             }
+            case 'bk-copy': case 'bk-seen': case 'bk-enter': this.backupAction(action); break;
             case 'quit-session': this.quitSession(); break;
             case 'reveal': this.reveal(); break;
             case 'submit-typed': this.submitTyped(); break;

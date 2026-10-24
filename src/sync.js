@@ -26,7 +26,10 @@ const SyncCrypto = {
         this.cached = { pass, key };
         return key;
     },
-    async rowId(pass) { return pass ? `u_${(await this.sha(`superanki-row:${pass}`)).slice(0, 40)}` : 'main'; },
+    async rowId(pass) {
+        if (!pass) throw new Error('Code de sauvegarde manquant');   // never the old shared, unencrypted row
+        return `u_${(await this.sha(`superanki-row:${pass}`)).slice(0, 40)}`;
+    },
     async encrypt(obj, pass) {
         const iv = crypto.getRandomValues(new Uint8Array(12));
         const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await this.key(pass), this.enc(JSON.stringify(obj)));
@@ -38,7 +41,7 @@ const SyncCrypto = {
     }
 };
 
-const DEVICE_ONLY_SETTINGS = ['theme', 'cardSize', 'syncKey', 'cloudSync', 'autoSpeak', 'autoBackup', 'answerMode', 'showIntervals'];
+const DEVICE_ONLY_SETTINGS = ['theme', 'cardSize', 'syncKey', 'cloudSync', 'autoSpeak', 'autoBackup', 'answerMode', 'showIntervals', 'backupCode', 'backupAutoDone', 'backupLegacy'];
 function mergeMaxMap(a, b) { const out = { ...a }; Object.entries(b || {}).forEach(([k, v]) => { out[k] = Math.max(out[k] || 0, v || 0); }); return out; }
 function mergeSeen(a, b) {
     if (!a || a.date !== (b && b.date)) return (b && (!a || String(b.date) > String(a.date))) ? b : a;
@@ -109,7 +112,7 @@ const Cloud = {
     async ensure() {
         if (this.client) return true;
         try {
-            if (!window.supabase) await loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js');
+            if (!window.supabase) await loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.min.js', 15000, 'sha384-D3HBLJnDxXL59BXo26GFWjGTcyxip2IVM0I+EqfCMwOhTc5jUTZxISDtfdXFaUOm');
             if (!window.supabase || !window.supabase.createClient) return false;
             this.client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
             return true;
@@ -139,13 +142,17 @@ const Cloud = {
         st.updatedAt = Math.max(st.updatedAt, Date.parse(row.updated_at) || 0);
         return st;
     },
+    /* changes are sent in one go a little later (the whole collection is uploaded each time): never during a review,
+       at once when the app goes to the background */
     schedulePush() {
-        if (!app.data.settings.cloudSync) return;
+        if (!app.data.settings.cloudSync || !this.key()) return;
+        if (app.session) { this.deferred = true; return; }
         clearTimeout(this.timer);
-        this.timer = setTimeout(() => this.push(), 2500);
+        this.timer = setTimeout(() => { this.timer = null; this.push(); }, 10000);
     },
     async push() {
-        if (!app.data.settings.cloudSync) return;
+        clearTimeout(this.timer); this.timer = null;
+        if (!app.data.settings.cloudSync || !this.key()) return;
         if (this.busy) { this.pending = true; return; }
         this.busy = true; this.setStatus('busy');
         try {
@@ -165,14 +172,50 @@ const Cloud = {
             if (this.pending) { this.pending = false; this.schedulePush(); }
         }
     },
+    /* the old shared row "main" (no code, readable by anyone): its content is taken into this device's data once,
+       then replaced by a small "moved" mark as soon as the encrypted copy is safely stored */
+    async absorbMain() {
+        const res = await this.client.from('game_state').select('data, updated_at').eq('id', 'main').maybeSingle();
+        if (res.error) throw new Error(res.error.message);
+        const row = res.data;
+        if (!row || !row.data) return 'none';
+        if (row.data.moved) return 'moved';
+        const st = normalizeState(row.data);
+        if (!st) return 'none';
+        st.updatedAt = Math.max(st.updatedAt, Date.parse(row.updated_at) || 0);
+        const m = mergeStates(app.data, st);
+        if (m.localChanged) { m.data.settings.syncKey = app.data.settings.syncKey; m.data.settings.cloudSync = app.data.settings.cloudSync; app.applyMerged(m.data); }
+        return 'absorbed';
+    },
+    async retireMain() {
+        const res = await this.client.from('game_state').upsert({ id: 'main', data: { moved: 1 }, updated_at: new Date().toISOString() });
+        if (res.error) throw new Error(res.error.message);
+    },
     async sync(manual = false) {
         if (!app.data.settings.cloudSync) { this.setStatus('off'); return; }
         if (app.session || app.examActive()) { this.deferred = true; return; }
         this.setStatus('busy');
         try {
-            if (this.key() && !SyncCrypto.available()) throw new Error('Chiffrement indisponible (ouvre l\'app en https)');
+            if (!SyncCrypto.available()) throw new Error('Chiffrement indisponible (ouvre l\'app en https)');
+            if (!(await this.ensure())) throw new Error('hors ligne');
+            if (!this.mainState) {
+                /* only a device that used the old shared row takes its content (a new install never reads it) */
+                const st = app.data.settings.backupLegacy ? await this.absorbMain() : 'skip';
+                if (st === 'moved' && !this.key() && app.data.settings.backupLegacy) {   // another device already protected the backup with its code: this one needs that code
+                    this.needCode = true; this.setStatus('err', 'entre ton code de sauvegarde');
+                    if (app.view === 'dashboard') app.renderDashboard();
+                    return;
+                }
+                this.mainState = st;
+            }
+            if (!this.key()) app.backupNewCode();
             const row = await this.pull();
-            if (!row || !row.data) { await this.push(); if (manual) app.toast('Sauvegarde envoyée dans le cloud', 'success'); return; }
+            if (!row || !row.data) {
+                await this.push();
+                if (this.mainState === 'absorbed' && this.status === 'ok') { await this.retireMain(); this.mainState = 'moved'; }
+                if (manual) app.toast('Sauvegarde envoyée dans le cloud', 'success');
+                return;
+            }
             const remote = await this.decode(row);
             if (app.session || app.examActive()) { this.deferred = true; this.setStatus('ok'); return; }
             const m = mergeStates(app.data, remote);
@@ -183,6 +226,7 @@ const Cloud = {
             }
             if (m.remoteChanged) await this.push();
             else { this.lastSync = Date.now(); this.setStatus('ok'); if (manual && !m.localChanged) app.toast('Déjà à jour', 'success'); }
+            if (this.mainState === 'absorbed' && this.status === 'ok') { await this.retireMain(); this.mainState = 'moved'; }
         } catch (e) {
             console.warn('Sync cloud:', e.message);
             this.setStatus('err', e.message);
@@ -190,3 +234,59 @@ const Cloud = {
         }
     }
 };
+
+/* ============================================================
+   Automatic cloud backup: on by default, encrypted with a random code made on the device.
+   The code is shown once on the home screen (to keep in Notes or as a screenshot): on a new phone it brings everything back.
+   ============================================================ */
+const BACKUP_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function backupCodeNew() {
+    const r = crypto.getRandomValues(new Uint8Array(16)), c = [...r].map(x => BACKUP_ABC[x % 32]).join('');
+    return `LHC-${c.slice(0, 4)}-${c.slice(4, 8)}-${c.slice(8, 12)}-${c.slice(12)}`;
+}
+/* a code typed by hand: spaces, lower case and missing dashes are forgiven (other passphrases are kept as typed) */
+function backupCodeClean(v) {
+    v = String(v || '').trim();
+    const x = v.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return /^LHC[A-Z0-9]{16}$/.test(x) ? `LHC-${x.slice(3, 7)}-${x.slice(7, 11)}-${x.slice(11, 15)}-${x.slice(15)}` : v;
+}
+Object.assign(SuperAnki.prototype, {
+    backupAutoStart() {
+        const s = this.data.settings;
+        if (navigator.webdriver || s.backupAutoDone || !(window.crypto && crypto.subtle) || !/^https?:/.test(location.protocol)) return;
+        s.backupAutoDone = true;
+        if (s.cloudSync) s.backupLegacy = true;   // was already syncing through the old shared space: may share it with another device
+        else s.cloudSync = true;
+        this.save(false);
+    },
+    backupNewCode() {
+        const s = this.data.settings;
+        s.syncKey = backupCodeNew(); s.backupCode = { at: Date.now(), seen: false };
+        this.save(false);
+        if (this.view === 'dashboard') this.renderDashboard();
+    },
+    backupBannerHtml() {
+        const s = this.data.settings;
+        if (Cloud.needCode && !s.syncKey) return `<div class="panel lib-banner backup-banner"><span class="lib-ico">${ic('lock')}</span><div style="flex:1;min-width:200px"><b>Entre ton code de sauvegarde</b><p class="small muted">Ta sauvegarde a été protégée par un code sur ton autre appareil (il commence par LHC-, dans ses Réglages). Entre-le ici pour retrouver tes cartes partout.</p></div><button class="btn btn-primary btn-sm" data-action="bk-enter">Entrer mon code</button></div>`;
+        if (!s.cloudSync || !s.syncKey || !s.backupCode || s.backupCode.seen) return '';
+        return `<div class="panel lib-banner backup-banner"><span class="lib-ico">${ic('lock')}</span><div style="flex:1;min-width:200px"><b>Tes cartes sont sauvegardées automatiquement</b><p class="small muted">Copie chiffrée dans le cloud. Garde ce code (capture d'écran ou Notes) : sur un nouveau téléphone, il te rend tout.</p><p class="backup-code"><code>${esc(s.syncKey)}</code></p></div><div class="row-gap"><button class="btn btn-soft btn-sm" data-action="bk-copy">${ic('copy')}Copier</button><button class="btn btn-primary btn-sm" data-action="bk-seen">C'est noté</button></div><button class="link small" data-action="bk-enter" style="flex-basis:100%;text-align:left">J'ai déjà un code (autre appareil)</button></div>`;
+    },
+    async backupAction(a) {
+        const s = this.data.settings;
+        if (a === 'bk-copy') {
+            try { await navigator.clipboard.writeText(s.syncKey); this.toast('Code copié', 'success', ic('copy')); }
+            catch { this.toast('Copie impossible : fais une capture d\'écran du code', 'warning'); }
+        } else if (a === 'bk-seen') {
+            s.backupCode = { ...(s.backupCode || {}), seen: true }; this.save(false); this.renderDashboard();
+        } else if (a === 'bk-enter') {
+            const v = await this.askText({ title: 'Code de sauvegarde', label: 'Ton code (LHC-…)', placeholder: 'LHC-XXXX-XXXX-XXXX-XXXX', ok: 'Valider', help: 'Il est affiché dans les Réglages de l\'appareil où tes cartes sont déjà sauvegardées (Synchronisation cloud).' });
+            if (v === null) return;
+            const code = backupCodeClean(v);
+            if (code.length < 8) { this.toast('Code trop court.', 'warning'); return; }
+            s.syncKey = code; s.cloudSync = true; s.backupCode = { at: Date.now(), seen: true }; Cloud.needCode = false;
+            this.save(false);
+            await Cloud.sync(true);
+            this.render();
+        }
+    }
+});
