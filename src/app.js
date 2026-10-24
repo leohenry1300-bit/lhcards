@@ -264,7 +264,7 @@ const CARD_SIZES = { s: '1.1rem', m: '1.35rem', l: '1.6rem', xl: '1.9rem', xxl: 
 const OPT_DEFAULTS = {
     scheduler: 'sm2', retention: 0.9, learnSteps: '1 10', relearnSteps: '10', gradIvl: 1, easyIvl: 4,
     startEase: 2.5, easyBonus: 1.3, hardMult: 1.2, ivlMult: 1, lapseMult: 0.5, maxIvl: 3650,
-    leechThreshold: 8, leechAction: 'suspend', newPerDay: 20, maxReviews: 9999,
+    leechThreshold: 8, leechAction: 'suspend', newPerDay: 20, maxReviews: 200,
     minIvl: 1, buryNewSib: true, buryRevSib: true, buryLearnSib: true, newOrder: 'random', newReviewOrder: 'mix', reviewSort: 'random',
     maxAnswerSecs: 60, autoQSecs: 0, autoASecs: 0, autoAAction: 'none', easyDays: '0000000'
 };
@@ -307,7 +307,7 @@ function buildCfg(o) {
         autoQSecs: clamp(num(g('autoQSecs', 0), 0), 0, 300), autoASecs: clamp(num(g('autoASecs', 0), 0), 0, 300),
         autoAAction: ['none', 'bury', 'again', 'hard', 'good', 'easy'].includes(g('autoAAction', 'none')) ? g('autoAAction', 'none') : 'none',
         easyDays: /^[012]{7}$/.test(String(g('easyDays', '0000000'))) ? String(g('easyDays', '0000000')) : '0000000',
-        newPerDay: clamp(Math.round(num(g('newPerDay', 20), 20)), 0, 9999), maxReviews: clamp(Math.round(num(g('maxReviews', 9999), 9999)), 0, 9999),
+        newPerDay: clamp(Math.round(num(g('newPerDay', 20), 20)), 0, 9999), maxReviews: clamp(Math.round(num(g('maxReviews', 200), 200)), 0, 9999),
         fsrsW: Array.isArray(o.fsrsW) && o.fsrsW.length === 19 && o.fsrsW.every(Number.isFinite) ? o.fsrsW : null
     };
 }
@@ -545,25 +545,29 @@ const Storage = {
 /* ============================================================
    Spaced repetition (SM-2 as in Anki, with learning steps)
    ============================================================ */
-/* "Easy days": among the days a card could land on, prefer weekdays you marked as normal over reduced / minimum ones */
+/* Fuzz, as in Anki (rslib fuzz.rs): a review interval of 2.5 days or more is moved by up to ±15 % of its part between 2.5 and 7 days,
+   ±10 % between 7 and 20, ±5 % beyond, plus one day. */
 let SCHED_LOAD = null;   // Map(start of day -> review cards already due that day), set while answering when load balancing is on
-function pickEasyDay(ivl, base, now, easyDays) {
-    const easy = easyDays && easyDays !== '0000000';
-    if ((!easy && !SCHED_LOAD) || base < 3) return ivl;
-    const spread = Math.max(1, Math.round(base * 0.05));
-    let best = ivl, bestW = -1, bestL = Infinity;
-    for (let d = Math.max(1, ivl - spread); d <= ivl + spread; d++) {
+const FUZZ_RANGES = [[2.5, 7, 0.15], [7, 20, 0.1], [20, Infinity, 0.05]];
+function fuzzBounds(ivl, maxIvl = 36500) {
+    const delta = FUZZ_RANGES.reduce((d, [a, b, f]) => d + f * Math.max(Math.min(ivl, b) - a, 0), 1);
+    const hi = Math.min(Math.round(ivl + delta), maxIvl);
+    return [Math.min(Math.max(2, Math.round(ivl - delta)), hi), hi];
+}
+/* Picks the day a review lands on, always inside the fuzz range above: at random, or (load balancing / "easy days")
+   the least loaded day of that range, preferring the weekdays marked normal over reduced / minimum ones */
+function spreadIvl(ivl, now, easyDays, maxIvl) {
+    if (ivl < 2.5) return ivl;
+    const [lo, hi] = fuzzBounds(ivl, maxIvl), easy = easyDays && easyDays !== '0000000';
+    if (!easy && !SCHED_LOAD) return lo + Math.floor(Math.random() * (hi - lo + 1));
+    let best = Math.round(ivl), bestW = -1, bestL = Infinity;
+    for (let d = lo; d <= hi; d++) {
         const day = addDays(now, d), wd = new Date(day).getDay(), w = easy ? ([2, 1, 0][Number(easyDays[wd])] ?? 2) : 0;
         const load = SCHED_LOAD ? (SCHED_LOAD.get(startOfDay(day)) || 0) : 0;
-        const better = w > bestW || (w === bestW && (load < bestL || (load === bestL && Math.abs(d - base) < Math.abs(best - base))));
+        const better = w > bestW || (w === bestW && (load < bestL || (load === bestL && Math.abs(d - ivl) < Math.abs(best - ivl))));
         if (better) { best = d; bestW = w; bestL = load; }
     }
     return best;
-}
-function fuzzIvl(ivl) {
-    if (ivl < 3) return ivl;
-    const f = Math.max(1, Math.round(ivl * 0.05));
-    return ivl + Math.floor(Math.random() * (2 * f + 1)) - f;
 }
 /* Returns the new scheduling fields for `card` after answering `grade` (1 = raté .. 4 = facile). */
 function schedule(card, grade, now = Date.now(), useFuzz = false, cfg = buildCfg(OPT_DEFAULTS)) {
@@ -571,9 +575,10 @@ function schedule(card, grade, now = Date.now(), useFuzz = false, cfg = buildCfg
     cfg = cfg.fsrsW ? { ...cfg, w: cfg.fsrsW } : cfg;
     const r = { state: card.state, step: card.step || 0, interval: card.interval || 0, ease: card.ease || 2.5, lapses: card.lapses || 0, due: card.due, fs: card.fs || null };
     const inMin = m => now + Math.round(m * MIN);
+    const hardFirst = steps => (steps[1] ? (steps[0] + steps[1]) / 2 : Math.min(steps[0] * 1.5, steps[0] + 1440));   // "Difficile" on the first step, as in Anki
     let fs = fsr ? fsrsFromCard(card) : null;
-    const finish = ivl => {
-        ivl = clamp(Math.round(useFuzz ? pickEasyDay(fuzzIvl(ivl), ivl, now, cfg.easyDays) : ivl), 1, cfg.maxIvl);
+    const finish = (ivl, fuzz = true) => {
+        ivl = clamp(Math.round(useFuzz && fuzz ? spreadIvl(ivl, now, cfg.easyDays, cfg.maxIvl) : ivl), 1, cfg.maxIvl);
         r.state = 'review'; r.step = 0; r.interval = ivl; r.due = addDays(now, ivl);
     };
     const keepFs = () => { if (fs) r.fs = { s: fs.s, d: fs.d, t: now }; };
@@ -590,7 +595,7 @@ function schedule(card, grade, now = Date.now(), useFuzz = false, cfg = buildCfg
            capped by the preset's "graduating" (Good) / "easy" intervals (1 and 4 days by default). The memory state is kept as is. */
         const grad = g => finish(fsr ? Math.max(1, Math.min(fsrsIvl(fs.s, cfg.retention), g === 4 ? cfg.easyIvl : cfg.gradIvl)) : (g === 4 ? cfg.easyIvl : cfg.gradIvl));
         if (grade === 1) { r.state = 'learning'; r.step = 0; r.due = inMin(steps[0]); }
-        else if (grade === 2) { r.state = 'learning'; r.due = inMin(r.step === 0 && steps[1] ? (steps[0] + steps[1]) / 2 : cur); }
+        else if (grade === 2) { r.state = 'learning'; r.due = inMin(r.step === 0 ? hardFirst(steps) : cur); }
         else if (grade === 3) {
             if (r.step + 1 < steps.length) { r.state = 'learning'; r.step++; r.due = inMin(steps[r.step]); }
             else grad(3);
@@ -600,7 +605,7 @@ function schedule(card, grade, now = Date.now(), useFuzz = false, cfg = buildCfg
         if (fsr && fs) { fs.s = fsrsShortS(fs.s, grade, cfg.w); fs.d = fsrsNextD(fs.d, grade, cfg.w); keepFs(); }
         const back = bonus => finish(fsr && fs ? Math.max(1, fsrsIvl(fs.s, cfg.retention)) : Math.max(1, r.interval) + bonus);
         if (grade === 1) { r.step = 0; r.due = inMin(steps[0]); }
-        else if (grade === 2) { r.due = inMin(steps[Math.min(r.step, steps.length - 1)]); }
+        else if (grade === 2) { r.due = inMin(r.step === 0 ? hardFirst(steps) : steps[Math.min(r.step, steps.length - 1)]); }
         else if (grade === 3) {
             if (r.step + 1 < steps.length) { r.step++; r.due = inMin(steps[r.step]); }
             else back(0);
@@ -632,6 +637,14 @@ function schedule(card, grade, now = Date.now(), useFuzz = false, cfg = buildCfg
             r.ease = Math.max(1.3, r.ease - 0.2);
             r.interval = Math.max(cfg.minIvl, Math.round(ivl * cfg.lapseMult));
             r.state = 'relearning'; r.step = 0; r.due = inMin(cfg.relearnSteps[0]);
+        } else if (Number.isFinite(card.due) && daysBetweenKeys(dayKey(now), dayKey(card.due)) > 0) {
+            /* answered before its due day (filtered deck, "réviser en avance"): Anki's early-review rule, without fuzz
+               (elapsed counted as Anki does: interval minus the days still to go). Otherwise a card seen yesterday with a 30-day interval jumped to 75 days. */
+            const el = Math.max(0, ivl - daysBetweenKeys(dayKey(now), dayKey(card.due))), m = v => clamp(Math.round(v * cfg.ivlMult), 1, cfg.maxIvl);
+            const good = Math.max(el * r.ease, ivl);
+            if (grade === 2) { const h = m(Math.max(el * cfg.hardMult, ivl * cfg.hardMult / 2)); r.ease = Math.max(1.3, r.ease - 0.15); finish(h, false); }
+            else if (grade === 3) finish(m(good), false);
+            else { const e = m(good * (cfg.easyBonus - (cfg.easyBonus - 1) / 2)); r.ease = r.ease + 0.15; finish(e, false); }
         } else {
             const hard = Math.max(ivl + 1, Math.round(ivl * cfg.hardMult * cfg.ivlMult));
             const good = Math.max(hard + 1, Math.round((ivl + delay / 2) * r.ease * cfg.ivlMult));
@@ -785,6 +798,17 @@ class SuperAnki {
         this.save();
     }
 
+    /* One-time: the daily review cap takes Anki's default (200, was "no limit" = 9999), so that coming back after days away
+       gives a few manageable days instead of one session of several hundred cards. A value chosen by hand is kept. */
+    migrateReviewCap() {
+        const st = this.data.settings;
+        if (st.reviewCapV1) return;
+        st.reviewCapV1 = true;
+        if (st.maxReviews === 9999) st.maxReviews = 200;
+        this.data.presets.forEach(p => { if (p.opts && p.opts.maxReviews === 9999) p.opts = { ...p.opts, maxReviews: 200 }; });
+        this.save();
+    }
+
     /* One-time: English / TOEIC decks use FSRS at 90 % retention (cards already reviewed with SM-2 are converted on the fly). */
     migrateTunedPreset() {
         const st = this.data.settings;
@@ -922,6 +946,7 @@ class SuperAnki {
         this.migrateCourses();
         this.migrateTunedPreset();
         this.migratePushPull();
+        this.migrateReviewCap();
         this.checkStreak();
         this.writeNow();
         this.autoBackup(source);
@@ -1290,9 +1315,11 @@ class SuperAnki {
         const learning = pool.filter(c => c.state === 'learning' || c.state === 'relearning').map(c => ({ id: c.id, due: c.due }));
         const dueAll = pool.filter(c => c.state === 'review' && c.due <= eod).sort((a, b) => a.due - b.due);
         const reviews = this.applyLimit(dueAll, 'maxReviews', st.revSeen, Math.max(0, this.data.settings.maxReviews - st.revSeen.count));
+        /* as in Anki: the review limit also holds new cards back, so a backlog (after days away) is caught up first, most overdue cards first */
+        const newRoom = Math.max(0, this.data.settings.maxReviews - st.revSeen.count - st.newSeen.count - reviews.length);
         let fresh = pool.filter(c => c.state === 'new');
         fresh = this.data.settings.newOrder === 'random' ? shuffle(fresh) : fresh.sort((a, b) => a.created - b.created);
-        const news = extraNew ? fresh.slice(0, extraNew) : this.applyLimit(fresh, 'newPerDay', st.newSeen, this.newBudget());
+        const news = extraNew ? fresh.slice(0, extraNew) : this.applyLimit(fresh, 'newPerDay', st.newSeen, Math.min(this.newBudget(), newRoom));
         return { reviews, news, learning, learningDue: learning.filter(l => l.due <= now).length, freshTotal: fresh.length, dueTotal: dueAll.length };
     }
     nextDueTime() {

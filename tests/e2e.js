@@ -221,6 +221,34 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         await A.c.close(); await B.c.close();
     }
 
+    /* 16. scheduling, checked against Anki's own rules (rslib): early review, fuzz range, "Difficile" on a single step, review cap, optimizer guard */
+    const sch = await page.evaluate(async () => {
+        const now = Date.now(), DAY = 864e5, sm2 = buildCfg({ ...OPT_DEFAULTS }), out = {};
+        const early = schedule({ state: 'review', step: 0, interval: 30, ease: 2.5, due: addDays(now, 29), lapses: 0, lastReview: now - DAY, fs: null }, 3, now, true, sm2);
+        out.early = early.interval;
+        const onTime = schedule({ state: 'review', step: 0, interval: 30, ease: 2.5, due: now - 1000, lapses: 0, lastReview: now - 30 * DAY, fs: null }, 3, now, false, sm2);
+        out.onTime = onTime.interval;
+        let outside = 0;
+        for (let i = 0; i < 300; i++) { const m = new Map(); for (let d = 0; d < 10; d++) m.set(startOfDay(addDays(now, d)), Math.floor(Math.random() * 30)); SCHED_LOAD = i % 2 ? m : null; const v = spreadIvl(3, now, '0000000', 36500); if (v < 2 || v > 4) outside++; }
+        SCHED_LOAD = null; out.fuzzOutside = outside;
+        const h = schedule({ state: 'new', step: 0, interval: 0, ease: 2.5, due: now, lapses: 0, lastReview: null, fs: null }, 2, now, false, buildCfg({ ...OPT_DEFAULTS, learnSteps: '10' }));
+        out.hardMin = Math.round((h.due - now) / 6e4);
+        const st = app.data.settings; st.reviewCapV1 = false; st.maxReviews = 9999; app.migrateReviewCap(); out.cap = st.maxReviews;
+        const d = app.data.decks.find(x => !x.parent).id, made = [];
+        for (let i = 0; i < 260; i++) { const id = 'cap_' + i; made.push(id); app.data.cards.push({ ...freshCard(), id, deckId: d, front: 'q' + i, back: 'r', hint: '', detail: '', tags: [], created: now, nid: '', kind: 'basic', ord: 0, nf: null, state: 'review', interval: 5, due: now - i * 1000 - DAY, lastReview: now - 6 * DAY }); }
+        app.data.stats.revSeen = { date: dayKey(), count: 0, by: {} }; app.data.stats.newSeen = { date: dayKey(), count: 0, by: {} };
+        const plan = app.studyPlan(null); out.planReviews = plan.reviews.length; out.planNew = plan.news.length;
+        app.data.cards = app.data.cards.filter(c => !made.includes(c.id)); app.save();
+        const fake = []; for (let c = 0; c < 40; c++) for (let k = 0; k < 6; k++) fake.push([now - (60 - k * 9) * DAY + c, 'opt' + c, k === 3 ? 1 : 3, 1]);
+        const r = await fsrsTrain(fsrsSequences(fake), null); out.optSmall = !!r.small;
+        return out;
+    });
+    ok('SM-2 early review as in Anki (30 j card seen yesterday stays 30 j; on time still 75 j)', sch.early === 30 && sch.onTime === 75, JSON.stringify({ early: sch.early, onTime: sch.onTime }));
+    ok('fuzz + load balancing stay inside Anki\'s range', sch.fuzzOutside === 0, String(sch.fuzzOutside));
+    ok('"Difficile" on a single 10 min step = 15 min (Anki)', sch.hardMin === 15, String(sch.hardMin));
+    ok('review cap 200 (old default migrated), backlog first, no new cards on top', sch.cap === 200 && sch.planReviews === 200 && sch.planNew === 0, JSON.stringify(sch));
+    ok('optimizer: too few reviews to check -> standard parameters kept', sch.optSmall);
+
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));
     console.log(R.join('\n') + `\n\n${R.length - failed}/${R.length} checks passed`);
     await browser.close(); server.close(); process.exit(failed ? 1 : 0);

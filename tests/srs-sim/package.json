@@ -1,0 +1,6 @@
+{
+  "name": "lh-cards-srs-sim",
+  "private": true,
+  "description": "Simulations du système de révision : le vrai code de l'appli (src/) comparé à la référence FSRS-5 (ts-fsrs 4.7.1). Lancer : npm install puis TZ=Europe/Paris node sim1.js (… sim10.js)",
+  "devDependencies": { "ts-fsrs": "4.7.1" }
+}
