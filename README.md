@@ -63,3 +63,12 @@ Le fichier `.apkg` est vérifié avec SQLite (`integrity_check`) et réimporté 
 ## Sons d'ambiance
 
 Les enregistrements du mélangeur d'ambiance sont dans `sounds/` (MP3 en boucle, listés dans `sounds/index.json` avec leurs crédits et licences : domaine public, CC0 ou CC BY). Les crédits sont aussi affichés dans l'appli (Réglages → Ambiance sonore → Crédits). Si un fichier manque ou si on est hors ligne la première fois, l'appli joue une version synthétisée du son.
+
+## Tests
+
+`tests/e2e.js` ouvre l'application dans un vrai navigateur et vérifie : démarrage sans erreur, onglets (contenu identique et rapides), thèmes lisibles,
+mascotte Léo (fichiers, voix, mémoire, pas de disparition), session de révision complète. Ils tournent à chaque envoi sur GitHub (`.github/workflows/test.yml`) ; en local :
+
+```
+python3 build.py && cd tests && npm install && npx playwright install chromium && npm test
+```

@@ -1,0 +1,6 @@
+{
+  "name": "lh-cards-tests",
+  "private": true,
+  "scripts": { "test": "node e2e.js" },
+  "devDependencies": { "playwright": "^1.48.0" }
+}
