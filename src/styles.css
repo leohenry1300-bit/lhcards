@@ -2047,7 +2047,7 @@ html[data-vt="l"]::view-transition-new(root) { animation-name: vtInL; }
 .leo-star { position: absolute; left: var(--x); top: var(--y); width: var(--s); height: var(--s); background: #fff1b8; clip-path: polygon(50% 0, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 39%); opacity: 0; animation: leoTwinkle 3.4s ease-in-out infinite; animation-delay: var(--d); z-index: 0; pointer-events: none; }
 @keyframes leoTwinkle { 0%, 100% { opacity: 0; transform: scale(.4) rotate(0); } 45% { opacity: .95; transform: scale(1) rotate(25deg); } 70% { opacity: .3; transform: scale(.7) rotate(40deg); } }
 /* the figure sits on the floor of its slot; every layer shares the same box (the crop of the clips) */
-.leo-pose { position: absolute; left: 0; bottom: 0; width: 100%; aspect-ratio: var(--ar, 1); z-index: 1; }
+.leo-pose { position: absolute; left: 0; bottom: 0; width: 100%; aspect-ratio: var(--ar, 1); z-index: 1; will-change: transform; transform: translateZ(0); }   /* his own layer: a new frame never repaints the card behind him */
 .leo-off *, .leo-off { animation-play-state: paused !important; }
 .leo-shadow { position: absolute; left: 50%; bottom: 1%; width: 46%; height: 6%; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(closest-side, rgba(20, 8, 50, .45), transparent); z-index: 0; pointer-events: none; }
 .leo-fig { position: absolute; inset: 0; }
@@ -2078,7 +2078,7 @@ html[data-vt="l"]::view-transition-new(root) { animation-name: vtInL; }
 .hero .mascot::before { display: none; }
 .summary-mascot { width: 220px; height: 220px; }
 .empty-mascot { width: 160px; height: 160px; }
-.hero { overflow: visible; } body { overflow-x: clip; }   /* (the banner must not clip Léo: iOS cut him at its top edge) */
+.hero { overflow-x: clip; overflow-y: visible; } body { overflow-x: clip; }
 @media (prefers-reduced-motion: reduce) { .lf-clip { transition: none; } .leo-glow, .leo-star, .leo-z, .leo-trail, .leo-trail * { animation: none !important; } .leo-star { opacity: .6; } .leo-trail { display: none; } }
 
 /* Léo in the smaller places: the library, empty lists, clean-up results */
@@ -2104,6 +2104,3 @@ html[data-vt="l"]::view-transition-new(root) { animation-name: vtInL; }
   #view-dashboard .hero-title { font-size: 1.4rem; line-height: 1.2; }
 }
 @media (max-width: 767px) { #view-dashboard .hero .leo-glow { width: 112%; filter: opacity(.62); } }
-/* phone: what Léo's glow and sparkles would push past the right edge of the screen is cut, so the page never scrolls sideways (the banner itself no longer clips) */
-@media (max-width: 767px) { #view-dashboard .hero .mascot { clip-path: inset(-400px -10px -80px -120px); } }
-@media (max-width: 767px) { #view-dashboard .hero .leo-star { left: min(var(--x), calc(100% - var(--s))); } #view-dashboard .hero .leo-z.z2 { right: 4%; } }
