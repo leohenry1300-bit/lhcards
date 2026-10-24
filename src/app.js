@@ -262,6 +262,8 @@ const THEMES = [
 ];
 /* how long a screen kept from earlier may be shown again without being rebuilt (anything that changes data makes it out of date at once) */
 const VIEW_TTL = { dashboard: 60000, decks: 300000, stats: 300000, settings: 1800000, toeic: 1800000 };
+/* how many blocks of a tab are built before it is shown (the rest, further down the page, follows in small pieces right after) */
+const TAB_HEAD = { dashboard: 3, decks: 3, stats: 2, settings: 2 };
 const THEME_GROUPS = [['clair', 'Clairs'], ['sombre', 'Sombres'], ['fun', 'Originaux']];
 const CARD_SIZES = { s: '1.1rem', m: '1.35rem', l: '1.6rem', xl: '1.9rem', xxl: '2.4rem', xxxl: '3rem' };
 /* Study options: global defaults, can be overridden per deck (deck.opts) */
@@ -767,11 +769,48 @@ class SuperAnki {
         this.save();
     }
 
+    /* a tab is shown as soon as its first blocks are built; what lies further down is set up right after, in small pieces, so nothing freezes */
+    deferTail(el, keep) {
+        if (!el) return;
+        const stack = el.firstElementChild;
+        if (!stack || stack.children.length <= keep) { el._tail = null; return; }
+        const nodes = [...stack.children].slice(keep);
+        nodes.forEach(n => n.remove());
+        el._tail = { stack, nodes };
+    }
+    flushTail(el, sync = false) {
+        const t = el && el._tail; if (!t) return;
+        el._tail = null;
+        const queue = t.nodes.map(n => [t.stack, n]);
+        const done = () => {
+            if (el.id === 'view-stats') this.fixCharts();
+            if (el.id === 'view-settings') { this.renderSyncIndicator(); if (this.updRefresh) this.updRefresh(); this.fillBackups(); }   // things that fill the page after it was drawn need the bottom to be there
+        };
+        const work = budget => {
+            let used = 0;
+            while (queue.length && used < budget) {
+                const [par, n] = queue.shift();
+                const size = n.nodeType === 1 ? n.getElementsByTagName('*').length + 1 : 1;
+                if (size > 90 && n.childNodes.length > 1) {   // a big block: its shell goes first, then its content piece by piece
+                    const kids = [...n.childNodes]; kids.forEach(k => k.remove());
+                    par.appendChild(n); used += 1;
+                    queue.unshift(...kids.map(k => [n, k]));
+                } else { par.appendChild(n); used += size; }
+            }
+        };
+        if (sync) { work(Infinity); done(); return; }
+        const tick = () => {
+            if (t.stack.parentNode !== el) return;   // the tab was redrawn meanwhile: this rest is obsolete
+            work(el.classList.contains('hidden') ? Infinity : 130);
+            if (queue.length) setTimeout(tick, 24); else done();
+        };
+        requestAnimationFrame(() => requestAnimationFrame(tick));
+    }
     /* the other tabs are prepared while nothing is happening, so opening one is only a matter of showing it */
     renderQuiet(v) {
         const fn = { decks: 'renderDecks', stats: 'renderStats', settings: 'renderSettings' }[v]; if (!fn) return;
         const keep = this.view; this.view = v;
-        try { this[fn](); (this._rv = this._rv || {})[v] = { v: this._ver || 0, t: Date.now(), d: dayKey() }; }
+        try { this[fn](); (this._rv = this._rv || {})[v] = { v: this._ver || 0, t: Date.now(), d: dayKey() }; this.deferTail($(`#view-${v}`), TAB_HEAD[v]); }
         catch (e) { console.error(e); delete (this._rv || {})[v]; }
         finally { this.view = keep; }
     }
@@ -1231,11 +1270,14 @@ class SuperAnki {
         const rv = (this._rv || {})[view];
         /* a tab seen a moment ago, with nothing changed since, is simply shown again: switching tabs stays instant */
         const reuse = !!rv && prevView !== view && rv.v === (this._ver || 0) && Date.now() - rv.t < (VIEW_TTL[view] || 60000) && rv.d === dayKey() && opts.deck === undefined && opts.filter === undefined && ['dashboard', 'decks', 'stats', 'settings', 'toeic'].includes(view);
+        const tabbed = !!TAB_HEAD[view] && opts.deck === undefined && opts.filter === undefined && !opts.from;
         this.render(true, reuse);
+        if (tabbed && !reuse) this.deferTail($(`#view-${view}`), TAB_HEAD[view]);
         if (reuse && view === 'stats') requestAnimationFrame(() => this.fixCharts());
         const mem = (this.scrollMem || {})[view];
         const restore = mem && prevView !== view && opts.deck === undefined && ['dashboard', 'decks', 'stats', 'settings', 'toeic'].includes(view) && ['dashboard', 'decks', 'stats', 'settings', 'toeic'].includes(prevView);   // coming back to a tab: same place as before
         this.watchSpeed(performance.now(), reuse);
+        if (tabbed && restore && mem > 300) this.flushTail($(`#view-${view}`), true);   // coming back to a place far down the page: it must exist already
         const wantY = restore ? mem : 0;
         if (Math.abs(window.scrollY - wantY) > 1) window.scrollTo({ top: wantY, behavior: 'instant' in window ? 'instant' : 'auto' });   // (already there: no forced layout)
         const el = $(`#view-${view}`);
@@ -1245,8 +1287,11 @@ class SuperAnki {
             const zoom = opts.from && !this.calm();
             if (zoom) { el.style.setProperty('--ox', opts.from.x + 'px'); el.style.setProperty('--oy', opts.from.y + 'px'); }
             el.classList.add('view-in', ...(this._vtOn ? [] : ['cascade']), zoom ? 'view-in-zoom' : this._vtOn ? 'view-in-n' : a >= 0 && b >= 0 && a !== b ? (b > a ? 'view-in-r' : 'view-in-l') : 'view-in-n');
-            clearTimeout(el._cascT); el._cascT = setTimeout(() => el.classList.remove('cascade'), 900);   // the cascade only plays on arrival, not on later redraws
+            clearTimeout(el._cascT); el._cascT = setTimeout(() => el.classList.remove('cascade'), 900);
+            if (tabbed) this.flushTail(el);   // the cascade only plays on arrival, not on later redraws
         }
+        /* the tab just left is stripped back to its first blocks while hidden: coming back to it stays quick */
+        if (prevView && prevView !== view && TAB_HEAD[prevView]) setTimeout(() => { const pe = $(`#view-${prevView}`); if (pe && this.view !== prevView && pe.classList.contains('hidden') && !pe._tail) this.deferTail(pe, TAB_HEAD[prevView]); }, 350);
         if (view === 'dashboard') { clearTimeout(this._leoT); this._leoT = setTimeout(() => this.mascotAuto(), 1700); }
         if (view === 'dashboard' && prevView !== 'dashboard' && !this._vtOn) this.countUp('#view-dashboard .status-num, #view-dashboard .btn-hero .cnt');
     }
@@ -2302,8 +2347,7 @@ class SuperAnki {
         const box = $('#backup-list');
         if (!box) return;
         const list = (await Storage.backups()).sort((a, b) => b.at - a.at);
-        const el = $('#backup-list');
-        if (!el) return;
+        const el = box;   // (the very node, even if the bottom of the tab has not been put on screen yet)
         el.innerHTML = list.length ? list.map(b => `<div class="backup-row"><span><b>${new Date(b.at).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</b> · ${b.label} · ${plural(b.cards, 'carte')}</span>
             <span><button class="btn btn-soft btn-sm" data-action="backup-restore" data-key="${esc(b.key)}">Restaurer</button><button class="icon-btn icon-btn-sm" title="Télécharger" data-action="backup-download" data-key="${esc(b.key)}">${ic('export')}</button><button class="icon-btn icon-btn-sm danger" title="Supprimer" data-action="backup-delete" data-key="${esc(b.key)}">${ic('trash')}</button></span></div>`).join('')
             : `<span class="small faint">${Storage.db ? 'Aucune sauvegarde pour l\'instant.' : 'Indisponible sur ce navigateur.'}</span>`;
@@ -2417,7 +2461,7 @@ class SuperAnki {
         const b = this.back; this.back = null;
         if (!b || !['dashboard', 'decks', 'stats', 'toeic'].includes(b.view)) { this.go('dashboard'); return; }
         this.go(b.view, b.view === 'decks' && b.deck !== undefined && (b.deck === 'all' || b.deck === 'errors' || this.deck(b.deck)) ? { deck: b.deck, filter: b.filter } : {});
-        if (b.y) window.scrollTo({ top: b.y, behavior: 'instant' in window ? 'instant' : 'auto' });
+        if (b.y) { this.flushTail($(`#view-${b.view}`), true); window.scrollTo({ top: b.y, behavior: 'instant' in window ? 'instant' : 'auto' }); }
     }
     quitSession() {
         const s = this.session;
@@ -3884,7 +3928,7 @@ class SuperAnki {
             case 'toggle-deck': this.toggleOpen('side', ds.deck); this.renderDeckSidebar(); break;
             case 'dash-toggle': this.toggleOpen('dash', ds.deck); this.renderDashboard(); break;
             case 'tree-all': this.setAllOpen(ds.key, ds.open === '1'); this.renderDeckSidebar(); break;
-            case 'goals-manage': this.go('settings'); setTimeout(() => { const g = $('#goals-panel'); if (g) { const sp = g.closest('details'); if (sp) sp.open = true; g.scrollIntoView({ block: 'start' }); window.scrollBy(0, -120); } }, 80); break;
+            case 'goals-manage': this.go('settings'); this.flushTail($('#view-settings'), true); setTimeout(() => { const g = $('#goals-panel'); if (g) { const sp = g.closest('details'); if (sp) sp.open = true; g.scrollIntoView({ block: 'start' }); window.scrollBy(0, -120); } }, 80); break;
             case 'goal-add': {
                 const f = this.goalFormSync();
                 if (!/^\d{4}-\d{2}-\d{2}$/.test(f.date)) { this.toast('Choisis une date pour ton objectif.', 'warning'); break; }
