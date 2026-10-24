@@ -683,26 +683,6 @@ code { font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace; font-size:
   --shadow: 0 1px 2px rgba(7,54,66,.06), 0 4px 14px rgba(7,54,66,.06);
 }
 
-[data-theme="cahier"] {
-  --font: 'Nunito', system-ui, sans-serif;
-  --font-display: 'Patrick Hand', 'Comic Sans MS', cursive;
-  --font-card: 'Patrick Hand', 'Comic Sans MS', cursive;
-  --bg: #fdfdf8;
-  --bg-accent: linear-gradient(90deg, transparent 54px, rgba(233,120,120,.55) 54px, rgba(233,120,120,.55) 56px, transparent 56px), repeating-linear-gradient(180deg, transparent 0 31px, #cfe0f5 31px 32px);
-  --surface: #fffef9; --surface-2: #f6f7f1; --surface-3: #ecefe4;
-  --border: #d8e3f0; --border-strong: #b7c9e3;
-  --text: #1f2a44; --text-muted: #4a5878; --text-faint: #8391ad;
-  --primary: #2f5bd3; --primary-2: #d33c3c; --on-primary: #fff;
-  --hero: #fff3a8; --on-hero: #3a3200;
-  --radius: 4px; --radius-sm: 4px; --radius-xs: 3px;
-  --shadow: 0 1px 1px rgba(31,42,68,.08), 0 3px 10px rgba(31,42,68,.07);
-  --heading-spacing: .01em; --card-size: 1.6rem;
-}
-[data-theme="cahier"] .hero { transform: rotate(-.6deg); box-shadow: 0 12px 24px rgba(58,50,0,.18); }
-[data-theme="cahier"] .hero .btn-hero { background: #2f5bd3; color: #fff; }
-[data-theme="cahier"] .hero .btn-hero-ghost { border-color: rgba(58,50,0,.35); background: rgba(255,255,255,.4); }
-[data-theme="cahier"] h2, [data-theme="cahier"] h3, [data-theme="cahier"] h4 { font-weight: 400 !important; font-size: 1.15em; }
-
 [data-theme="cafe"] {
   --font: 'Nunito', system-ui, sans-serif; --font-display: 'Lora', Georgia, serif; --font-card: 'Lora', Georgia, serif;
   --bg: #1c1512; --bg-accent: radial-gradient(900px 500px at 100% 0%, rgba(212,163,115,.10), transparent 60%);
