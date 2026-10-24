@@ -1,6 +1,7 @@
 <script lang="ts">
     import { flushSync, onMount } from 'svelte';
     import { app } from './state.svelte.ts';
+    import * as db from './data/db.ts';
     import { setSound } from './lib/feel.ts';
     import TabBar from './ui/TabBar.svelte';
     import Accueil from './screens/Accueil.svelte';
@@ -60,6 +61,7 @@
 <div class="shell" data-ready={app.ready ? '' : undefined}>
     <TabBar {tab} onGo={go} />
     <main class="main" id="main">
+        {#if app.ready && db.memoryOnly}<p class="mem" role="status">Aperçu : ce navigateur refuse le stockage, tes révisions ne seront pas gardées après fermeture.</p>{/if}
         {#if app.ready && !covered}
             {#key tab}
                 <section class="screen" class:screen-in={!('startViewTransition' in document)} data-screen={tab} aria-label={tab}>
@@ -86,6 +88,7 @@
         padding-block: calc(env(safe-area-inset-top, 0px) + 20px) calc(env(safe-area-inset-bottom, 0px) + 96px);
     }
     .screen { display: grid; gap: var(--s5); }
+    .mem { margin: 0 0 var(--s4); padding: var(--s3) var(--s4); border-radius: var(--r-m); background: var(--accent-soft); font-size: var(--t-s); }
     @media (min-width: 900px) {
         .shell { display: grid; grid-template-columns: 232px 1fr; }
         .main { padding-block: 40px 64px; max-width: 760px; width: 100%; }

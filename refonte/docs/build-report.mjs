@@ -37,7 +37,7 @@ const gallery = `<section class="gallery" aria-label="Captures"><h2 id="captures
 const body = marked.parse(md).replace('<h2>3.1 Vision et principes</h2>', gallery + '<h2>3.1 Vision et principes</h2>').replace(/<table>/g, '<div class="tw"><table>').replace(/<\/table>/g, '</table></div>');
 const css = readFileSync(new URL('docs/report.css', R), 'utf8');
 const head = `<title>Refonte LH Cards</title>\n<meta name="claude:viewport-fit-sides" content="cover">\n<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap">\n<style>${css}</style>`;
-const nav = `<nav class="links" aria-label="Prototypes"><a class="cta" href="proto/index.html">Ouvrir le prototype jouable</a><a href="sim/index.html">Ouvrir le simulateur</a></nav>`;
+const nav = `<nav class="links" aria-label="Prototypes"><a class="cta" href="https://claude.ai/artifact/MbYcxQVkexzSk7mbeFP7xJ" target="_blank" rel="noopener">Ouvrir le prototype jouable</a><a href="sim/index.html">Ouvrir le simulateur</a></nav>`;
 const page = `${head}\n<main class="doc">${nav}${body}</main>`;
 writeFileSync(new URL('rapport-artefact.html', R), page);
 writeFileSync(new URL('rapport.html', R), `<!doctype html>\n<html lang="fr">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n${head}\n</head>\n<body>\n<main class="doc">${nav}${body}</main>\n</body>\n</html>\n`);

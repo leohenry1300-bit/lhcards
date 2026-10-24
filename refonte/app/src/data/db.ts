@@ -27,12 +27,24 @@ function upgrade(db: IDBDatabase, from: number) {
 
 export function open(): Promise<IDBDatabase> {
     return (dbp ??= new Promise((resolve, reject) => {
-        const req = indexedDB.open(NAME, VERSION);
+        // navigation privée, page intégrée ou stockage bloqué : on échoue vite pour basculer en mémoire
+        const timer = setTimeout(() => reject(new Error('Stockage indisponible')), 2500);
+        let req: IDBOpenDBRequest;
+        try { req = indexedDB.open(NAME, VERSION); } catch (e) { clearTimeout(timer); reject(e); return; }
         req.onupgradeneeded = e => upgrade(req.result, e.oldVersion);
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-        req.onblocked = () => reject(new Error('Base bloquée par un autre onglet'));
+        req.onsuccess = () => { clearTimeout(timer); resolve(req.result); };
+        req.onerror = () => { clearTimeout(timer); reject(req.error); };
+        req.onblocked = () => { clearTimeout(timer); reject(new Error('Base bloquée par un autre onglet')); };
     }));
+}
+
+/** Repli en mémoire : l'appli reste utilisable, mais rien n'est gardé après fermeture (signalé à l'écran). */
+export let memoryOnly = false;
+const mem: Record<Store, Map<IDBValidKey, unknown>> = { cards: new Map(), decks: new Map(), revlog: new Map(), meta: new Map(), media: new Map(), goals: new Map() };
+let memSeq = 1;
+async function idb(): Promise<IDBDatabase | null> {
+    if (memoryOnly) return null;
+    try { return await open(); } catch { memoryOnly = true; return null; }
 }
 
 function done(tx: IDBTransaction): Promise<void> {
@@ -40,20 +52,21 @@ function done(tx: IDBTransaction): Promise<void> {
 }
 
 export async function getAll<T>(store: Store): Promise<T[]> {
-    const db = await open();
+    const db = await idb(); if (!db) return [...mem[store].values()] as T[];
     return new Promise((res, rej) => { const r = db.transaction(store).objectStore(store).getAll(); r.onsuccess = () => res(r.result as T[]); r.onerror = () => rej(r.error); });
 }
 export async function getMeta<T>(key: string): Promise<T | undefined> {
-    const db = await open();
+    const db = await idb(); if (!db) return mem.meta.get(key) as T;
     return new Promise((res, rej) => { const r = db.transaction('meta').objectStore('meta').get(key); r.onsuccess = () => res(r.result as T); r.onerror = () => rej(r.error); });
 }
 export async function setMeta(key: string, value: unknown): Promise<void> {
-    const db = await open(); const tx = db.transaction('meta', 'readwrite'); tx.objectStore('meta').put(value, key); return done(tx);
+    const db = await idb(); if (!db) { mem.meta.set(key, value); return; }
+    const tx = db.transaction('meta', 'readwrite'); tx.objectStore('meta').put(value, key); return done(tx);
 }
 
 /** Écriture d'une notation : atomique. Renvoie la clé de la ligne d'historique (pour « Annuler »). */
 export async function saveReview(card: Card, log: ReviewLog): Promise<IDBValidKey> {
-    const db = await open();
+    const db = await idb(); if (!db) { const k = memSeq++; mem.cards.set(card.id, $snapshot(card)); mem.revlog.set(k, log); return k; }
     const tx = db.transaction(['cards', 'revlog'], 'readwrite');
     tx.objectStore('cards').put($snapshot(card));
     const r = tx.objectStore('revlog').add(log);
@@ -61,7 +74,7 @@ export async function saveReview(card: Card, log: ReviewLog): Promise<IDBValidKe
     return r.result;
 }
 export async function undoReview(card: Card, logKey: IDBValidKey): Promise<void> {
-    const db = await open();
+    const db = await idb(); if (!db) { mem.cards.set(card.id, $snapshot(card)); mem.revlog.delete(logKey); return; }
     const tx = db.transaction(['cards', 'revlog'], 'readwrite');
     tx.objectStore('cards').put($snapshot(card));
     tx.objectStore('revlog').delete(logKey);
@@ -69,7 +82,8 @@ export async function undoReview(card: Card, logKey: IDBValidKey): Promise<void>
 }
 
 export async function bulkPut(data: { cards?: Card[]; decks?: Deck[]; goals?: Goal[]; revlog?: ReviewLog[] }): Promise<void> {
-    const db = await open();
+    const db = await idb();
+    if (!db) { data.cards?.forEach(c => mem.cards.set(c.id, c)); data.decks?.forEach(d => mem.decks.set(d.id, d)); data.goals?.forEach(g => mem.goals.set(g.id, g)); data.revlog?.forEach(l => mem.revlog.set(memSeq++, l)); return; }
     const tx = db.transaction(['cards', 'decks', 'goals', 'revlog'], 'readwrite');
     data.cards?.forEach(c => tx.objectStore('cards').put(c));
     data.decks?.forEach(d => tx.objectStore('decks').put(d));
@@ -79,7 +93,7 @@ export async function bulkPut(data: { cards?: Card[]; decks?: Deck[]; goals?: Go
 }
 
 export async function wipe(): Promise<void> {
-    const db = await open();
+    const db = await idb(); if (!db) { Object.values(mem).forEach(m => m.clear()); return; }
     const stores: Store[] = ['cards', 'decks', 'revlog', 'meta', 'media', 'goals'];
     const tx = db.transaction(stores, 'readwrite');
     stores.forEach(s => tx.objectStore(s).clear());

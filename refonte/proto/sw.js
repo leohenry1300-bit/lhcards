@@ -1,5 +1,5 @@
-/* LH Cards — service worker 177a4bdbb6 (généré) */
-const V = 'lh-177a4bdbb6', SHELL = ["./","manifest.webmanifest","icon-192.png","icon-512.png","assets/Progres-CM33x3YE.css","assets/Progres-DLDhcS1t.js","assets/Revision-CQkupb_K.js","assets/Revision-mkmI0NDz.css","assets/Toeic-B6bvz4Dd.css","assets/Toeic-BFBpSow-.js","assets/index-24tjm0wZ.css","assets/index-DsSPX4CZ.js","assets/seed-B-WuoOk3.js"];
+/* LH Cards — service worker 1643277aad (généré) */
+const V = 'lh-1643277aad', SHELL = ["./","manifest.webmanifest","icon-192.png","icon-512.png","assets/Progres-BqS1F4wu.js","assets/Progres-CM33x3YE.css","assets/Revision-mkmI0NDz.css","assets/Revision-sS0sd6vI.js","assets/Toeic-B6bvz4Dd.css","assets/Toeic-Duzc2Ul0.js","assets/index-BOul7O7j.css","assets/index-SryzM5NF.js","assets/seed-BdvD-X3b.js"];
 // installation : tout est mis en cache AVANT d'être utilisé ; pas de skipWaiting → la version en cours n'est jamais remplacée sous les pieds de l'élève
 self.addEventListener('install', e => e.waitUntil(caches.open(V).then(c => c.addAll(SHELL))));
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('lh-') && k !== V).map(k => caches.delete(k)))).then(() => self.clients.claim())));
