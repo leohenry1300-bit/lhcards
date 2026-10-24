@@ -106,6 +106,77 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     await go('settings'); await wait(2500);
     ok('settings show the start-up summary', (await page.evaluate(() => document.getElementById('view-settings').textContent)).includes('Démarrages sur 24 h'));
 
+    /* 8. answers are grouped during a review (no full write after each one), and written when the session ends */
+    const writes = await page.evaluate(async () => {
+        await app.writeNow();
+        let n = 0; const orig = Storage.save; Storage.save = function (...a) { n++; return orig.apply(this, a); };
+        try {
+            app.startSrsIds('test', app.data.cards.slice(0, 6).map(c => c.id));
+            if (!app.session) return 'no session';
+            for (let i = 0; i < 3 && app.session; i++) { app.reveal(); app.grade(3); await new Promise(r => setTimeout(r, 300)); }
+            const during = n; app.endSession(false); await new Promise(r => setTimeout(r, 100));
+            return { during, after: n };
+        } finally { Storage.save = orig; }
+    });
+    ok('review: answers grouped, written at the end', writes.during === 0 && writes.after >= 1, JSON.stringify(writes));
+
+    /* 9. Léo only says "mission accomplie" when nothing is left */
+    const mood = await page.evaluate(() => { const h = new Date().getHours(), night = h >= 23 || h < 5; app.data.stats.lastStudyDate = dayKey(); return { left: app.mascotMood(12), none: app.mascotMood(0), night }; });
+    ok('Léo: mood follows what is left to do', mood.left === (mood.night ? 'calm' : 'ready') && mood.none === (mood.night ? 'calm' : 'happy'), JSON.stringify(mood));
+
+    /* 10. per-deck "à revoir" counts agree with the home screen (suspended / buried cards are not due) */
+    const counts = await page.evaluate(() => {
+        const cs = app.data.cards.slice(0, 6), now = Date.now();
+        cs.forEach((c, i) => Object.assign(c, { state: 'review', interval: 3, due: now - 1000, suspended: i < 2, buriedUntil: i === 2 ? addDays(now, 1) : 0 }));
+        const st = app.deckStats(), roots = app.data.decks.filter(d => !d.parent).reduce((a, d) => a + st.get(d.id).due, 0);
+        return { decks: roots, home: app.countStatuses(app.data.cards).due };
+    });
+    ok('deck counts = home counts', counts.decks === counts.home, JSON.stringify(counts));
+
+    /* 11. "remettre la progression à zéro" with a deck that has its own preset: the app keeps working */
+    const reset = await page.evaluate(async () => {
+        const conf = app.confirm; app.confirm = async () => true;
+        try {
+            app.addPack('anglais-bases'); app.migrateTunedPreset();
+            await app.handleAction('reset-progress');
+            app.renderDashboard(); app.startStudy('pk_g_anglais'); const s = !!app.session; app.endSession(false); return s;
+        } catch (e) { return e.message; } finally { app.confirm = conf; }
+    });
+    ok('reset progress: home and review still work', reset === true, String(reset));
+    await page.evaluate(() => app.writeNow());
+
+    /* 12. a passing read error of the database never replaces the cards by the starter set */
+    const nCards = await page.evaluate(() => app.data.cards.length);
+    const failing = once => { const g = IDBObjectStore.prototype.get; let left = once ? 1 : 1e9; IDBObjectStore.prototype.get = function (k) { if (k === 'state' && left-- > 0) throw new DOMException('Connection to Indexed Database server lost', 'UnknownError'); return g.call(this, k); }; };
+    const p2 = await ctx.newPage(); await p2.route(/fonts\.(googleapis|gstatic)/, r => r.abort());
+    await p2.addInitScript(failing, true); await p2.goto(`http://localhost:${PORT}/index.html`); await p2.waitForSelector('.hero', { timeout: 20000 });
+    ok('database read error once: cards kept', (await p2.evaluate(() => app.data.cards.length)) === nCards);
+    await p2.close();
+    const p3 = await ctx.newPage(); await p3.route(/fonts\.(googleapis|gstatic)/, r => r.abort());
+    await p3.addInitScript(failing, false); await p3.goto(`http://localhost:${PORT}/index.html`); await wait(3500);
+    const shown = await p3.evaluate(() => (document.getElementById('boot') || {}).textContent || ''); await p3.close();
+    const p4 = await ctx.newPage(); await p4.route(/fonts\.(googleapis|gstatic)/, r => r.abort());
+    await p4.goto(`http://localhost:${PORT}/index.html`); await p4.waitForSelector('.hero', { timeout: 20000 });
+    ok('database unreadable: message shown, nothing overwritten', /pas pu être lues/.test(shown) && (await p4.evaluate(() => app.data.cards.length)) === nCards, shown.slice(0, 80));
+    await p4.close();
+
+    /* 13. a new version opens at once (one launch, not the old copy then a reload) */
+    {
+        const c2 = await browser.newContext({ viewport: { width: 390, height: 800 } });
+        await c2.route(/fonts\.(googleapis|gstatic)/, r => r.abort());
+        const q = await c2.newPage();
+        await q.goto(`http://localhost:${PORT}/index.html`); await q.waitForSelector('.hero', { timeout: 20000 });
+        await q.waitForFunction(async () => !!(await navigator.serviceWorker.getRegistration()) && !!navigator.serviceWorker.controller, null, { timeout: 15000 }).catch(() => {});
+        const next = Date.now() + 5e9, html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8').replace(/<meta name="app-build" content="\d+">/, `<meta name="app-build" content="${next}">`);
+        await c2.route(/\/index\.html(\?|$)/, r => r.fulfill({ status: 200, contentType: 'text/html', body: html }));
+        await c2.route(/\/version\.json/, r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ build: next }) }));
+        let navs = 0; q.on('framenavigated', f => { if (f === q.mainFrame()) navs++; });
+        await q.reload(); await q.waitForSelector('.hero', { timeout: 20000 }); await wait(6000);
+        const build = await q.evaluate(() => document.querySelector('meta[name=app-build]').content);
+        ok('new version: opened directly, no second launch', navs === 1 && build === String(next), `navigations ${navs}, build ${build === String(next) ? 'new' : 'old'}`);
+        await c2.close();
+    }
+
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));
     console.log(R.join('\n') + `\n\n${R.length - failed}/${R.length} checks passed`);
     await browser.close(); server.close(); process.exit(failed ? 1 : 0);

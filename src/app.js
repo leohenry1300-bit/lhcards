@@ -489,9 +489,26 @@ const Storage = {
             t.onabort = () => reject(t.error);
         });
     },
+    /* readFailed: the database is there but could not be read (iOS sometimes loses its connection for a moment).
+       That is not the same as "nothing saved yet": the caller must then never write the starter cards over it. */
+    readFailed: false,
     async load() {
-        if (this.db) { try { const v = await this.tx('readonly', s => s.get('state')); if (v) return v; } catch (e) { /* fall through */ } }
+        this.readFailed = false;
+        if (this.db) {
+            for (let i = 0; i < 3; i++) {
+                try { const v = await this.tx('readonly', s => s.get('state')); this.readFailed = false; if (v) return v; break; }
+                catch (e) { this.readFailed = true; await new Promise(r => setTimeout(r, 250 * (i + 1))); }
+            }
+        }
         try { return localStorage.getItem(LS_KEY); } catch { return null; }
+    },
+    /* newest backup that can still be read: { json, data, at } or null */
+    async latestBackup() {
+        const list = (await this.backups()).sort((a, b) => b.at - a.at);
+        for (const b of list) {
+            try { const json = await this.backupLoad(b.key), data = json && normalizeState(json); if (data && data.cards.length) return { json, data, at: b.at }; } catch { /* next one */ }
+        }
+        return null;
     },
     async save(json) {
         if (this.db) {
@@ -856,16 +873,28 @@ class SuperAnki {
         this.bindGlobalEvents();
         await Storage.init();
         prog(30);
-        let data = null, source = 'seed';
+        if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});   // asks the browser not to clear this storage when space runs low
+        let data = null, source = 'seed', stored = null;
         try {
-            const stored = await Storage.load();
+            stored = await Storage.load();
             if (stored) { data = normalizeState(stored); source = 'local'; }
         } catch (e) { console.error(e); }
+        /* saved data that cannot be read is never replaced by the starter cards */
+        if (!data && Storage.readFailed) throw new Error('tes cartes n\'ont pas pu être lues pour l\'instant (rien n\'a été effacé). Ferme complètement l\'app puis rouvre-la');
+        if (!data && Storage.db) {
+            const b = await Storage.latestBackup().catch(() => null);
+            if (b) {
+                if (stored) await Storage.backupSave('illisible', String(stored), { cards: [], decks: [] }).catch(() => {});   // the unreadable copy is kept aside
+                data = b.data; source = 'backup';
+                setTimeout(() => this.toast(`Tes cartes ont été récupérées depuis la sauvegarde du ${new Date(b.at).toLocaleDateString('fr-FR')}`, 'warning'), 900);
+            } else if (stored) throw new Error('tes données sont illisibles et aucune sauvegarde n\'a été trouvée (rien n\'a été effacé)');
+        }
         if (!data) {
             const legacy = Storage.legacy();
             if (legacy) { data = normalizeState(legacy); source = 'legacy'; }
         }
         if (!data || !data.cards.length && !data.decks.length) { data = seedState(); source = 'seed'; }
+        if (!Storage.db) setTimeout(() => this.toast('Stockage principal indisponible : ce qui sera fait maintenant risque de ne pas être gardé. Ferme puis rouvre l\'app.', 'warning'), 900);
         prog(55);
         this.data = data;
         this.gcMedia(data);
@@ -946,7 +975,9 @@ class SuperAnki {
         this.detectChanges(this.data.updatedAt);
         this.cfgCache.clear();
         clearTimeout(this.saveTimer);
-        this.saveTimer = setTimeout(() => this.writeNow(), 250);
+        /* during a review the whole collection is not written after every answer (a long pause right when the next card slides in):
+           answers are grouped, and anything pending is written at once when the app goes to the background (see bindGlobalEvents) */
+        this.saveTimer = setTimeout(() => this.writeNow(), this.session ? 2500 : 250);
         if (sync) Cloud.schedulePush();
     }
     async writeNow() {
@@ -1123,7 +1154,9 @@ class SuperAnki {
         const now = Date.now(), eod = endOfDay(now), by = new Map(this.data.decks.map(d => [d.id, d])), out = new Map();
         by.forEach((d, id) => out.set(id, { total: 0, seen: 0, new: 0, learn: 0, due: 0, mature: 0, susp: 0 }));
         this.data.cards.forEach(c => {
-            const k = c.state === 'new' ? 'new' : c.state === 'review' ? (c.due <= eod ? 'due' : c.interval >= MATURE_IVL ? 'mature' : 'learn') : (c.due <= now ? 'due' : 'learn');
+            /* same rules as cardStatus (home tiles, "Réviser (n)"): a suspended or buried card is never counted as due */
+            const off = c.suspended || c.buriedUntil > now;
+            const k = c.state === 'new' ? 'new' : c.state === 'review' ? (c.due <= eod && !off ? 'due' : c.interval >= MATURE_IVL ? 'mature' : 'learn') : (c.due <= now && !off ? 'due' : 'learn');
             let d = by.get(c.deckId), n = 0;
             while (d && n++ < 10) {
                 const st = out.get(d.id);
@@ -1208,7 +1241,7 @@ class SuperAnki {
     }
     rollSeen() {
         const st = this.data.stats, t = dayKey();
-        ['newSeen', 'revSeen'].forEach(k => { if (!st[k] || st[k].date !== t) st[k] = { date: t, count: 0, by: {} }; });
+        ['newSeen', 'revSeen'].forEach(k => { if (!st[k] || st[k].date !== t) st[k] = { date: t, count: 0, by: {} }; else if (!st[k].by) st[k].by = {}; });
     }
     newBudget() {
         this.rollSeen();
@@ -1372,9 +1405,10 @@ class SuperAnki {
     /* Léo's mood follows the day: asleep late at night or when everything is done, cheering once today's review is done */
     mascotMood(toStudy) {
         const h = new Date().getHours(), done = this.data.stats.lastStudyDate === dayKey();
-        if (toStudy === 0) return 'calm';
-        if ((h >= 23 || h < 5) && !done) return 'calm';
-        return done ? 'happy' : 'ready';
+        const night = h >= 23 || h < 5;
+        if (toStudy === 0) return done && !night ? 'happy' : 'calm';   // "mission accomplie" only once nothing is left for today
+        if (night) return 'calm';
+        return 'ready';
     }
     /* Léo speaks first when something is worth it (at most once a day per event): a streak milestone, an exam coming up, a missed day */
     mascotAuto() {
@@ -2438,6 +2472,7 @@ class SuperAnki {
         clearTimeout(this.autoTimer);
         if ('speechSynthesis' in window) speechSynthesis.cancel();
         this.session = null;
+        if (this.saveTimer) this.writeNow();   // the answers grouped during the session are written now
         document.body.classList.remove('in-session');
         if (Cloud.deferred) { Cloud.deferred = false; setTimeout(() => Cloud.sync(), 300); }
         if (goHome) this.goBack();
@@ -3850,7 +3885,7 @@ class SuperAnki {
                 const now = Date.now();
                 this.data.cards.forEach(c => Object.assign(c, { state: 'new', step: 0, interval: 0, ease: this.deckCfg(c.deckId).startEase, due: now, reps: 0, lapses: 0, lastReview: null, errors: 0, fs: null, buriedUntil: 0 }));
                 this.data.revlog = [];
-                this.data.stats.newSeen = { date: dayKey(), count: 0 };
+                this.data.stats.newSeen = { date: dayKey(), count: 0, by: {} };
                 this.save(); this.render();
                 this.toast('Progression remise à zéro', 'success', undefined, { label: 'Annuler', ms: 15000, fn: () => this.sensitiveUndo() });
                 break;

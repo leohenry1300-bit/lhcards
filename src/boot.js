@@ -16,6 +16,8 @@ setTimeout(async () => {
         const live = Number((await r.json()).build) || 0;
         if (!cur || !live || live <= cur) return;
         if (sessionStorage.getItem('lh_upd') === String(live)) return;   // already tried for this build: never loop
+        /* already in use (a tap, a review, a window open): no reload under the finger, the "new version" banner is offered instead */
+        if (app._lastInput || app.session || app.ex || app.modals.length) { if (app.updRefresh) app.updRefresh(true); return; }
         sessionStorage.setItem('lh_upd', String(live));
         if (window.caches) { const ks = await caches.keys(); await Promise.all(ks.filter(k => k.startsWith('superanki-')).map(k => caches.delete(k))); }
         const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration(); if (reg) await reg.update().catch(() => {});

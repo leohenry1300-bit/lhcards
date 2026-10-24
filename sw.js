@@ -1,5 +1,5 @@
-/* LH Cards service worker: makes the app work offline. Version: 576eb6dcab */
-const CACHE = 'superanki-576eb6dcab';
+/* LH Cards service worker: makes the app work offline. Version: 9ae4082868 */
+const CACHE = 'superanki-9ae4082868';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -17,11 +17,13 @@ self.addEventListener('fetch', e => {
     if (url.hostname === 'api.mymemory.translated.net') return;            // translations: always live, never cached
     const sameOrigin = url.origin === location.origin;
     if (sameOrigin && (req.mode === 'navigate' || url.pathname.endsWith('index.html'))) {
-        // instant start: the cached copy is served at once and refreshed in the background (the new version is used on the next launch)
+        // the network gets a short moment first (an unchanged page answers "304" almost at once): a new version opens straight away,
+        // instead of the old copy being shown and then reloaded a few seconds later; offline or slow network: the cached copy
         e.respondWith(caches.match('./index.html').then(hit => {
-            const net = fetch(req).then(res => { if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put('./index.html', copy)); } return res; }).catch(() => hit || caches.match('./'));
-            if (hit) e.waitUntil(net.catch(() => {}));
-            return hit || net;
+            const net = fetch(req).then(res => { if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put('./index.html', copy)); } return res; });
+            if (!hit) return net.catch(() => caches.match('./'));
+            e.waitUntil(net.catch(() => {}));
+            return Promise.race([net.then(res => (res && res.ok ? res : hit)).catch(() => hit), new Promise(r => setTimeout(() => r(hit), 1500))]);
         }));
         return;
     }
