@@ -289,6 +289,25 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     });
     ok('home: unused decks folded under "Autres paquets", one tap shows all', fold.shownClosed < fold.roots && fold.shownOpen === fold.roots && /Autres paquets \(\d+\)/.test(fold.label) && fold.hasEco && !fold.hasGeo, JSON.stringify(fold));
 
+    /* 19. exam plan: predicted mastery on the exam day, today's cards (most fragile first, spread over the days left), last round the day before */
+    const plan = await page.evaluate(async () => {
+        const st = app.data.settings, keep = st.goals, out = {}, iso = n => dayKey(addDays(Date.now(), n));
+        const deck = 'geo', cards = app.poolFor([deck]); cards.forEach(c => Object.assign(c, { ...freshCard(), state: 'new' }));
+        st.goals = [{ id: 'gx', name: 'Partiel test', date: iso(10), decks: [deck] }]; st.homeOpen = { ...(st.homeOpen || {}), goals: true };
+        app.go('dashboard'); app.renderDashboard();
+        const P = app.examPlan(app.goalsAll()[0]);
+        out.n = cards.length; out.mastery = Math.round(P.mastery * 100); out.quota = P.quota; out.todo = P.todo.length;
+        const row = document.querySelector('.exam-row'); out.text = row ? row.textContent.replace(/\s+/g, ' ') : '';
+        document.querySelector('[data-action="exam-plan"][data-mode="plan"]').click(); await new Promise(r => setTimeout(r, 200));
+        out.session = app.session ? { kind: app.session.kind, n: app.session.queue.length + 1 } : null; app.endSession(false);
+        st.goals = [{ id: 'gx', name: 'Partiel test', date: iso(1), decks: [deck] }]; app.renderDashboard();
+        document.querySelector('[data-action="exam-plan"][data-mode="last"]').click(); await new Promise(r => setTimeout(r, 200));
+        out.last = app.session ? { kind: app.session.kind, n: app.session.queue.length + 1 } : null; app.endSession(false);
+        st.goals = keep; app.renderDashboard();
+        return out;
+    });
+    ok('exam plan: mastery shown, today\'s share of fragile cards reviewed normally, last round the day before', plan.mastery === 0 && plan.quota === Math.ceil(plan.n / 9) && plan.todo === plan.quota && /Maîtrise prévue le jour J : 0 %/.test(plan.text) && plan.session && plan.session.kind === 'srs' && plan.session.n === plan.quota && plan.last && plan.last.kind === 'practice' && plan.last.n === Math.min(40, plan.n), JSON.stringify({ ...plan, text: plan.text.slice(0, 120) }));
+
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));
     console.log(R.join('\n') + `\n\n${R.length - failed}/${R.length} checks passed`);
     await browser.close(); server.close(); process.exit(failed ? 1 : 0);

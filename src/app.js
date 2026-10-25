@@ -3895,6 +3895,14 @@ class SuperAnki {
                 ]);
                 break;
             }
+            case 'exam-plan': {
+                const g = this.goalsAll().find(x => x.id === ds.id), P = g && this.examPlan(g);
+                if (!P) break;
+                if (ds.mode === 'last') this.startPractice(null, 'flip', 9999, `Dernier tour · ${g.name}`, P.last, true);
+                else if (P.todo.length) this.startSrsIds(`Plan du jour · ${g.name}`, P.todo, true);
+                else this.toast('Plan du jour déjà fait 👏', 'success');
+                break;
+            }
             case 'exam-go': {
                 if (!this.deck(ds.deck)) break;
                 if (ds.mode === 'ordered') this.startFree(ds.deck, true, true); else this.startFree(ds.deck);
