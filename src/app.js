@@ -1074,7 +1074,11 @@ class SuperAnki {
         fsrsApplyParams(s.fsrsW);
         const resolved = s.theme === 'auto' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'nuit' : 'clair') : s.theme;
         const root = document.documentElement;
-        const swap = () => { root.dataset.theme = resolved; this.applyLogo(); };
+        const swap = () => {
+            root.dataset.theme = resolved; this.applyLogo();
+            const meta = $('meta[name="theme-color"]');
+            if (meta) { const cs = getComputedStyle(document.body); meta.content = cs.getPropertyValue('--theme-color').trim() || cs.getPropertyValue('--surface').trim() || '#ffffff'; }   // a theme can name the colour of the system bar
+        };
         if (this._themeSeen && root.dataset.theme !== resolved && !this.calm()) {
             if (document.startViewTransition) document.startViewTransition(swap);   // the browser cross-fades two snapshots of the screen: smooth, no per-element transitions
             else { this.themeVeil(swap); }
@@ -1082,10 +1086,7 @@ class SuperAnki {
         this._themeSeen = true;
         try { localStorage.setItem('superanki_theme', s.theme); } catch { /* private mode */ }
         document.documentElement.style.setProperty('--card-size', CARD_SIZES[s.cardSize] || CARD_SIZES.m);
-        requestAnimationFrame(() => {
-            const meta = $('meta[name="theme-color"]');
-            if (meta) { const cs = getComputedStyle(document.body); meta.content = cs.getPropertyValue('--theme-color').trim() || cs.getPropertyValue('--surface').trim() || '#ffffff'; }   // (a theme can name the colour of the system bar)
-        });
+        /* (the colour of the system bar is set when the theme really changes: inside the swap, not before it) */
     }
     /* the logo takes the theme's colours: background = the home banner's gradient, check mark = the most colourful theme colour that stays readable on the cards */
     applyLogo() {
