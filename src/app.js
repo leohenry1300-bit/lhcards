@@ -916,6 +916,7 @@ class SuperAnki {
         const barEl = document.querySelector('#boot .boot-bar span');
         const prog = p => { if (barEl) barEl.style.width = p + '%'; };
         this.noteBoot();
+        const bootT0 = performance.now();   // the bar always runs for the same time, however long the page took to arrive
         prog(12);
         injectSprite();
         this.bindGlobalEvents();
@@ -956,13 +957,15 @@ class SuperAnki {
         this.checkStreak();
         this.writeNow();
         this.autoBackup(source);
-        /* the loading screen leaves as soon as the app is ready (fonts get a short moment so the text does not jump) */
+        /* the loading bar always fills up completely (about 1.4 s from launch, and once the fonts are ready) before the app opens: asked by the user, do not shorten */
         prog(80);
         const bootEl = $('#boot');
-        await Promise.race([document.fonts ? document.fonts.ready : null, new Promise(r => setTimeout(r, 700))]);
+        await Promise.race([document.fonts ? document.fonts.ready : null, new Promise(r => setTimeout(r, 1500))]);
+        const wait = 1100 - (performance.now() - bootT0);
+        if (wait > 0) { await new Promise(r => setTimeout(r, wait / 2)); prog(92); await new Promise(r => setTimeout(r, wait / 2)); }
         prog(100);
-        await new Promise(r => setTimeout(r, 120));
-        if (bootEl) { bootEl.classList.add('boot-out'); await new Promise(r => setTimeout(r, 200)); bootEl.remove(); }
+        await new Promise(r => setTimeout(r, 550));
+        if (bootEl) { bootEl.classList.add('boot-out'); await new Promise(r => setTimeout(r, 260)); bootEl.remove(); }
         this.go('dashboard');
         if (source === 'legacy') this.toast('Tes cartes et ta progression ont été récupérées', 'success');
         this.initRipple();

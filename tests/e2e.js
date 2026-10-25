@@ -23,6 +23,26 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     await page.route(/fonts\.(googleapis|gstatic)/, r => r.abort());
     const go = v => page.evaluate(x => app.go(x), v);
 
+
+    /* 0. DECISION (user): the loading bar fills up completely before the app opens; the loading screen lasts about 1.4 s */
+    {
+        const lp = await ctx.newPage();
+        await lp.route(/fonts\.(googleapis|gstatic)/, r => r.abort());
+        await lp.addInitScript(() => {
+            window.__boot = { gone: 0, last: '', t100: 0 };
+            const t0 = performance.now();
+            const iv = setInterval(() => {
+                const b = document.querySelector('#boot .boot-bar span');
+                if (b) { window.__boot.last = b.style.width; if (b.style.width === '100%' && !window.__boot.t100) window.__boot.t100 = Math.round(performance.now() - t0); }
+                else if (document.getElementById('view-dashboard') && !document.getElementById('boot')) { window.__boot.gone = Math.round(performance.now() - t0); clearInterval(iv); }
+            }, 20);
+        });
+        await lp.goto(`http://localhost:${PORT}/index.html`); await lp.waitForSelector('.hero', { timeout: 20000 });
+        const bt = await lp.evaluate(() => window.__boot);
+        ok('loading bar reaches 100 % and stays full about half a second before the app opens', bt.last === '100%' && bt.t100 > 0 && bt.gone - bt.t100 >= 500, JSON.stringify(bt));
+        await lp.close();
+    }
+
     /* 1. start */
     const t0 = Date.now();
     await page.goto(`http://localhost:${PORT}/index.html`); await page.waitForSelector('.hero', { timeout: 20000 });
