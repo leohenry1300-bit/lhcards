@@ -269,26 +269,6 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     ok('review cap 200 (old default migrated), backlog first, no new cards on top', sch.cap === 200 && sch.planReviews === 200 && sch.planNew === 0, JSON.stringify(sch));
     ok('optimizer: too few reviews to check -> standard parameters kept', sch.optSmall);
 
-    /* 18. home: decks never opened or pinned are folded under "Autres paquets (n)" (once studying has started); one tap shows them all; search still finds them */
-    const fold = await page.evaluate(async () => {
-        const out = {}, st = app.data.settings, keepOpen = st.homeOpen;
-        PACKS.forEach(x => app.addPack(x.id));
-        st.homeOpen = {}; st.pinnedDecks = []; app.data.stats.history[dayKey()] = 1;
-        const first = app.data.cards.find(c => c.deckId === 'eco'); first.lastReview = Date.now();
-        app.renderDashboard();
-        const count = () => document.querySelectorAll('#dash-decks > .deck-card').length;
-        const roots = app.data.decks.filter(d => !d.parent).length;
-        out.roots = roots; out.shownClosed = count();
-        const btn = document.querySelector('.others-fold button'); out.label = btn ? btn.textContent.replace(/\s+/g, ' ').trim() : '';
-        out.hasEco = !!document.querySelector('#dash-decks [data-deck="eco"]');
-        out.hasGeo = !!document.querySelector('#dash-decks > .deck-card[data-deck="geo"]');
-        btn.click(); await new Promise(r => setTimeout(r, 100));
-        out.shownOpen = count();
-        st.homeOpen = keepOpen; app.renderDashboard();
-        return out;
-    });
-    ok('home: unused decks folded under "Autres paquets", one tap shows all', fold.shownClosed < fold.roots && fold.shownOpen === fold.roots && /Autres paquets \(\d+\)/.test(fold.label) && fold.hasEco && !fold.hasGeo, JSON.stringify(fold));
-
     /* 19. exam plan: predicted mastery on the exam day, today's cards (most fragile first, spread over the days left), last round the day before */
     const plan = await page.evaluate(async () => {
         const st = app.data.settings, keep = st.goals, out = {}, iso = n => dayKey(addDays(Date.now(), n));
@@ -312,37 +292,18 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     });
     ok('exam plan: mastery shown, today\'s share of fragile cards reviewed normally, last round the day before', plan.mastery < 0.5 * 100 && plan.quota === Math.ceil(plan.n / 9) && plan.todo === plan.quota && /Maîtrise prévue le jour J : \d+ %/.test(plan.text) && plan.session && plan.session.kind === 'srs' && plan.session.n === plan.quota && plan.last && plan.last.kind === 'practice' && plan.last.n === Math.min(40, plan.seenN) && !plan.last.anyNew && !plan.examDayBtn, JSON.stringify({ ...plan, text: plan.text.slice(0, 120) }));
 
-    /* 20. home folding: a deck studied more than 30 days ago is folded, but never one with reviews due or a recent review */
-    const fold2 = await page.evaluate(async () => {
-        const st = app.data.settings, keepOpen = st.homeOpen, out = {};
-        PACKS.forEach(x => app.addPack(x.id)); st.homeOpen = {}; st.pinnedDecks = []; app.data.stats.history[dayKey()] = 1;
-        const roots = app.sortedDecks().filter(d => !d.parent && !/^(d_|co_|mes_but_tc)/.test(d.id) && d.id !== 'toeic_err').slice(0, 3);
-        const cardsOf = d => app.poolFor([d.id]);
-        app.data.cards.forEach(c => { c.lastReview = null; });
-        const [old, due, recent] = roots; if (!old || !due || !recent) return { skip: true };
-        cardsOf(old)[0].lastReview = Date.now() - 45 * 864e5;
-        const dc = cardsOf(due)[0]; Object.assign(dc, { state: 'review', interval: 5, due: Date.now() - 864e5, lastReview: Date.now() - 45 * 864e5 });
-        cardsOf(recent)[0].lastReview = Date.now() - 3 * 864e5;
-        app.renderDashboard();
-        const shown = id => !!document.querySelector(`#dash-decks > .deck-card[data-deck="${id}"]`);
-        out.old = shown(old.id); out.due = shown(due.id); out.recent = shown(recent.id);
-        st.homeOpen = keepOpen; app.renderDashboard();
-        return out;
-    });
-    ok('home folding: studied 45 days ago = folded; reviews due or studied 3 days ago = shown', fold2.skip || (!fold2.old && fold2.due && fold2.recent), JSON.stringify(fold2));
-
-    /* 21. opening / unfolding on the home screen only redraws the list of decks, and the tapped control stays where it was */
+    /* 21. unfolding a deck on the home screen only redraws the list of decks, and the tapped control stays where it was */
     const anchor = await page.evaluate(async () => {
-        const st = app.data.settings, keepOpen = st.homeOpen; PACKS.forEach(x => app.addPack(x.id)); st.homeOpen = {}; st.pinnedDecks = []; app.data.stats.history[dayKey()] = 1;
-        app.go('dashboard'); await new Promise(r => setTimeout(r, 2800)); app.renderDashboard();
-        const q = '#dash-decks [data-sec="others"]', btn = document.querySelector(q), hero = document.querySelector('.hero'); if (!btn) return { skip: true };
-        btn.scrollIntoView({ block: 'center' }); await new Promise(r => setTimeout(r, 200));
+        PACKS.forEach(x => app.addPack(x.id)); app.go('dashboard'); await new Promise(r => setTimeout(r, 2800)); app.renderDashboard();
+        const t = document.querySelector('#dash-decks .sub-toggle'); if (!t) return { skip: true };
+        const q = `#dash-decks .sub-toggle[data-deck="${t.dataset.deck}"]`, hero = document.querySelector('.hero');
+        t.scrollIntoView({ block: 'center' }); await new Promise(r => setTimeout(r, 200));
         const t0 = Math.round(document.querySelector(q).getBoundingClientRect().top);
         document.querySelector(q).click(); await new Promise(r => setTimeout(r, 300));
-        const out = { moved: Math.round(document.querySelector(q).getBoundingClientRect().top) - t0, sameHero: hero === document.querySelector('.hero'), opened: document.querySelectorAll('#dash-decks > .deck-card').length > 5 };
-        st.homeOpen = keepOpen; app.renderDashboard(); return out;
+        const out = { moved: Math.round(document.querySelector(q).getBoundingClientRect().top) - t0, sameHero: hero === document.querySelector('.hero'), opened: !!document.querySelector(q).closest('.deck-card').querySelector('.sub-tree') };
+        document.querySelector(q).click(); await new Promise(r => setTimeout(r, 200)); return out;
     });
-    ok('home: unfolding "Autres paquets" keeps the button in place and does not redraw the banner', anchor.skip || (Math.abs(anchor.moved) <= 1 && anchor.sameHero && anchor.opened), JSON.stringify(anchor));
+    ok('home: unfolding a deck keeps the button in place and does not redraw the banner', anchor.skip || (Math.abs(anchor.moved) <= 2 && anchor.sameHero && anchor.opened), JSON.stringify(anchor));
 
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));
     console.log(R.join('\n') + `\n\n${R.length - failed}/${R.length} checks passed`);

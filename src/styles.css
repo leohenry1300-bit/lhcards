@@ -2155,6 +2155,5 @@ html[data-theme="savane"][data-lite]::before, html[data-theme="savane"][data-lit
   html[data-theme="etoile"]::before, html[data-theme="etoile"]::after, [data-theme="etoile"] body::after, html[data-theme="savane"]::before, [data-theme="savane"] body::before, [data-theme="savane"] body::after, [data-theme="savane"] .hero::before { animation: none !important; }
   [data-theme="etoile"] body::after { display: none; }
 }
-.others-fold { grid-column: 1 / -1; }
 .ex-m.ok { color: var(--mature); } .ex-m.mid { color: var(--learn); } .ex-m.low { color: var(--due); }
 .ex-done { display: inline-flex; align-items: center; gap: 6px; font-size: .86rem; font-weight: 700; color: var(--mature); }

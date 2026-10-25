@@ -1844,17 +1844,7 @@ class SuperAnki {
                 </div>
             </div>`;
         };
-        /* Decks that came with the app or the library, not pinned, with nothing due and not studied in the last 30 days, are folded under one line ("Autres paquets"),
-           once the user has started studying; nothing is removed, and the search above and the Paquets tab still list everything. */
-        const recent = Date.now() - 30 * 864e5, used = id => this.descendantIds(id).some(k => (lastReview.get(k) || 0) >= recent);
-        const keep = ({ deck, c }) => pins.includes(deck.id) || used(deck.id) || c.due > 0 ||   /* (a deck with reviews due is never folded away) */ /^(d_|co_|mes_but_tc)/.test(deck.id) || deck.id === 'toeic_err';
-        const started = Object.keys(this.data.stats.history).length > 0;
-        const shown = started && rows.length > 8 ? rows.filter(keep) : rows, folded = rows.filter(r => !shown.includes(r));
-        if (!folded.length) return rows.map(row).join('');
-        const open = this.homeOpen('others', false);
-        return shown.map(row).join('')
-            + `<div class="others-fold"><button class="sec-toggle ${open ? 'open' : ''}" data-action="home-toggle" data-sec="others" aria-expanded="${open}">${ic('chevronRight')}<h3 class="section-title">Autres paquets <span class="muted">(${folded.length})</span></h3></button></div>`
-            + (open ? folded.map(row).join('') : '');
+        return rows.map(row).join('');
     }
 
     /* ---------- Decks & cards manager ---------- */
@@ -3940,7 +3930,7 @@ class SuperAnki {
             case 'home-toggle': {
                 const o = { ...(this.data.settings.homeOpen || {}) }; o[ds.sec] = !this.homeOpen(ds.sec, ds.sec === 'recents' || ds.sec === 'goals');
                 this.setSetting('homeOpen', o);
-                if (ds.sec === 'others') this.refreshDeckList('#dash-decks [data-sec="others"]'); else this.renderDashboard();
+                this.renderDashboard();
                 break;
             }
             case 'resume-last': {
