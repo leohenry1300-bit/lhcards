@@ -269,6 +269,26 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     ok('review cap 200 (old default migrated), backlog first, no new cards on top', sch.cap === 200 && sch.planReviews === 200 && sch.planNew === 0, JSON.stringify(sch));
     ok('optimizer: too few reviews to check -> standard parameters kept', sch.optSmall);
 
+    /* 18. home: decks never opened or pinned are folded under "Autres paquets (n)" (once studying has started); one tap shows them all; search still finds them */
+    const fold = await page.evaluate(async () => {
+        const out = {}, st = app.data.settings, keepOpen = st.homeOpen;
+        PACKS.forEach(x => app.addPack(x.id));
+        st.homeOpen = {}; st.pinnedDecks = []; app.data.stats.history[dayKey()] = 1;
+        const first = app.data.cards.find(c => c.deckId === 'eco'); first.lastReview = Date.now();
+        app.renderDashboard();
+        const count = () => document.querySelectorAll('#dash-decks > .deck-card').length;
+        const roots = app.data.decks.filter(d => !d.parent).length;
+        out.roots = roots; out.shownClosed = count();
+        const btn = document.querySelector('.others-fold button'); out.label = btn ? btn.textContent.replace(/\s+/g, ' ').trim() : '';
+        out.hasEco = !!document.querySelector('#dash-decks [data-deck="eco"]');
+        out.hasGeo = !!document.querySelector('#dash-decks > .deck-card[data-deck="geo"]');
+        btn.click(); await new Promise(r => setTimeout(r, 100));
+        out.shownOpen = count();
+        st.homeOpen = keepOpen; app.renderDashboard();
+        return out;
+    });
+    ok('home: unused decks folded under "Autres paquets", one tap shows all', fold.shownClosed < fold.roots && fold.shownOpen === fold.roots && /Autres paquets \(\d+\)/.test(fold.label) && fold.hasEco && !fold.hasGeo, JSON.stringify(fold));
+
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));
     console.log(R.join('\n') + `\n\n${R.length - failed}/${R.length} checks passed`);
     await browser.close(); server.close(); process.exit(failed ? 1 : 0);

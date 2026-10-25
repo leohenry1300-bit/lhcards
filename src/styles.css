@@ -2155,3 +2155,4 @@ html[data-theme="savane"][data-lite]::before, html[data-theme="savane"][data-lit
   html[data-theme="etoile"]::before, html[data-theme="etoile"]::after, [data-theme="etoile"] body::after, html[data-theme="savane"]::before, [data-theme="savane"] body::before, [data-theme="savane"] body::after, [data-theme="savane"] .hero::before { animation: none !important; }
   [data-theme="etoile"] body::after { display: none; }
 }
+.others-fold { grid-column: 1 / -1; }

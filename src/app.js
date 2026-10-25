@@ -1790,7 +1790,7 @@ class SuperAnki {
                 <button class="icon-btn icon-btn-sm" title="Étudier dans l'ordre" data-action="ordered-deck" data-deck="${esc(k.id)}">${ic('list')}</button>
             </div>${kids.length && isOpen ? `<div class="sub-open-link" style="--d:${depth + 1}"><button class="link" data-action="open-deck" data-deck="${esc(k.id)}">${ic('layers')}Voir les cartes de « ${esc(k.name)} »</button></div>${subRows(k.id, depth + 1)}` : ''}`;
         }).join('');
-        return rows.map(({ deck, cards, c, todo }) => {
+        const row = ({ deck, cards, c, todo }) => {
             const st = stats.get(deck.id);
             const kids = this.childrenOf(deck.id), nSub = this.descendantIds(deck.id).length - 1, isOpen = openD.has(deck.id);
             return `
@@ -1819,7 +1819,18 @@ class SuperAnki {
                     </div>
                 </div>
             </div>`;
-        }).join('');
+        };
+        /* Decks that came with the app or the library and were never opened or pinned are folded under one line ("Autres paquets"),
+           once the user has started studying; nothing is removed, and the search above and the Paquets tab still list everything. */
+        const used = id => this.descendantIds(id).some(k => lastReview.has(k));
+        const keep = ({ deck }) => pins.includes(deck.id) || used(deck.id) || /^(d_|co_|mes_but_tc)/.test(deck.id) || deck.id === 'toeic_err';
+        const started = Object.keys(this.data.stats.history).length > 0;
+        const shown = started && rows.length > 8 ? rows.filter(keep) : rows, folded = rows.filter(r => !shown.includes(r));
+        if (!folded.length) return rows.map(row).join('');
+        const open = this.homeOpen('others', false);
+        return shown.map(row).join('')
+            + `<div class="others-fold"><button class="sec-toggle ${open ? 'open' : ''}" data-action="home-toggle" data-sec="others" aria-expanded="${open}">${ic('chevronRight')}<h3 class="section-title">Autres paquets <span class="muted">(${folded.length})</span></h3></button></div>`
+            + (open ? folded.map(row).join('') : '');
     }
 
     /* ---------- Decks & cards manager ---------- */
