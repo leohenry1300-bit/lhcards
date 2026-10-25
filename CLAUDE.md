@@ -10,6 +10,7 @@ L'utilisateur est un étudiant (pas un développeur). Il veut une appli fluide, 
 
 ## Décisions de l'utilisateur à conserver
 - **Écran de chargement** : la barre va **jusqu'au bout (100 %)** et reste pleine environ 0,5 s avant l'ouverture de l'appli (≈ 1,4 s au total). Ne pas raccourcir (test : `tests/e2e.js`, section 0).
+- **Mises à jour** : une nouvelle version s'applique **derrière l'écran de chargement** (un seul chargement visible). L'appli ne redémarre jamais toute seule une fois ouverte : seulement la bannière « nouvelle version » (test : section 0b).
 - **Sauvegarde** : l'export à la main suffit. La synchronisation / sauvegarde cloud est **désactivée par défaut** et ne démarre qu'après un choix explicite de l'utilisateur.
 - **Sons** : se mélangent avec sa musique (`navigator.audioSession.type = 'transient'`), volume réglable (il est intégré aux sons rendus, iOS ignore `audio.volume`).
 - **Animations** : le compteur des cartes et les barres de progression s'animent quand on **change de page**, pas quand on déroule une section. Fluidité d'abord : transitions d'écran en fondu, mode allégé automatique sur appareil lent.

@@ -889,6 +889,27 @@ class SuperAnki {
         const todo = $$('[data-chart-box]').map(box => ({ box, id: box.dataset.chartBox, W: box.clientWidth })).filter(o => o.W && this.chartDefs && this.chartDefs[o.id] && (o.box.dataset.w === undefined || Math.abs(o.W - Number(o.box.dataset.w)) > 8));
         todo.forEach(o => { const W = Math.max(260, Math.floor(o.W)); o.box.dataset.w = W; o.box.innerHTML = this.chartDefs[o.id](W); });
     }
+    /* A newer build is looked for while the loading screen is still up: if there is one, the page reloads right there (the user only ever sees one
+       loading screen, never an app that opens and then restarts). Never twice for the same build (no loop); offline or slow: the app just opens. */
+    checkUpdateEarly() {
+        return (async () => {
+            try {
+                if (!/^https?:/.test(location.protocol)) return;
+                const meta = document.querySelector('meta[name=app-build]'), cur = meta ? Number(meta.content) : 0;
+                const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 1800);
+                const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store', signal: ctl.signal }); clearTimeout(to);
+                if (!r.ok) return;
+                const live = Number((await r.json()).build) || 0;
+                if (!cur || !live || live <= cur || sessionStorage.getItem('lh_upd') === String(live)) return;
+                sessionStorage.setItem('lh_upd', String(live));
+                if (window.caches) { const ks = await caches.keys(); await Promise.all(ks.filter(k => k.startsWith('superanki-')).map(k => caches.delete(k))); }
+                const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration(); if (reg) await reg.update().catch(() => {});
+                const t = document.querySelector('#boot .boot-txt'); if (t) t.textContent = 'Mise à jour…';
+                location.reload();
+                await new Promise(() => {});   // the page is going away: the app does not open
+            } catch { /* offline: nothing to do */ }
+        })();
+    }
     /* ---------- how the app was started (to tell a normal launch from a system cut) ---------- */
     noteBoot() {
         try {
@@ -916,6 +937,7 @@ class SuperAnki {
         const barEl = document.querySelector('#boot .boot-bar span');
         const prog = p => { if (barEl) barEl.style.width = p + '%'; };
         this.noteBoot();
+        const earlyUpdate = this.checkUpdateEarly();
         const bootT0 = performance.now();   // the bar always runs for the same time, however long the page took to arrive
         prog(12);
         injectSprite();
@@ -959,6 +981,7 @@ class SuperAnki {
         this.autoBackup(source);
         /* the loading bar always fills up completely (about 1.4 s from launch, and once the fonts are ready) before the app opens: asked by the user, do not shorten */
         prog(80);
+        await earlyUpdate;   // (a newer version found: the page reloads here, behind the loading screen)
         const bootEl = $('#boot');
         await Promise.race([document.fonts ? document.fonts.ready : null, new Promise(r => setTimeout(r, 1500))]);
         const wait = 1100 - (performance.now() - bootT0);

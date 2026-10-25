@@ -6,22 +6,14 @@ app.init().catch(err => {
     if (boot) boot.innerHTML = `Oups, le chargement a échoué : ${esc(err.message)}. <br><button class="btn btn-primary" style="margin-top:12px" onclick="location.reload()">Recharger</button>`;
 });
 
-/* Self-update: a few seconds after start the app reads the tiny live version.json; if a newer build exists it clears its cache and reloads once,
-   so the phone never stays on an old copy. */
+/* Updates are applied while the loading screen is up (see checkUpdateEarly in app.js). Once the app is open it is never restarted by itself:
+   if a newer build shows up later (app left open for a long time), only the "new version" banner is offered. */
 setTimeout(async () => {
     try {
         if (!/^https?:/.test(location.protocol)) return;
         const meta = document.querySelector('meta[name=app-build]'), cur = meta ? Number(meta.content) : 0;
         const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' }); if (!r.ok) return;
         const live = Number((await r.json()).build) || 0;
-        if (!cur || !live || live <= cur) return;
-        if (sessionStorage.getItem('lh_upd') === String(live)) return;   // already tried for this build: never loop
-        /* already in use (a tap, a review, a window open): no reload under the finger, the "new version" banner is offered instead */
-        if (app._lastInput || app.session || app.ex || app.modals.length) { if (app.updRefresh) app.updRefresh(true); return; }
-        sessionStorage.setItem('lh_upd', String(live));
-        if (window.caches) { const ks = await caches.keys(); await Promise.all(ks.filter(k => k.startsWith('superanki-')).map(k => caches.delete(k))); }
-        const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration(); if (reg) await reg.update().catch(() => {});
-        app.toast('Nouvelle version : mise à jour…', 'success');
-        setTimeout(() => location.reload(), 700);
+        if (cur && live && live > cur && app.updRefresh) app.updRefresh(true);
     } catch { /* offline: nothing to do */ }
-}, 4000);
+}, 6000);

@@ -43,6 +43,20 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         await lp.close();
     }
 
+
+    /* 0b. DECISION: an update is applied behind the loading screen; the app never restarts by itself once it is open */
+    {
+        const up = await ctx.newPage(); let navs = 0, afterOpen = 0, opened = false;
+        await up.route(/fonts\.(googleapis|gstatic)/, r => r.abort());
+        await up.route('**/version.json*', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ build: 99999999999999 }) }));
+        up.on('framenavigated', f => { if (f === up.mainFrame()) { navs++; if (opened) afterOpen++; } });
+        await up.goto(`http://localhost:${PORT}/index.html`);
+        for (let i = 0; i < 60 && !opened; i++) { await wait(250); opened = await up.evaluate(() => !!document.querySelector('.hero') && !document.getElementById('boot')).catch(() => false); }
+        const before = afterOpen; await wait(7000);
+        ok('new version found: reloads once behind the loading screen, never after the app is open', opened && navs <= 2 && afterOpen === before && afterOpen === 0, JSON.stringify({ navs, afterOpen, opened }));
+        await up.close();
+    }
+
     /* 1. start */
     const t0 = Date.now();
     await page.goto(`http://localhost:${PORT}/index.html`); await page.waitForSelector('.hero', { timeout: 20000 });
