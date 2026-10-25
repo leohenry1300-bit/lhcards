@@ -3383,6 +3383,10 @@ class SuperAnki {
                 <div class="field hidden" id="im-newdeck-wrap"><label class="label" for="im-newdeck">Nom du nouveau paquet</label><input class="input" id="im-newdeck" placeholder="Ex : Vocabulaire anglais"></div>
                 <div class="field"><span class="label">Fichier</span><button class="btn btn-soft btn-block" id="im-file">${ic('file')}Choisir un fichier TXT / CSV</button></div>
                 <div class="field"><span class="label">Ou un paquet Anki</span><button class="btn btn-soft btn-block" id="im-apkg">${ic('layers')}Importer un fichier .apkg</button><p class="help">Anki : Fichier › Exporter › « Paquet Anki (.apkg) », en cochant « Prendre en charge les anciennes versions d'Anki ». Les cartes arrivent comme neuves.</p></div>
+                <div class="field im-ai"><span class="label">${ic('sparkles')} Créer les cartes avec une IA (ChatGPT, Claude…)</span>
+                    <p class="help">1. Copie la consigne · 2. colle-la dans ton IA avec ton cours (texte, PDF, photo) · 3. colle sa réponse ci-dessous, puis Importer.</p>
+                    <div class="im-ai-row"><div class="segmented seg-sm" id="im-ai-kind"><button type="button" class="active" data-k="qa">Questions</button><button type="button" data-k="cloze">Textes à trous</button><button type="button" data-k="mix">Les deux</button></div>
+                    <button class="btn btn-soft btn-sm" id="im-ai-copy" type="button">${ic('copy')}Copier la consigne</button></div></div>
                 <div class="field"><label class="label" for="im-text">... ou colle tes fiches ici</label><textarea class="textarea" id="im-text" rows="6" placeholder="Capitale de l'Italie ; Rome&#10;H2O ; L'eau"></textarea>
                     <div class="im-tr"><button class="btn btn-soft btn-sm" id="im-translate" type="button">Traduire les mots seuls (anglais → français)</button><span class="help" id="im-tr-st">Colle une liste de mots anglais, un par ligne : les traductions proposées s'écrivent à côté. Vérifie-les avant d'importer.</span></div></div>
                 <label class="check hidden" id="im-usedecks-wrap" style="margin-bottom:10px"><input type="checkbox" id="im-usedecks" checked> Utiliser les paquets et tags indiqués dans le fichier</label>
@@ -3399,6 +3403,13 @@ class SuperAnki {
             return rows;
         };
         ta.addEventListener('input', refresh);
+        let aiKind = 'qa';
+        $('#im-ai-kind', m).addEventListener('click', e => { const b = e.target.closest('[data-k]'); if (!b) return; aiKind = b.dataset.k; $$('#im-ai-kind button', m).forEach(x => x.classList.toggle('active', x === b)); });
+        $('#im-ai-copy', m).addEventListener('click', async () => {
+            const txt = aiCardsPrompt(aiKind);
+            try { await navigator.clipboard.writeText(txt); this.toast('Consigne copiée : colle-la dans ton IA avec ton cours, puis colle sa réponse ici', 'success', ic('copy')); }
+            catch { ta.value = txt; ta.select(); refresh(); this.toast('Copie impossible : la consigne est dans la zone de texte, copie-la à la main', 'warning'); }
+        });
         $('#im-translate', m).addEventListener('click', async () => {
             const st = $('#im-tr-st', m), btn = $('#im-translate', m);
             const lines = ta.value.split('\n'), todo = lines.map((l, i) => [i, l.trim()]).filter(([, l]) => l && !/[;\t]/.test(l) && !l.includes(','));
@@ -3464,7 +3475,9 @@ class SuperAnki {
             this.change('import', [], () => {
                 const made = [];
                 rows.forEach((r, i) => {
-                    const c = { id: uid('c'), ...freshCard(), deckId: useDecks && r.deck ? deckFor(r.deck) : deckId, front: r.front, back: r.back, hint: r.hint || '', detail: '', tags: r.tags || [], created: now + i, nid: '', kind: 'basic', ord: 0, nf: null };
+                    const did = useDecks && r.deck ? deckFor(r.deck) : deckId;
+                    if (clozeNumbers(r.front).length) { made.push(...(this.createNote({ type: 'cloze', deckId: did, front: r.front, back: r.back || '', hint: r.hint || '', detail: '', tags: r.tags || [] }) || [])); return; }   // {{c1::…}}: a text with holes
+                    const c = { id: uid('c'), ...freshCard(), deckId: did, front: r.front, back: r.back, hint: r.hint || '', detail: '', tags: r.tags || [], created: now + i, nid: '', kind: 'basic', ord: 0, nf: null };
                     this.data.cards.push(c); made.push(c.id);
                 });
                 return made;
@@ -4215,6 +4228,30 @@ function interleave(reviews, news) {
     return out;
 }
 
+/* The instruction to paste into an AI (ChatGPT, Claude…) with a course: its answer is pasted back into the import box */
+function aiCardsPrompt(kind = 'qa') {
+    const how = {
+        qa: '- Chaque carte est une question précise et sa réponse.',
+        cloze: '- Chaque carte est une phrase du cours avec un ou plusieurs mots cachés écrits ainsi : {{c1::mot caché}} (puis {{c2::…}}, {{c3::…}} pour d\'autres trous dans la même phrase).',
+        mix: '- Fais surtout des questions-réponses ; pour les définitions et les listes à retenir mot pour mot, fais plutôt un texte à trous : la phrase avec les mots cachés écrits ainsi : {{c1::mot caché}} ({{c2::…}} pour un 2e trou).'
+    }[kind] || '';
+    const fmt = kind === 'cloze' ? 'phrase avec {{c1::trou}} ; précision facultative' : kind === 'mix' ? 'question ; réponse ; indice facultatif\n(ou, pour un texte à trous : phrase avec {{c1::trou}} ; précision facultative)' : 'question ; réponse ; indice facultatif';
+    return `Tu es un expert en fiches de révision pour la répétition espacée (comme Anki). À partir du cours ci-dessous, crée des cartes de révision en français.
+
+Règles :
+${how}
+- Une seule idée par carte. Question courte et sans ambiguïté, réponse de 25 mots maximum.
+- Couvre toutes les notions qui peuvent tomber à l'examen : définitions, chiffres clés, auteurs, étapes, avantages et limites, exemples.
+- Pas de doublons, pas de question vague (« parle de… », « que sais-tu sur… »). N'invente rien qui ne soit pas dans le cours.
+
+Format de réponse OBLIGATOIRE : une carte par ligne, sans numéro, sans titre, sans aucun texte avant ou après :
+${fmt}
+N'utilise jamais de point-virgule à l'intérieur d'une question ou d'une réponse.
+
+Cours :
+[COLLE TON COURS ICI]`;
+}
+
 /* CSV / TXT parser: ; tab or , separators, quoted fields, Anki "#" headers */
 function parseImport(text) {
     const all = String(text || '').replace(/^﻿/, '').split(/\r\n|\n|\r/);
@@ -4246,10 +4283,10 @@ function parseImport(text) {
     };
     const rows = [];
     lines.forEach(l => {
-        const f = split(l);
-        if (f.length < 2) return;
-        const front = sanitizeHtml(f[0]), back = sanitizeHtml(f[1]);
-        if (isBlank(front) || isBlank(back)) return;
+        const f = split(l.replace(/^\s*(?:[-*•]|\d+[.)])\s+/, '').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')), cloze = /\{\{c\d+::/.test(f[0]);   // (AI answers: list markers and **bold** are cleaned)
+        if (f.length < 2 && !cloze) return;
+        const front = sanitizeHtml(f[0]), back = sanitizeHtml(f[1] || '');
+        if (isBlank(front) || (isBlank(back) && !cloze)) return;   // a text with holes needs no back
         const tags = meta.tagsCol >= 0 && f[meta.tagsCol] ? f[meta.tagsCol].split(/\s+/).filter(Boolean) : [];
         const deck = meta.deckCol >= 0 && f[meta.deckCol] ? f[meta.deckCol] : '';
         const hint = f[2] && meta.tagsCol !== 2 && meta.deckCol !== 2 ? sanitizeHtml(f[2]) : '';
