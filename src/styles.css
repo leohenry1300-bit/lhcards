@@ -2132,7 +2132,6 @@ html[data-theme="etoile"]::after { background-image: url("data:image/svg+xml,%3C
 [data-theme="savane"] .panel:hover, [data-theme="savane"] .deck-card:hover { border-color: #d9a85f; box-shadow: 0 10px 30px rgba(150,80,20,.2); }
 @media (max-width: 767px) { [data-theme="savane"] .hero::after { background-position: 0 0, 100% 100%, 0 100%; background-size: auto, auto 27%, 420px 52px; } }
 [data-theme="savane"] .hero-title { font-family: var(--font-display); letter-spacing: 0; }
-[data-theme="savane"] .panel, [data-theme="savane"] .status-tile, [data-theme="savane"] .deck-card { backdrop-filter: blur(5px) saturate(125%); -webkit-backdrop-filter: blur(5px) saturate(125%); }
 [data-theme="savane"] .btn-hero { background: rgba(255,248,236,.86); color: #6b2a08; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
 [data-theme="savane"] .logo-mark { box-shadow: 0 4px 14px rgba(180,83,9,.35); }
 [data-theme="savane"] { --theme-color: #fbdfae; }
