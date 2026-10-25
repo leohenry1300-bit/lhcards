@@ -331,6 +331,19 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     });
     ok('home folding: studied 45 days ago = folded; reviews due or studied 3 days ago = shown', fold2.skip || (!fold2.old && fold2.due && fold2.recent), JSON.stringify(fold2));
 
+    /* 21. opening / unfolding on the home screen only redraws the list of decks, and the tapped control stays where it was */
+    const anchor = await page.evaluate(async () => {
+        const st = app.data.settings, keepOpen = st.homeOpen; PACKS.forEach(x => app.addPack(x.id)); st.homeOpen = {}; st.pinnedDecks = []; app.data.stats.history[dayKey()] = 1;
+        app.go('dashboard'); await new Promise(r => setTimeout(r, 2800)); app.renderDashboard();
+        const q = '#dash-decks [data-sec="others"]', btn = document.querySelector(q), hero = document.querySelector('.hero'); if (!btn) return { skip: true };
+        btn.scrollIntoView({ block: 'center' }); await new Promise(r => setTimeout(r, 200));
+        const t0 = Math.round(document.querySelector(q).getBoundingClientRect().top);
+        document.querySelector(q).click(); await new Promise(r => setTimeout(r, 300));
+        const out = { moved: Math.round(document.querySelector(q).getBoundingClientRect().top) - t0, sameHero: hero === document.querySelector('.hero'), opened: document.querySelectorAll('#dash-decks > .deck-card').length > 5 };
+        st.homeOpen = keepOpen; app.renderDashboard(); return out;
+    });
+    ok('home: unfolding "Autres paquets" keeps the button in place and does not redraw the banner', anchor.skip || (Math.abs(anchor.moved) <= 1 && anchor.sameHero && anchor.opened), JSON.stringify(anchor));
+
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));
     console.log(R.join('\n') + `\n\n${R.length - failed}/${R.length} checks passed`);
     await browser.close(); server.close(); process.exit(failed ? 1 : 0);

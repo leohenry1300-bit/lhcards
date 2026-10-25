@@ -1351,7 +1351,7 @@ class SuperAnki {
         /* a tab seen a moment ago, with nothing changed since, is simply shown again: switching tabs stays instant */
         const reuse = !!rv && prevView !== view && rv.v === (this._ver || 0) && Date.now() - rv.t < (VIEW_TTL[view] || 60000) && rv.d === dayKey() && opts.deck === undefined && opts.filter === undefined && ['dashboard', 'decks', 'stats', 'settings', 'toeic'].includes(view);
         const tabbed = !!TAB_HEAD[view] && opts.deck === undefined && opts.filter === undefined && !opts.from;
-        this.render(true, reuse);
+        this._nav = true; try { this.render(true, reuse); } finally { this._nav = false; }   // (arriving on a screen: its own scroll position is set below)
         if (tabbed && !reuse) this.deferTail($(`#view-${view}`), TAB_HEAD[view]);
         if (reuse && view === 'stats') requestAnimationFrame(() => this.fixCharts());
         const mem = (this.scrollMem || {})[view];
@@ -1645,7 +1645,30 @@ class SuperAnki {
     }
 
     /* ---------- Dashboard ---------- */
+    /* a redraw of a screen the user is looking at (a fold opened, a deck pinned...) must never move the page: Safari can lose the position
+       when the content is replaced, so it is put back right away and once more on the next frames */
+    keepScroll(draw) {
+        const y = window.scrollY, same = this.view !== 'session';
+        draw();
+        if (!same || y < 2) return;
+        const put = () => { if (Math.abs(window.scrollY - y) > 1) window.scrollTo({ top: y, behavior: 'instant' in window ? 'instant' : 'auto' }); };
+        put(); requestAnimationFrame(() => { put(); requestAnimationFrame(put); });
+    }
+    /* only the list of decks is redrawn (a fold opened or closed, a deck unfolded): the rest of the screen is not touched, and the control that was
+       tapped stays exactly where it was under the finger, even when the page gets longer or shorter below it */
+    refreshDeckList(anchorSel) {
+        const box = $('#dash-decks');
+        if (!box || this.view !== 'dashboard') { this.renderDashboard(); return; }
+        const find = () => (anchorSel ? $(anchorSel) : null), before = find(), top0 = before ? before.getBoundingClientRect().top : null;
+        box.innerHTML = this.dashboardDeckCards();
+        const fix = () => { const el = find(); if (el && top0 !== null) { const d = el.getBoundingClientRect().top - top0; if (Math.abs(d) > 1) window.scrollBy({ top: d, behavior: 'instant' in window ? 'instant' : 'auto' }); } };
+        fix(); requestAnimationFrame(() => { fix(); requestAnimationFrame(fix); });
+    }
     renderDashboard() {
+        if (!this._inKeep && !this._nav) { this._inKeep = true; try { this.keepScroll(() => this.drawDashboard()); } finally { this._inKeep = false; } return; }
+        this.drawDashboard();
+    }
+    drawDashboard() {
         const d = this.data, now = Date.now();
         const counts = this.countStatuses(d.cards);
         const plan = this.studyPlan(null);
@@ -3916,7 +3939,8 @@ class SuperAnki {
             }
             case 'home-toggle': {
                 const o = { ...(this.data.settings.homeOpen || {}) }; o[ds.sec] = !this.homeOpen(ds.sec, ds.sec === 'recents' || ds.sec === 'goals');
-                this.setSetting('homeOpen', o); this.renderDashboard();
+                this.setSetting('homeOpen', o);
+                if (ds.sec === 'others') this.refreshDeckList('#dash-decks [data-sec="others"]'); else this.renderDashboard();
                 break;
             }
             case 'resume-last': {
@@ -4028,7 +4052,7 @@ class SuperAnki {
             case 'lib-dismiss': this.setSetting('libSeen', true); this.renderDashboard(); break;
             case 'tips-dismiss': this.setSetting('tipsSeen', true); this.renderDashboard(); break;
             case 'toggle-deck': this.toggleOpen('side', ds.deck); this.renderDeckSidebar(); break;
-            case 'dash-toggle': this.toggleOpen('dash', ds.deck); this.renderDashboard(); break;
+            case 'dash-toggle': this.toggleOpen('dash', ds.deck); this.refreshDeckList(`#dash-decks [data-action="dash-toggle"][data-deck="${CSS.escape(ds.deck)}"]`); break;
             case 'tree-all': this.setAllOpen(ds.key, ds.open === '1'); this.renderDeckSidebar(); break;
             case 'goals-manage': this.go('settings'); this.flushTail($('#view-settings'), true); setTimeout(() => { const g = $('#goals-panel'); if (g) { const sp = g.closest('details'); if (sp) sp.open = true; g.scrollIntoView({ block: 'start' }); window.scrollBy(0, -120); } }, 80); break;
             case 'goal-add': {
