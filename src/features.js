@@ -840,6 +840,28 @@ Object.assign(SuperAnki.prototype, {
         return g ? { name: g.name, days: g.days, date: g.date } : null;
     },
     /* "Examens" on the home screen: one row per upcoming goal, soonest first; a goal linked to a course shows how much of it was seen and a daily target */
+    /* Exam plan: for every card of the linked decks, the chance to remember it ON the exam day (FSRS forgetting curve;
+       an SM-2 card gets an estimated memory state, a new card counts as 0). Cards under 90 % are "at risk": they are spread over
+       the days left (most fragile first, reviewed normally, so the schedule learns from them), and the day before is a last round
+       of the most fragile cards in free mode (no effect on the schedule). */
+    examPlan(g) {
+        const ids = g.decks.filter(id => this.deck(id));
+        if (!ids.length) return null;
+        const [y, mo, d] = g.date.split('-').map(Number), examT = new Date(y, mo - 1, d, 8).getTime(), today = startOfDay();
+        const cards = this.poolFor(ids), rows = cards.map(c => {
+            if (c.state === 'new') return { c, r: 0 };
+            const fs = fsrsFromCard(c), last = c.lastReview || (fs && fs.t) || Date.now();
+            return { c, r: fs ? fsrsR(Math.max(0, examT - last) / DAY, fs.s) : 0 };
+        });
+        const mastery = rows.length ? rows.reduce((a, x) => a + x.r, 0) / rows.length : 0;
+        const risk = rows.filter(x => x.r < 0.9).sort((a, b) => a.r - b.r);
+        const doneToday = rows.filter(x => x.c.lastReview >= today).length;
+        const planDays = Math.max(1, g.days - 1);   // the day before the exam is kept for the last round
+        const quota = Math.ceil(risk.length / planDays), left = Math.max(0, quota - doneToday);
+        const todo = risk.filter(x => !(x.c.lastReview >= today)).slice(0, left).map(x => x.c.id);
+        const last = rows.slice().sort((a, b) => a.r - b.r).slice(0, 40).map(x => x.c.id);
+        return { total: rows.length, mastery, risk: risk.length, quota, left, todo, last, lastRound: g.days <= 1 };
+    },
     goalsHtml() {
         const all = this.goalsAll().filter(g => g.days >= 0);
         if (!all.length) return '';
@@ -847,12 +869,21 @@ Object.assign(SuperAnki.prototype, {
             const ds = g.decks.map(id => this.deck(id)).filter(Boolean), left = g.days === 0 ? "aujourd'hui" : `J-${g.days}`, soon = g.days <= 7;
             let body = '';
             if (ds.length) {
-                const cards = this.poolFor(ds.map(d => d.id)), total = cards.length, seen = cards.filter(c => (c.right || 0) + (c.wrong || 0) > 0 || c.state !== 'new').length, rest = total - seen;
-                const perDay = Math.ceil(rest / Math.max(g.days, 1));
+                const cards = this.poolFor(ds.map(d => d.id)), total = cards.length, seen = cards.filter(c => (c.right || 0) + (c.wrong || 0) > 0 || c.state !== 'new').length;
                 const btns = d => `<button class="btn btn-soft btn-sm" data-action="exam-go" data-mode="ordered" data-deck="${esc(d.id)}">${ic('list')}Ordre</button><button class="btn btn-soft btn-sm" data-action="exam-go" data-mode="free" data-deck="${esc(d.id)}">${ic('repeat')}Libre</button>`;
                 body = `<div class="ex-sub">${ds.length === 1 ? `${esc(ds[0].emoji)} ${esc(ds[0].name)}` : plural(ds.length, 'paquet')} · <b>${seen}</b> / ${total} cartes vues</div>
                     <div class="progress"><i style="width:${total ? seen / total * 100 : 0}%;background:var(--primary)"></i></div>
-                    <div class="ex-plan">${rest > 0 ? `≈ <b>${plural(perDay, 'carte')} par jour</b> pour tout voir avant l'examen` : '✔ Tout vu : repasse tout une dernière fois en Libre'}</div>
+                    ${(() => {
+                        const P = this.examPlan(g); if (!P || !P.total) return '';
+                        const pct = Math.round(P.mastery * 100), lvl = pct >= 90 ? 'ok' : pct >= 70 ? 'mid' : 'low';
+                        const btn = P.lastRound
+                            ? `<button class="btn btn-primary btn-sm" data-action="exam-plan" data-mode="last" data-id="${esc(g.id)}">${ic('target')}Dernier tour (${P.last.length})</button>`
+                            : P.todo.length ? `<button class="btn btn-primary btn-sm" data-action="exam-plan" data-mode="plan" data-id="${esc(g.id)}">${ic('play')}Plan du jour (${plural(P.todo.length, 'carte')})</button>`
+                            : `<span class="ex-done">${ic('check')}Plan du jour fait</span>`;
+                        const why = P.lastRound ? 'Veille de l\'examen : un dernier tour de tes cartes les plus fragiles, sans toucher au planning.'
+                            : P.risk ? `${plural(P.risk, 'carte')} risque${P.risk > 1 ? 'nt' : ''} d'être oubliée${P.risk > 1 ? 's' : ''} d'ici là : environ ${plural(P.quota, 'carte')} par jour, les plus fragiles d'abord.` : 'Tout devrait tenir jusqu\'à l\'examen : continue tes révisions normales.';
+                        return `<div class="ex-plan">Maîtrise prévue le jour J : <b class="ex-m ${lvl}">${pct} %</b> <span class="muted">· objectif 90 %</span></div><div class="ex-why small muted">${why}</div><div class="ex-actions">${btn}</div>`;
+                    })()}
                     ${ds.length === 1
                         ? `<div class="ex-actions">${btns(ds[0])}<button class="link" data-action="open-deck" data-deck="${esc(ds[0].id)}">Voir le paquet</button></div>`
                         : `<div class="ex-decks">${ds.map(d => `<div class="ex-deck"><button class="link" data-action="open-deck" data-deck="${esc(d.id)}">${esc(d.emoji)} ${esc(d.name)}</button><span class="ex-actions">${btns(d)}</span></div>`).join('')}</div>`}`;
