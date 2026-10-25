@@ -671,18 +671,6 @@ code { font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace; font-size:
 }
 [data-theme="aurore"] .panel, [data-theme="aurore"] .topbar, [data-theme="aurore"] .bottom-nav, [data-theme="aurore"] .quiz-opt { backdrop-filter: blur(18px) saturate(170%); -webkit-backdrop-filter: blur(18px) saturate(170%); }
 
-[data-theme="solaire"] {
-  --bg: #fdf6e3; --bg-accent: none; --surface: #fffbef; --surface-2: #f5eed8; --surface-3: #eee8d5;
-  --border: #e6dfc6; --border-strong: #d3cbb0;
-  --text: #073642; --text-muted: #586e75; --text-faint: #869393;
-  --primary: #227bba; --primary-2: #2aa198; --on-primary: #fff;
-  --new: #268bd2; --learn: #b58900; --due: #dc322f; --mature: #859900;
-  --again: #dc322f; --hard: #cb4b16; --good: #268bd2; --easy: #859900;
-  --hero: linear-gradient(135deg, #227bba, #22827b);
-  --radius: 12px; --radius-sm: 9px;
-  --shadow: 0 1px 2px rgba(7,54,66,.06), 0 4px 14px rgba(7,54,66,.06);
-}
-
 [data-theme="cafe"] {
   --font: 'Nunito', system-ui, sans-serif; --font-display: 'Lora', Georgia, serif; --font-card: 'Lora', Georgia, serif;
   --bg: #1c1512; --bg-accent: radial-gradient(900px 500px at 100% 0%, rgba(212,163,115,.10), transparent 60%);
