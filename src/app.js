@@ -973,7 +973,6 @@ class SuperAnki {
         this.extrasInit();
         this.ambInit();
         this.warmViews();
-        this.updateBadge();
         this.backupAutoStart();   // cloud backup: off by default (Réglages > Données); an old unencrypted sync gets a code
         if (this.data.settings.cloudSync) Cloud.sync();
         else Cloud.setStatus('off');
@@ -2331,10 +2330,6 @@ class SuperAnki {
                     <div class="txt"><b>Le jour change à</b><span>Les révisions de la nuit comptent pour la veille, comme dans Anki (4 h par défaut).</span></div>
                     ${seg('rolloverHour', [[0, 'Minuit'], [3, '3 h'], [4, '4 h'], [6, '6 h']])}
                 </div>
-                ${'setAppBadge' in navigator && 'Notification' in window ? `<div class="set-row">
-                    <div class="txt"><b>Pastille sur l'icône</b><span>Le nombre de cartes du jour s'affiche sur l'icône de l'appli, comme les messages non lus. iPhone : il faut autoriser les notifications (aucune ne sera envoyée).</span></div>
-                    ${Notification.permission === 'granted' ? `<span class="small" style="color:var(--mature);font-weight:700">${ic('check')} Activée</span>` : Notification.permission === 'denied' ? '<span class="small muted">Refusée dans les réglages de l\'appareil</span>' : `<button class="btn btn-soft btn-sm" data-action="badge-enable">Activer</button>`}
-                </div>` : ''}
             </div>
 
             <div class="panel panel-pad set-section" id="goals-panel">
@@ -2436,14 +2431,6 @@ class SuperAnki {
         this.bindOptionsForm($('#study-options'));
         this.renderSyncIndicator();
         this.fillBackups();
-    }
-    /* number of cards to study today on the app icon (installed app; iPhone 16.4+ once notifications are allowed, none is ever sent) */
-    updateBadge() {
-        if (!this.data || !('setAppBadge' in navigator)) return;
-        try {
-            const p = this.studyPlan(null), n = p.reviews.length + p.learningDue + p.news.length;
-            (n ? navigator.setAppBadge(n) : navigator.clearAppBadge()).catch(() => {});
-        } catch { /* ignore */ }
     }
     async fillBackups() {
         const box = $('#backup-list');
@@ -2555,7 +2542,6 @@ class SuperAnki {
         if ('speechSynthesis' in window) speechSynthesis.cancel();
         this.session = null;
         if (this.saveTimer) this.writeNow();   // the answers grouped during the session are written now
-        this.updateBadge();
         document.body.classList.remove('in-session');
         if (Cloud.deferred) { Cloud.deferred = false; setTimeout(() => Cloud.sync(), 300); }
         if (goHome) this.goBack();
@@ -3398,10 +3384,6 @@ class SuperAnki {
                 <div class="field hidden" id="im-newdeck-wrap"><label class="label" for="im-newdeck">Nom du nouveau paquet</label><input class="input" id="im-newdeck" placeholder="Ex : Vocabulaire anglais"></div>
                 <div class="field"><span class="label">Fichier</span><button class="btn btn-soft btn-block" id="im-file">${ic('file')}Choisir un fichier TXT / CSV</button></div>
                 <div class="field"><span class="label">Ou un paquet Anki</span><button class="btn btn-soft btn-block" id="im-apkg">${ic('layers')}Importer un fichier .apkg</button><p class="help">Anki : Fichier › Exporter › « Paquet Anki (.apkg) », en cochant « Prendre en charge les anciennes versions d'Anki ». Les cartes arrivent comme neuves.</p></div>
-                <div class="field im-ai"><span class="label">${ic('sparkles')} Créer les cartes avec une IA (ChatGPT, Claude…)</span>
-                    <p class="help">1. Copie la consigne · 2. colle-la dans ton IA avec ton cours (texte, PDF, photo) · 3. colle sa réponse ci-dessous, puis Importer.</p>
-                    <div class="im-ai-row"><div class="segmented seg-sm" id="im-ai-kind"><button type="button" class="active" data-k="qa">Questions</button><button type="button" data-k="cloze">Textes à trous</button><button type="button" data-k="mix">Les deux</button></div>
-                    <button class="btn btn-soft btn-sm" id="im-ai-copy" type="button">${ic('copy')}Copier la consigne</button></div></div>
                 <div class="field"><label class="label" for="im-text">... ou colle tes fiches ici</label><textarea class="textarea" id="im-text" rows="6" placeholder="Capitale de l'Italie ; Rome&#10;H2O ; L'eau"></textarea>
                     <div class="im-tr"><button class="btn btn-soft btn-sm" id="im-translate" type="button">Traduire les mots seuls (anglais → français)</button><span class="help" id="im-tr-st">Colle une liste de mots anglais, un par ligne : les traductions proposées s'écrivent à côté. Vérifie-les avant d'importer.</span></div></div>
                 <label class="check hidden" id="im-usedecks-wrap" style="margin-bottom:10px"><input type="checkbox" id="im-usedecks" checked> Utiliser les paquets et tags indiqués dans le fichier</label>
@@ -3418,13 +3400,6 @@ class SuperAnki {
             return rows;
         };
         ta.addEventListener('input', refresh);
-        let aiKind = 'qa';
-        $('#im-ai-kind', m).addEventListener('click', e => { const b = e.target.closest('[data-k]'); if (!b) return; aiKind = b.dataset.k; $$('#im-ai-kind button', m).forEach(x => x.classList.toggle('active', x === b)); });
-        $('#im-ai-copy', m).addEventListener('click', async () => {
-            const txt = aiCardsPrompt(aiKind);
-            try { await navigator.clipboard.writeText(txt); this.toast('Consigne copiée : colle-la dans ton IA avec ton cours, puis colle sa réponse ici', 'success', ic('copy')); }
-            catch { ta.value = txt; ta.select(); refresh(); this.toast('Copie impossible : la consigne est dans la zone de texte, copie-la à la main', 'warning'); }
-        });
         $('#im-translate', m).addEventListener('click', async () => {
             const st = $('#im-tr-st', m), btn = $('#im-translate', m);
             const lines = ta.value.split('\n'), todo = lines.map((l, i) => [i, l.trim()]).filter(([, l]) => l && !/[;\t]/.test(l) && !l.includes(','));
@@ -3490,9 +3465,7 @@ class SuperAnki {
             this.change('import', [], () => {
                 const made = [];
                 rows.forEach((r, i) => {
-                    const did = useDecks && r.deck ? deckFor(r.deck) : deckId;
-                    if (clozeNumbers(r.front).length) { made.push(...(this.createNote({ type: 'cloze', deckId: did, front: r.front, back: r.back || '', hint: r.hint || '', detail: '', tags: r.tags || [] }) || [])); return; }   // {{c1::…}}: a text with holes
-                    const c = { id: uid('c'), ...freshCard(), deckId: did, front: r.front, back: r.back, hint: r.hint || '', detail: '', tags: r.tags || [], created: now + i, nid: '', kind: 'basic', ord: 0, nf: null };
+                    const c = { id: uid('c'), ...freshCard(), deckId: useDecks && r.deck ? deckFor(r.deck) : deckId, front: r.front, back: r.back, hint: r.hint || '', detail: '', tags: r.tags || [], created: now + i, nid: '', kind: 'basic', ord: 0, nf: null };
                     this.data.cards.push(c); made.push(c.id);
                 });
                 return made;
@@ -3784,7 +3757,7 @@ class SuperAnki {
         const flush = () => { if (this.saveTimer) this.writeNow(); };
         window.addEventListener('pagehide', flush);
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'hidden') { flush(); this.updateBadge(); if (Cloud.timer || Cloud.deferred) Cloud.push(); }
+            if (document.visibilityState === 'hidden') { flush(); if (Cloud.timer || Cloud.deferred) Cloud.push(); }
             else if (this.data && this.data.settings.cloudSync && !this.session && Date.now() - Cloud.lastPull > 60000) Cloud.sync();
         });
     }
@@ -3921,11 +3894,6 @@ class SuperAnki {
                     { icon: 'reset', label: 'Remettre à zéro…', fn: () => this.handleAction('reset-deck', { dataset: { deck: id } }) },
                     { icon: 'trash', label: 'Supprimer le paquet…', fn: () => this.handleAction('delete-deck', { dataset: { deck: id } }) }
                 ]);
-                break;
-            }
-            case 'badge-enable': {
-                try { await Notification.requestPermission(); } catch { /* ignore */ }
-                this.updateBadge(); this.renderSettings();
                 break;
             }
             case 'exam-plan': {
@@ -4248,30 +4216,6 @@ function interleave(reviews, news) {
     return out;
 }
 
-/* The instruction to paste into an AI (ChatGPT, Claude…) with a course: its answer is pasted back into the import box */
-function aiCardsPrompt(kind = 'qa') {
-    const how = {
-        qa: '- Chaque carte est une question précise et sa réponse.',
-        cloze: '- Chaque carte est une phrase du cours avec un ou plusieurs mots cachés écrits ainsi : {{c1::mot caché}} (puis {{c2::…}}, {{c3::…}} pour d\'autres trous dans la même phrase).',
-        mix: '- Fais surtout des questions-réponses ; pour les définitions et les listes à retenir mot pour mot, fais plutôt un texte à trous : la phrase avec les mots cachés écrits ainsi : {{c1::mot caché}} ({{c2::…}} pour un 2e trou).'
-    }[kind] || '';
-    const fmt = kind === 'cloze' ? 'phrase avec {{c1::trou}} ; précision facultative' : kind === 'mix' ? 'question ; réponse ; indice facultatif\n(ou, pour un texte à trous : phrase avec {{c1::trou}} ; précision facultative)' : 'question ; réponse ; indice facultatif';
-    return `Tu es un expert en fiches de révision pour la répétition espacée (comme Anki). À partir du cours ci-dessous, crée des cartes de révision en français.
-
-Règles :
-${how}
-- Une seule idée par carte. Question courte et sans ambiguïté, réponse de 25 mots maximum.
-- Couvre toutes les notions qui peuvent tomber à l'examen : définitions, chiffres clés, auteurs, étapes, avantages et limites, exemples.
-- Pas de doublons, pas de question vague (« parle de… », « que sais-tu sur… »). N'invente rien qui ne soit pas dans le cours.
-
-Format de réponse OBLIGATOIRE : une carte par ligne, sans numéro, sans titre, sans aucun texte avant ou après :
-${fmt}
-N'utilise jamais de point-virgule à l'intérieur d'une question ou d'une réponse.
-
-Cours :
-[COLLE TON COURS ICI]`;
-}
-
 /* CSV / TXT parser: ; tab or , separators, quoted fields, Anki "#" headers */
 function parseImport(text) {
     const all = String(text || '').replace(/^﻿/, '').split(/\r\n|\n|\r/);
@@ -4303,10 +4247,10 @@ function parseImport(text) {
     };
     const rows = [];
     lines.forEach(l => {
-        const f = split(l.replace(/^\s*(?:[-*•]|\d+[.)])\s+/, '').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')), cloze = /\{\{c\d+::/.test(f[0]);   // (AI answers: list markers and **bold** are cleaned)
-        if (f.length < 2 && !cloze) return;
-        const front = sanitizeHtml(f[0]), back = sanitizeHtml(f[1] || '');
-        if (isBlank(front) || (isBlank(back) && !cloze)) return;   // a text with holes needs no back
+        const f = split(l);
+        if (f.length < 2) return;
+        const front = sanitizeHtml(f[0]), back = sanitizeHtml(f[1]);
+        if (isBlank(front) || isBlank(back)) return;
         const tags = meta.tagsCol >= 0 && f[meta.tagsCol] ? f[meta.tagsCol].split(/\s+/).filter(Boolean) : [];
         const deck = meta.deckCol >= 0 && f[meta.deckCol] ? f[meta.deckCol] : '';
         const hint = f[2] && meta.tagsCol !== 2 && meta.deckCol !== 2 ? sanitizeHtml(f[2]) : '';

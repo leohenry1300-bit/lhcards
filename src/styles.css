@@ -2158,5 +2158,3 @@ html[data-theme="savane"][data-lite]::before, html[data-theme="savane"][data-lit
 .others-fold { grid-column: 1 / -1; }
 .ex-m.ok { color: var(--mature); } .ex-m.mid { color: var(--learn); } .ex-m.low { color: var(--due); }
 .ex-done { display: inline-flex; align-items: center; gap: 6px; font-size: .86rem; font-weight: 700; color: var(--mature); }
-.im-ai { padding: 12px; border: 1px dashed color-mix(in srgb, var(--primary) 45%, var(--border)); border-radius: 12px; background: var(--primary-soft); }
-.im-ai-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }

@@ -308,22 +308,6 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     });
     ok('exam plan: mastery shown, today\'s share of fragile cards reviewed normally, last round the day before', plan.mastery === 0 && plan.quota === Math.ceil(plan.n / 9) && plan.todo === plan.quota && /Maîtrise prévue le jour J : 0 %/.test(plan.text) && plan.session && plan.session.kind === 'srs' && plan.session.n === plan.quota && plan.last && plan.last.kind === 'practice' && plan.last.n === Math.min(40, plan.n), JSON.stringify({ ...plan, text: plan.text.slice(0, 120) }));
 
-    /* 20. cards made with an AI: the instruction is ready to copy; its answer (numbers, bullets, **bold**, intro and code fences) imports cleanly, texts with holes included */
-    const ai = await page.evaluate(() => {
-        const prompt = aiCardsPrompt('mix');
-        const rows = parseImport("Voici tes cartes :\n```\n1. Qu'est-ce que le mix marketing ? ; Les 4P ; 4 leviers\n- **Prix de pénétration** ? ; Prix bas au lancement\nLe {{c1::SWOT}} croise forces et {{c2::menaces}}. ;\n```");
-        return { prompt: /Format de réponse OBLIGATOIRE/.test(prompt) && /\{\{c1::/.test(prompt), n: rows.length, first: rows[0] && rows[0].front, bold: rows[1] && rows[1].front, cloze: rows[2] && clozeNumbers(rows[2].front).length };
-    });
-    ok('AI cards: instruction ready, answer imported cleanly (cloze included)', ai.prompt && ai.n === 3 && ai.first === "Qu'est-ce que le mix marketing ?" && ai.bold === '<b>Prix de pénétration</b> ?' && ai.cloze === 2, JSON.stringify(ai));
-
-    /* 21. icon badge = cards to study today (updated when the app goes to the background and after a session) */
-    const badge = await page.evaluate(() => {
-        let got = null; navigator.setAppBadge = n => { got = n; return Promise.resolve(); }; navigator.clearAppBadge = () => { got = 0; return Promise.resolve(); };
-        app.updateBadge(); const p = app.studyPlan(null);
-        return { got, want: p.reviews.length + p.learningDue + p.news.length };
-    });
-    ok('icon badge shows the cards of the day', badge.got === badge.want && badge.want > 0, JSON.stringify(badge));
-
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));
     console.log(R.join('\n') + `\n\n${R.length - failed}/${R.length} checks passed`);
     await browser.close(); server.close(); process.exit(failed ? 1 : 0);
