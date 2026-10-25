@@ -1821,10 +1821,10 @@ class SuperAnki {
                 </div>
             </div>`;
         };
-        /* Decks that came with the app or the library and were never opened or pinned are folded under one line ("Autres paquets"),
+        /* Decks that came with the app or the library, not pinned, with nothing due and not studied in the last 30 days, are folded under one line ("Autres paquets"),
            once the user has started studying; nothing is removed, and the search above and the Paquets tab still list everything. */
-        const used = id => this.descendantIds(id).some(k => lastReview.has(k));
-        const keep = ({ deck }) => pins.includes(deck.id) || used(deck.id) || /^(d_|co_|mes_but_tc)/.test(deck.id) || deck.id === 'toeic_err';
+        const recent = Date.now() - 30 * 864e5, used = id => this.descendantIds(id).some(k => (lastReview.get(k) || 0) >= recent);
+        const keep = ({ deck, c }) => pins.includes(deck.id) || used(deck.id) || c.due > 0 ||   /* (a deck with reviews due is never folded away) */ /^(d_|co_|mes_but_tc)/.test(deck.id) || deck.id === 'toeic_err';
         const started = Object.keys(this.data.stats.history).length > 0;
         const shown = started && rows.length > 8 ? rows.filter(keep) : rows, folded = rows.filter(r => !shown.includes(r));
         if (!folded.length) return rows.map(row).join('');

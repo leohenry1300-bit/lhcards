@@ -854,13 +854,16 @@ Object.assign(SuperAnki.prototype, {
             return { c, r: fs ? fsrsR(Math.max(0, examT - last) / DAY, fs.s) : 0 };
         });
         const mastery = rows.length ? rows.reduce((a, x) => a + x.r, 0) / rows.length : 0;
-        const risk = rows.filter(x => x.r < 0.9).sort((a, b) => a.r - b.r);
+        const unseen = rows.filter(x => x.c.state === 'new').length;
+        /* the cards already seen that are fragile come first (most fragile first); the cards never seen follow, in the order of the course */
+        const risk = rows.filter(x => x.r < 0.9).sort((a, b) => ((a.c.state === 'new') - (b.c.state === 'new')) || (a.r - b.r));
         const doneToday = rows.filter(x => x.c.lastReview >= today).length;
         const planDays = Math.max(1, g.days - 1);   // the day before the exam is kept for the last round
         const quota = Math.ceil(risk.length / planDays), left = Math.max(0, quota - doneToday);
         const todo = risk.filter(x => !(x.c.lastReview >= today)).slice(0, left).map(x => x.c.id);
-        const last = rows.slice().sort((a, b) => a.r - b.r).slice(0, 40).map(x => x.c.id);
-        return { total: rows.length, mastery, risk: risk.length, quota, left, todo, last, lastRound: g.days <= 1 };
+        /* the last round only holds cards the student has already seen (a card never seen cannot be "revised") */
+        const last = rows.filter(x => x.c.state !== 'new').sort((a, b) => a.r - b.r).slice(0, 40).map(x => x.c.id);
+        return { total: rows.length, mastery, unseen, risk: risk.length, quota, left, todo, last, lastRound: g.days === 1 && last.length > 0, examDay: g.days === 0 };
     },
     goalsHtml() {
         const all = this.goalsAll().filter(g => g.days >= 0);
@@ -876,13 +879,16 @@ Object.assign(SuperAnki.prototype, {
                     ${(() => {
                         const P = this.examPlan(g); if (!P || !P.total) return '';
                         const pct = Math.round(P.mastery * 100), lvl = pct >= 90 ? 'ok' : pct >= 70 ? 'mid' : 'low';
-                        const btn = P.lastRound
+                        const btn = P.examDay ? ''
+                            : P.lastRound
                             ? `<button class="btn btn-primary btn-sm" data-action="exam-plan" data-mode="last" data-id="${esc(g.id)}">${ic('target')}Dernier tour (${P.last.length})</button>`
                             : P.todo.length ? `<button class="btn btn-primary btn-sm" data-action="exam-plan" data-mode="plan" data-id="${esc(g.id)}">${ic('play')}Plan du jour (${plural(P.todo.length, 'carte')})</button>`
-                            : `<span class="ex-done">${ic('check')}Plan du jour fait</span>`;
-                        const why = P.lastRound ? 'Veille de l\'examen : un dernier tour de tes cartes les plus fragiles, sans toucher au planning.'
-                            : P.risk ? `${plural(P.risk, 'carte')} risque${P.risk > 1 ? 'nt' : ''} d'être oubliée${P.risk > 1 ? 's' : ''} d'ici là : environ ${plural(P.quota, 'carte')} par jour, les plus fragiles d'abord.` : 'Tout devrait tenir jusqu\'à l\'examen : continue tes révisions normales.';
-                        return `<div class="ex-plan">Maîtrise prévue le jour J : <b class="ex-m ${lvl}">${pct} %</b> <span class="muted">· objectif 90 %</span></div><div class="ex-why small muted">${why}</div><div class="ex-actions">${btn}</div>`;
+                            : P.risk ? `<span class="ex-done">${ic('check')}Plan du jour fait</span>` : '';
+                        const unseenTxt = P.unseen ? ` ${plural(P.unseen, 'carte')} pas encore vue${P.unseen > 1 ? 's' : ''} (comptée${P.unseen > 1 ? 's' : ''} à 0 %).` : '';
+                        const why = P.examDay ? 'C\'est aujourd\'hui : relis calmement, tu as fait le travail.'
+                            : P.lastRound ? 'Veille de l\'examen : un dernier tour de tes cartes vues les plus fragiles, sans toucher au planning.'
+                            : P.risk ? `${plural(P.risk, 'carte')} risque${P.risk > 1 ? 'nt' : ''} d'être oubliée${P.risk > 1 ? 's' : ''} d'ici là : environ ${plural(P.quota, 'carte')} par jour, les plus fragiles d'abord.${unseenTxt}` : 'Tout devrait tenir jusqu\'à l\'examen : continue tes révisions normales.';
+                        return `<div class="ex-plan">Maîtrise prévue le jour J : <b class="ex-m ${lvl}">${pct} %</b> <span class="muted">· objectif 90 %</span></div><div class="ex-why small muted">${why}</div>${btn ? `<div class="ex-actions">${btn}</div>` : ''}`;
                     })()}
                     ${ds.length === 1
                         ? `<div class="ex-actions">${btns(ds[0])}<button class="link" data-action="open-deck" data-deck="${esc(ds[0].id)}">Voir le paquet</button></div>`

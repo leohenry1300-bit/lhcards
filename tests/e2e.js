@@ -293,6 +293,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     const plan = await page.evaluate(async () => {
         const st = app.data.settings, keep = st.goals, out = {}, iso = n => dayKey(addDays(Date.now(), n));
         const deck = 'geo', cards = app.poolFor([deck]); cards.forEach(c => Object.assign(c, { ...freshCard(), state: 'new' }));
+        const seenN = Math.min(6, cards.length - 1); cards.slice(0, seenN).forEach((c, i) => Object.assign(c, { state: 'review', interval: 4 + i, ease: 2.5, due: Date.now() + 864e5, lastReview: Date.now() - 864e5 * (1 + i), reps: 3 }));
         st.goals = [{ id: 'gx', name: 'Partiel test', date: iso(10), decks: [deck] }]; st.homeOpen = { ...(st.homeOpen || {}), goals: true };
         app.go('dashboard'); app.renderDashboard();
         const P = app.examPlan(app.goalsAll()[0]);
@@ -302,11 +303,33 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         out.session = app.session ? { kind: app.session.kind, n: app.session.queue.length + 1 } : null; app.endSession(false);
         st.goals = [{ id: 'gx', name: 'Partiel test', date: iso(1), decks: [deck] }]; app.renderDashboard();
         document.querySelector('[data-action="exam-plan"][data-mode="last"]').click(); await new Promise(r => setTimeout(r, 200));
-        out.last = app.session ? { kind: app.session.kind, n: app.session.queue.length + 1 } : null; app.endSession(false);
+        out.last = app.session ? { kind: app.session.kind, n: app.session.queue.length + 1, anyNew: app.session.queue.concat(app.session.current ? [app.session.current] : []).some(id => app.card(id).state === 'new') } : null; app.endSession(false);
+        st.goals = [{ id: 'gx', name: 'Partiel test', date: iso(0), decks: [deck] }]; app.renderDashboard();
+        out.examDayBtn = !!document.querySelector('[data-action="exam-plan"]');
         st.goals = keep; app.renderDashboard();
+        out.seenN = seenN;
         return out;
     });
-    ok('exam plan: mastery shown, today\'s share of fragile cards reviewed normally, last round the day before', plan.mastery === 0 && plan.quota === Math.ceil(plan.n / 9) && plan.todo === plan.quota && /Maîtrise prévue le jour J : 0 %/.test(plan.text) && plan.session && plan.session.kind === 'srs' && plan.session.n === plan.quota && plan.last && plan.last.kind === 'practice' && plan.last.n === Math.min(40, plan.n), JSON.stringify({ ...plan, text: plan.text.slice(0, 120) }));
+    ok('exam plan: mastery shown, today\'s share of fragile cards reviewed normally, last round the day before', plan.mastery < 0.5 * 100 && plan.quota === Math.ceil(plan.n / 9) && plan.todo === plan.quota && /Maîtrise prévue le jour J : \d+ %/.test(plan.text) && plan.session && plan.session.kind === 'srs' && plan.session.n === plan.quota && plan.last && plan.last.kind === 'practice' && plan.last.n === Math.min(40, plan.seenN) && !plan.last.anyNew && !plan.examDayBtn, JSON.stringify({ ...plan, text: plan.text.slice(0, 120) }));
+
+    /* 20. home folding: a deck studied more than 30 days ago is folded, but never one with reviews due or a recent review */
+    const fold2 = await page.evaluate(async () => {
+        const st = app.data.settings, keepOpen = st.homeOpen, out = {};
+        PACKS.forEach(x => app.addPack(x.id)); st.homeOpen = {}; st.pinnedDecks = []; app.data.stats.history[dayKey()] = 1;
+        const roots = app.sortedDecks().filter(d => !d.parent && !/^(d_|co_|mes_but_tc)/.test(d.id) && d.id !== 'toeic_err').slice(0, 3);
+        const cardsOf = d => app.poolFor([d.id]);
+        app.data.cards.forEach(c => { c.lastReview = null; });
+        const [old, due, recent] = roots; if (!old || !due || !recent) return { skip: true };
+        cardsOf(old)[0].lastReview = Date.now() - 45 * 864e5;
+        const dc = cardsOf(due)[0]; Object.assign(dc, { state: 'review', interval: 5, due: Date.now() - 864e5, lastReview: Date.now() - 45 * 864e5 });
+        cardsOf(recent)[0].lastReview = Date.now() - 3 * 864e5;
+        app.renderDashboard();
+        const shown = id => !!document.querySelector(`#dash-decks > .deck-card[data-deck="${id}"]`);
+        out.old = shown(old.id); out.due = shown(due.id); out.recent = shown(recent.id);
+        st.homeOpen = keepOpen; app.renderDashboard();
+        return out;
+    });
+    ok('home folding: studied 45 days ago = folded; reviews due or studied 3 days ago = shown', fold2.skip || (!fold2.old && fold2.due && fold2.recent), JSON.stringify(fold2));
 
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));
     console.log(R.join('\n') + `\n\n${R.length - failed}/${R.length} checks passed`);
