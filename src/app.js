@@ -973,6 +973,7 @@ class SuperAnki {
         this.extrasInit();
         this.ambInit();
         this.warmViews();
+        this.updateBadge();
         this.backupAutoStart();   // cloud backup: off by default (Réglages > Données); an old unencrypted sync gets a code
         if (this.data.settings.cloudSync) Cloud.sync();
         else Cloud.setStatus('off');
@@ -2330,6 +2331,10 @@ class SuperAnki {
                     <div class="txt"><b>Le jour change à</b><span>Les révisions de la nuit comptent pour la veille, comme dans Anki (4 h par défaut).</span></div>
                     ${seg('rolloverHour', [[0, 'Minuit'], [3, '3 h'], [4, '4 h'], [6, '6 h']])}
                 </div>
+                ${'setAppBadge' in navigator && 'Notification' in window ? `<div class="set-row">
+                    <div class="txt"><b>Pastille sur l'icône</b><span>Le nombre de cartes du jour s'affiche sur l'icône de l'appli, comme les messages non lus. iPhone : il faut autoriser les notifications (aucune ne sera envoyée).</span></div>
+                    ${Notification.permission === 'granted' ? `<span class="small" style="color:var(--mature);font-weight:700">${ic('check')} Activée</span>` : Notification.permission === 'denied' ? '<span class="small muted">Refusée dans les réglages de l\'appareil</span>' : `<button class="btn btn-soft btn-sm" data-action="badge-enable">Activer</button>`}
+                </div>` : ''}
             </div>
 
             <div class="panel panel-pad set-section" id="goals-panel">
@@ -2431,6 +2436,14 @@ class SuperAnki {
         this.bindOptionsForm($('#study-options'));
         this.renderSyncIndicator();
         this.fillBackups();
+    }
+    /* number of cards to study today on the app icon (installed app; iPhone 16.4+ once notifications are allowed, none is ever sent) */
+    updateBadge() {
+        if (!this.data || !('setAppBadge' in navigator)) return;
+        try {
+            const p = this.studyPlan(null), n = p.reviews.length + p.learningDue + p.news.length;
+            (n ? navigator.setAppBadge(n) : navigator.clearAppBadge()).catch(() => {});
+        } catch { /* ignore */ }
     }
     async fillBackups() {
         const box = $('#backup-list');
@@ -2542,6 +2555,7 @@ class SuperAnki {
         if ('speechSynthesis' in window) speechSynthesis.cancel();
         this.session = null;
         if (this.saveTimer) this.writeNow();   // the answers grouped during the session are written now
+        this.updateBadge();
         document.body.classList.remove('in-session');
         if (Cloud.deferred) { Cloud.deferred = false; setTimeout(() => Cloud.sync(), 300); }
         if (goHome) this.goBack();
@@ -3770,7 +3784,7 @@ class SuperAnki {
         const flush = () => { if (this.saveTimer) this.writeNow(); };
         window.addEventListener('pagehide', flush);
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'hidden') { flush(); if (Cloud.timer || Cloud.deferred) Cloud.push(); }
+            if (document.visibilityState === 'hidden') { flush(); this.updateBadge(); if (Cloud.timer || Cloud.deferred) Cloud.push(); }
             else if (this.data && this.data.settings.cloudSync && !this.session && Date.now() - Cloud.lastPull > 60000) Cloud.sync();
         });
     }
@@ -3907,6 +3921,11 @@ class SuperAnki {
                     { icon: 'reset', label: 'Remettre à zéro…', fn: () => this.handleAction('reset-deck', { dataset: { deck: id } }) },
                     { icon: 'trash', label: 'Supprimer le paquet…', fn: () => this.handleAction('delete-deck', { dataset: { deck: id } }) }
                 ]);
+                break;
+            }
+            case 'badge-enable': {
+                try { await Notification.requestPermission(); } catch { /* ignore */ }
+                this.updateBadge(); this.renderSettings();
                 break;
             }
             case 'exam-plan': {

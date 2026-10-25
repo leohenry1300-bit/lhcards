@@ -316,6 +316,14 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     });
     ok('AI cards: instruction ready, answer imported cleanly (cloze included)', ai.prompt && ai.n === 3 && ai.first === "Qu'est-ce que le mix marketing ?" && ai.bold === '<b>Prix de pénétration</b> ?' && ai.cloze === 2, JSON.stringify(ai));
 
+    /* 21. icon badge = cards to study today (updated when the app goes to the background and after a session) */
+    const badge = await page.evaluate(() => {
+        let got = null; navigator.setAppBadge = n => { got = n; return Promise.resolve(); }; navigator.clearAppBadge = () => { got = 0; return Promise.resolve(); };
+        app.updateBadge(); const p = app.studyPlan(null);
+        return { got, want: p.reviews.length + p.learningDue + p.news.length };
+    });
+    ok('icon badge shows the cards of the day', badge.got === badge.want && badge.want > 0, JSON.stringify(badge));
+
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));
     console.log(R.join('\n') + `\n\n${R.length - failed}/${R.length} checks passed`);
     await browser.close(); server.close(); process.exit(failed ? 1 : 0);
