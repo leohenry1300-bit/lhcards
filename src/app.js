@@ -1084,7 +1084,7 @@ class SuperAnki {
         document.documentElement.style.setProperty('--card-size', CARD_SIZES[s.cardSize] || CARD_SIZES.m);
         requestAnimationFrame(() => {
             const meta = $('meta[name="theme-color"]');
-            if (meta) meta.content = getComputedStyle(document.body).getPropertyValue('--surface').trim() || '#ffffff';
+            if (meta) { const cs = getComputedStyle(document.body); meta.content = cs.getPropertyValue('--theme-color').trim() || cs.getPropertyValue('--surface').trim() || '#ffffff'; }   // (a theme can name the colour of the system bar)
         });
     }
     /* the logo takes the theme's colours: background = the home banner's gradient, check mark = the most colourful theme colour that stays readable on the cards */

@@ -2075,7 +2075,7 @@ html[data-vt="l"]::view-transition-new(root) { animation-name: vtInL; }
 
 /* ================= Étoilé & Savane (themes made of layers: sky, stars / sun, grass, birds) ================= */
 [data-theme="etoile"], [data-theme="savane"] { --heading-spacing: 0; }
-[data-theme="etoile"] { color-scheme: dark; }
+[data-theme="etoile"] { color-scheme: dark; --theme-color: #04061a; }
 [data-theme="etoile"] {
   --bg: #01020a;
   --bg-accent: radial-gradient(900px 620px at 12% 8%, rgba(70,56,190,.30), transparent 62%), radial-gradient(800px 620px at 92% 88%, rgba(130,44,150,.22), transparent 62%), radial-gradient(1300px 520px at 50% 122%, rgba(24,70,140,.30), transparent 62%), linear-gradient(115deg, transparent 38%, rgba(150,160,255,.06) 47%, rgba(255,255,255,.05) 50%, rgba(150,160,255,.06) 53%, transparent 62%);
@@ -2134,7 +2134,9 @@ html[data-theme="etoile"]::after { background-image: url("data:image/svg+xml,%3C
 [data-theme="savane"] .hero-title { font-family: var(--font-display); letter-spacing: 0; }
 [data-theme="savane"] .btn-hero { background: #fff8ec; color: #6b2a08; }
 [data-theme="savane"] .logo-mark { box-shadow: 0 4px 14px rgba(180,83,9,.35); }
-[data-theme="savane"] .topbar, [data-theme="savane"] .bottom-nav { background: rgba(253,240,214,.88); }
+[data-theme="savane"] { --theme-color: #fbdfae; }
+[data-theme="savane"] .topbar { background: linear-gradient(180deg, rgba(251,214,150,.94), rgba(250,224,172,.78)); border-bottom-color: rgba(205,160,95,.45); }
+[data-theme="savane"] .bottom-nav { background: linear-gradient(0deg, rgba(240,212,160,.96), rgba(246,224,178,.82)); border-top-color: rgba(205,160,95,.45); }
 [data-theme="savane"] .leo-glow { filter: opacity(.7) saturate(1.2); }
 html[data-theme="savane"]::before, [data-theme="savane"] body::before, [data-theme="savane"] body::after { content: ""; position: fixed; z-index: -1; pointer-events: none; }
 html[data-theme="savane"]::before { right: -30vmin; top: -34vmin; width: 110vmin; height: 110vmin; border-radius: 50%; background: repeating-conic-gradient(from 200deg at 50% 50%, rgba(255,205,110,.30) 0deg 3deg, transparent 3deg 11deg); -webkit-mask-image: radial-gradient(circle, #000 12%, transparent 66%); mask-image: radial-gradient(circle, #000 12%, transparent 66%); opacity: .6; }
