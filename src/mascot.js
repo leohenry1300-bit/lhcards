@@ -46,6 +46,7 @@ function leoPlay(root, key, o = {}) {
     const fig = root.querySelector('.leo-fig'); if (!fig) return Promise.resolve(false);
     if (o.soft && (root._leoBusy > Date.now() || root.classList.contains('lv-clip'))) return Promise.resolve(false);   // a move is under way: it finishes first (no jump from the middle of one clip to the start of another)
     const tok = root._leoTok = (root._leoTok || 0) + 1;
+    root._leoHist = [key, ...(root._leoHist || [])].slice(0, 3);   // what he did last: he avoids repeating himself
     /* a clip that is slow to arrive (first time, weak network) is skipped rather than played late, out of step with his words */
     const slow = new Promise((_, no) => setTimeout(() => no(new Error('slow')), o.intro ? 4500 : 2500));
     return Promise.race([leoLoad(key), slow]).then(url => leoImg(url, 'lf-clip lf-play' + (c.flip ? ' flip' : ''), key)).then(img => {
@@ -76,20 +77,25 @@ function leoPlay(root, key, o = {}) {
 /* which clip fits what he is saying: the words decide first, then the kind of moment */
 function leoClipFor(root, cat = 'ready', text = '') {
     const st = root ? root.dataset.state : 's1', mood = root && root.dataset.mood || 'ready';
-    const pick = a => a[Math.floor(Math.random() * a.length)];
+    const recent = (root && root._leoHist) || [];
+    const pick = a => { const fresh = a.filter(k => !recent.slice(0, 2).includes(k)); const pool = fresh.length ? fresh : a; return pool[Math.floor(Math.random() * pool.length)]; };
     if (st === 'sleep') return 'yawn';
     if (st === 's0') return /idée|crée|ajoute|paquet/i.test(text) ? 'aha0' : pick(cat === 'tap' ? ['hello0'] : cat === 'exam' ? ['aha0', 'talk0'] : ['talk0', 'talk0', 'point0']);
     if (cat === 'roar') return 'roar';
     if (cat === 'tickle') return 'sitwave';
-    if (/GRR|RAAW|rugi/i.test(text)) return 'roar';
+    if (/GRR|RAAW|rugis|rugir/i.test(text)) return 'roar';
     if (/plaque|✔|✓/.test(text)) return 'tablet';
     if (cat === 'night' || /bonne nuit|dormir|sommeil|dodo/i.test(text)) return 'yawn';
     if (/zzz|sieste|ronronne/i.test(text)) return 'nap';
-    if (cat === 'milestone') return pick(['toss', 'roar']);
-    if (cat === 'missed') return /manqu|attend|gard/i.test(text) ? 'foot' : 'wave';
-    if (cat === 'exam') return pick(['think', 'talk']);
-    if (/bravo|fier|félicit|🎉|🏆|👏|gagné|victoire/i.test(text)) return pick(['roar', 'wave']);
-    const T = { ready: ['talk', 'talk', 'talk', 'pointwave', 'tablet'], happy: ['talk', 'talk', 'wave'], calm: ['talk', 'talk', 'tablet'], tap: ['wave', 'talk', 'sitwave'] };
+    if (cat === 'milestone') return pick(['toss', 'roar', 'wave']);
+    if (cat === 'missed') return /manqu|attend|gard/i.test(text) ? 'foot' : pick(['wave', 'sitwave', 'foot', 'think']);
+    if (cat === 'exam') return pick(['think', 'talk', 'tablet', 'pointwave']);
+    if (/bravo|fier|félicit|🎉|🏆|👏|gagné|victoire/i.test(text)) return pick(['roar', 'wave', 'toss', 'pointwave']);
+    /* the neutral moments: "talk" is only one choice among many (it used to be half of everything) */
+    const T = {
+        ready: ['talk', 'pointwave', 'tablet', 'wave', 'foot', 'sitwave', 'think'], happy: ['talk', 'wave', 'roar', 'toss', 'tablet', 'sitwave', 'pointwave'],
+        calm: ['talk', 'tablet', 'nap', 'yawn', 'think', 'sitwave'], tap: ['wave', 'talk', 'sitwave', 'pointwave', 'tablet', 'foot', 'think']
+    };
     return pick(T[cat] || T[mood] || T.ready);
 }
 /* his voice follows what he does: a curious "rrr?" when he talks, a happy "rawrr" when he waves or hops, a soft "grrr, allez" to encourage, a purr when he thinks, a sleepy "rrooh" when he yawns, a ROAAR to celebrate */
@@ -111,9 +117,9 @@ function leoBoot() {
             const tick = () => {
                 if (!root.isConnected) return;
                 if (!document.hidden && !root.classList.contains('leo-off') && !root.classList.contains('lv-clip') && root.dataset.state !== 'sleep') leoPlay(root, amb[Math.floor(Math.random() * amb.length)]);
-                setTimeout(tick, 32000 + Math.random() * 28000);
+                setTimeout(tick, 18000 + Math.random() * 16000);
             };
-            setTimeout(tick, 20000 + Math.random() * 15000);
+            setTimeout(tick, 9000 + Math.random() * 8000);
         }
     });
 }

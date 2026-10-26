@@ -1477,10 +1477,13 @@ class SuperAnki {
     mascotHome(mood) {
         const night = (new Date().getHours() >= 23 || new Date().getHours() < 5), first = !window._leoIntro;
         window._leoIntro = true;
+        const AMB = { ready: 'foot,pointwave,tablet,wave,sitwave,think', happy: 'wave,roar,tablet,toss,sitwave,pointwave', calm: 'nap,yawn,tablet,think,sitwave' };
+        /* each time he is seen again he greets differently: never the move he made last time */
+        const again = () => { const l = AMB[mood].split(','), fresh = l.filter(k => k !== window._leoLastIntro), k = fresh[Math.floor(Math.random() * fresh.length)]; window._leoLastIntro = k; return Math.random() < .75 ? k : ''; };
         if (mood === 'calm' && night) return leoSvg(mood, { state: 'sleep', amb: 'yawn' });
-        if (mood === 'calm') return leoSvg(mood, { intro: first ? 'tablet' : '', amb: 'nap,yawn,tablet' });
-        if (mood === 'happy') return leoSvg(mood, { intro: first ? 'wave' : '', amb: 'wave,roar,tablet' });
-        return first ? leoSvg(mood, { state: 's0', intro: 'reveal', amb: 'foot,pointwave,tablet,wave' }) : leoSvg(mood, { amb: 'foot,pointwave,tablet,wave' });
+        if (mood === 'calm') return leoSvg(mood, { intro: first ? 'tablet' : again(), amb: AMB.calm });
+        if (mood === 'happy') return leoSvg(mood, { intro: first ? 'wave' : again(), amb: AMB.happy });
+        return first ? leoSvg(mood, { state: 's0', intro: 'reveal', amb: AMB.ready }) : leoSvg(mood, { intro: again(), amb: AMB.ready });
     }
     /* Léo's mood follows the day: asleep late at night or when everything is done, cheering once today's review is done */
     mascotMood(toStudy) {
