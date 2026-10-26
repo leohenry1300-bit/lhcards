@@ -1106,7 +1106,7 @@ class SuperAnki {
             if (meta) { const cs = getComputedStyle(document.body); meta.content = cs.getPropertyValue('--theme-color').trim() || cs.getPropertyValue('--surface').trim() || '#ffffff'; }   // a theme can name the colour of the system bar
         };
         if (this._themeSeen && root.dataset.theme !== resolved && !this.calm()) {
-            if (document.startViewTransition) document.startViewTransition(swap);   // the browser cross-fades two snapshots of the screen: smooth, no per-element transitions
+            if (document.startViewTransition) { const vt = document.startViewTransition(swap); [vt.ready, vt.finished, vt.updateCallbackDone].forEach(p => p && p.catch && p.catch(() => {})); }   // (a change started while another is running just skips the animation: not an error)   // the browser cross-fades two snapshots of the screen: smooth, no per-element transitions
             else { this.themeVeil(swap); }
         } else swap();
         this._themeSeen = true;

@@ -66,7 +66,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 
     /* 2. progressive tabs: complete, identical to a full render, quick */
     const eq = await page.evaluate(async () => {
-        const out = {}, norm = h => h.replace(/\s+/g, ' ').replace(/> </g, '><').replace(/ style="[^"]*"/g, '').replace(/ class="([^"]*)"/g, (m, c) => ' class="' + c.split(' ').filter(x => !/^(view-in|cascade|on$|lv-|leo-off)/.test(x)).sort().join(' ') + '"').replace(/ data-w="\d+"/g, '').replace(/blob:[^"']+/g, '');
+        const out = {}, norm = h => h.replace(/\s+/g, ' ').replace(/> </g, '><').replace(/ style="[^"]*"/g, '').replace(/ class="([^"]*)"/g, (m, c) => ' class="' + c.split(' ').filter(x => !/^(view-in|cascade|on$|lv-|leo-off)/.test(x)).sort().join(' ') + '"').replace(/ data-w="\d+"/g, '').replace(/ data-(intro|state|live|hold)="[^"]*"/g, '')   // (Léo's random greeting is not part of the page structure).replace(/blob:[^"']+/g, '');
         for (const v of ['dashboard', 'decks', 'stats', 'settings']) {
             app._ver++; app.go(v); await new Promise(r => setTimeout(r, 2800));
             const prog = norm(document.getElementById('view-' + v).innerHTML);
