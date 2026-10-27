@@ -280,19 +280,22 @@ Object.assign(SuperAnki.prototype, {
             },
             cancel: () => { x0 = -1; }
         });
-        /* trackpad: two fingers sliding sideways. One slide = one tab; a new slide can start while the previous one is still gliding (its speed goes up again), so tabs can be chained quickly */
-        let sum = 0, lastT = 0, prev = 0, locked = false, fell = false;
+        /* trackpad: two fingers sliding sideways. One slide = one tab: the tail of the slide (its gliding) never counts as another one; a new slide can start while the previous one is still
+           gliding only if it is a real new push (the speed fell, then clearly rises again) and some time has passed, so tabs can still be chained quickly */
+        let sum = 0, lastT = 0, prev = 0, locked = false, fell = false, lockT = 0, low = 0;
         document.addEventListener('wheel', e => {
             if (e.ctrlKey || Math.abs(e.deltaX) <= Math.abs(e.deltaY) * 1.5 || !allowed(e.target) || e.target.closest('.card-row')) return;
             e.preventDefault();
             const now = e.timeStamp, v = Math.abs(e.deltaX);   // (the time the event was made, not the time it was handled: a tab that takes long to draw must not look like a pause)
-            if (now - lastT > 90) { locked = false; fell = false; sum = 0; prev = 0; }   // a pause: a new slide
-            else if (locked && fell && v > prev + 3 && v > 8) { locked = false; fell = false; sum = 0; }   // slowed down, then speeding up again: the next slide
-            else if (locked && v < prev - 3) fell = true;
+            if (now - lastT > 110) { locked = false; fell = false; sum = 0; prev = 0; }   // a pause: a new slide
+            else if (locked) {
+                if (v < prev - 2) { fell = true; low = fell && low ? Math.min(low, v) : v; }
+                else if (fell && now - lockT > 400 && v > 28 && v > low * 3 + 10 && v > prev + 6) { locked = false; fell = false; sum = 0; }   // a clear new push
+            }
             lastT = now; prev = v;
             if (locked) return;
             sum += e.deltaX;
-            if (Math.abs(sum) > 70) { const d = sum; sum = 0; locked = true; go(d > 0 ? -1 : 1); }   // (fingers to the left = next tab)
+            if (Math.abs(sum) > 90) { const d = sum; sum = 0; locked = true; fell = false; low = 0; lockT = now; go(d > 0 ? -1 : 1); }   // (fingers to the left = next tab)
         }, { passive: false });
     },
     /* the card list: slide a row to the left to show two buttons (⭐ mark, 🙈 put away until tomorrow), like in iOS Messages; nothing happens until a button is tapped.
