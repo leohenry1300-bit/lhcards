@@ -62,7 +62,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     await page.goto(`http://localhost:${PORT}/index.html`); await page.waitForSelector('.hero', { timeout: 20000 });
     ok('starts and shows the home screen under 4 s', Date.now() - t0 < 4000, (Date.now() - t0) + ' ms');
     await wait(2500);
-    ok('Léo greets on opening: the "sit and wave" clip plays', await page.evaluate(() => { const r = document.querySelector('.hero .leo3d'); return !!r && (r._leoHist || []).includes('sitwave'); }));
+    ok('Léo greets on opening (sit wave, paw wave or hello without tablet)', await page.evaluate(() => { const r = document.querySelector('.hero .leo3d'); return !!r && (r._leoHist || []).some(k => ['sitwave', 'wave', 'hello0'].includes(k)); }));
     ok('loading screen is gone', await page.evaluate(() => !document.getElementById('boot')));
     await wait(7500);   // his entrance
 

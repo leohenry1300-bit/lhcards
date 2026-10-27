@@ -1,7 +1,8 @@
 /* Léo the lion cub: a clay-style character. He is a still picture (three resting poses: with his ✓ tablet, without it, asleep) plus a library of short
    animated clips (mascot/*.webp, transparent) that play on top of it: he waves, talks, points, yawns, tosses his cap, naps...
    The app decides which clip fits the moment (see leoClipFor); the glow and shadow around him follow the app's theme colour.
-   States: s1 = holding the ✓ tablet (home, summaries), s0 = hands free (empty states, comforting a bad session), sleep = dozing. */
+   States: s1 = holding the ✓ tablet (home, summaries), s0 = hands free (empty states, comforting a bad session), sleep = dozing.
+   Scenes: he can put his tablet away (stash), do something with free hands (talk, coffee, read...), then show it again (reveal). */
 const LEO_CACHE = new Map();
 const leoMotionOff = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 function leoInstall() {
@@ -27,10 +28,18 @@ function leoImg(url, cls, key) {
     const img = new Image(); img.className = cls; const r = LEO_CLIPS[key].r, c = LEO_CLIPS[key], l = c.flip ? 2 * LEO_GEO.ax - r[0] - r[2] : r[0]; img.style.cssText = `left:${l}%;top:${r[1]}%;width:${r[2]}%;height:${r[3]}%`; img.alt = ''; img.draggable = false; img.decoding = 'async'; img.src = url;
     return (img.decode ? img.decode() : Promise.resolve()).catch(() => {}).then(() => img);
 }
-function leoSetState(root, st) { root.dataset.state = st; }
+/* nearly empty battery: his idle loop and his little spontaneous moves stop (he only answers when touched) */
+let LEO_LOW = false;
+try { if (navigator.getBattery) navigator.getBattery().then(b => { const u = () => { LEO_LOW = !b.charging && b.level < 0.2; }; u(); b.addEventListener('levelchange', u); b.addEventListener('chargingchange', u); }).catch(() => {}); } catch { /* ignore */ }
+function leoSetState(root, st) {
+    root.dataset.state = st;
+    const has = root.querySelector('.leo-z');
+    if (st === 'sleep' && !has) root.insertAdjacentHTML('beforeend', '<span class="leo-z z1">z</span><span class="leo-z z2">Z</span>');
+    else if (st !== 'sleep' && has) root.querySelectorAll('.leo-z').forEach(z => z.remove());
+}
 /* the looping "alive" clip under everything: breathing, blinking, small movements (only while he rests holding his tablet) */
 function leoIdle(root) {
-    if (!root || !root.isConnected || leoMotionOff() || document.hidden || root.dataset.state !== 's1' || root.classList.contains('leo-off')) return;
+    if (!root || !root.isConnected || leoMotionOff() || LEO_LOW || document.hidden || root.dataset.state !== 's1' || root.classList.contains('leo-off')) return;
     const fig = root.querySelector('.leo-fig'); if (!fig) return;
     const old = fig.querySelector('.lf-idle'); if (old) old.remove();
     const tok = root._leoTok || 0;
@@ -45,13 +54,13 @@ function leoPlay(root, key, o = {}) {
     if (!root || !c || !root.isConnected || leoMotionOff()) return Promise.resolve(false);
     const fig = root.querySelector('.leo-fig'); if (!fig) return Promise.resolve(false);
     if (o.soft && (root._leoBusy > Date.now() || root.classList.contains('lv-clip'))) return Promise.resolve(false);   // a move is under way: it finishes first (no jump from the middle of one clip to the start of another)
-    const tok = root._leoTok = (root._leoTok || 0) + 1;
+    const tok = root._leoTok = (root._leoTok || 0) + 1; root._leoKey = key;
     root._leoHist = [key, ...(root._leoHist || [])].slice(0, 3);   // what he did last: he avoids repeating himself
     /* a clip that is slow to arrive (first time, weak network) is skipped rather than played late, out of step with his words */
     const slow = new Promise((_, no) => setTimeout(() => no(new Error('slow')), o.intro ? 4500 : 2500));
     return Promise.race([leoLoad(key), slow]).then(url => leoImg(url, 'lf-clip lf-play' + (c.flip ? ' flip' : ''), key)).then(img => {
         if (root._leoTok !== tok || !root.isConnected) return false;
-        if (o.intro) root._leoBusy = Date.now() + c.d * 1000;
+        if (o.intro) root._leoBusy = Math.max(root._leoBusy || 0, Date.now() + c.d * 1000);
         if (root.dataset.state !== c.from) leoSetState(root, c.from);
         /* he appears over what is already on screen (his rest pose / idle loop, same pose as the first frame of every clip) with a short cross-fade: he never blinks out */
         fig.querySelectorAll('.lf-play').forEach(x => x.remove());
@@ -74,54 +83,113 @@ function leoPlay(root, key, o = {}) {
         return false;
     });
 }
+/* several clips one after the other (the next ones are fetched while the first plays); if one fails he goes back to a clean resting pose */
+function leoSeq(root, keys, o = {}) {
+    if (!root || !root.isConnected || leoMotionOff() || keys.some(k => !LEO_CLIPS[k])) return Promise.resolve(false);
+    root._leoBusy = Date.now() + keys.reduce((n, k) => n + LEO_CLIPS[k].d, 0) * 1000 + 700;
+    keys.slice(1).forEach(k => leoLoad(k).catch(() => {}));
+    const run = i => leoPlay(root, keys[i], { intro: true, fallback: 's1', ...(i ? {} : o) }).then(ok => {
+        if (ok && i + 1 < keys.length) return run(i + 1);
+        if (!ok) { root._leoBusy = 0; if (root.isConnected && !root.classList.contains('lv-clip') && root.dataset.state === 's0' && keys[keys.length - 1] === 'reveal') { leoSetState(root, 's1'); leoIdle(root); } }
+        return ok;
+    });
+    return run(0);
+}
+/* a scene: he puts his ✓ tablet behind his back, does something with free hands, then shows the tablet again */
+function leoScene(root, mid, o = {}) {
+    if (!root || root.dataset.state !== 's1') return Promise.resolve(false);
+    return leoSeq(root, ['stash', mid, 'reveal'], o);
+}
+/* the sentence is over: a "talking" clip stops there (he does not keep moving his mouth) */
+function leoStop(root, keys) {
+    if (!root || !root.isConnected || !keys.includes(root._leoKey) || !root.classList.contains('lv-clip')) return;
+    const fig = root.querySelector('.leo-fig'), c = LEO_CLIPS[root._leoKey];
+    root._leoTok = (root._leoTok || 0) + 1; root._leoBusy = 0;
+    leoSetState(root, c.to || c.from); root.classList.remove('lv-clip');
+    fig.querySelectorAll('.lf-play').forEach(x => { x.classList.remove('on'); setTimeout(() => x.remove(), 240); });
+    leoIdle(root);
+}
+/* how he greets you each time the app is opened: he alternates between three entrances and never repeats the last one (a paw wave after several days away) */
+function leoOpenPick() {
+    let last = '', seen = 0; try { last = localStorage.getItem('lh_leo_open') || ''; seen = +localStorage.getItem('lh_leo_seen') || 0; localStorage.setItem('lh_leo_seen', String(Date.now())); } catch { /* ignore */ }
+    const gap = seen ? (Date.now() - seen) / 864e5 : 0;
+    const pick = gap >= 3 ? 'wave' : ['sitwave', 'scene', 'wave'].filter(k => k !== last)[Math.floor(Math.random() * 2)];
+    try { localStorage.setItem('lh_leo_open', pick); } catch { /* ignore */ }
+    return pick;
+}
 /* which clip fits what he is saying: the words decide first, then the kind of moment */
 function leoClipFor(root, cat = 'ready', text = '') {
     const st = root ? root.dataset.state : 's1', mood = root && root.dataset.mood || 'ready';
     const recent = (root && root._leoHist) || [];
     const pick = a => { const fresh = a.filter(k => !recent.slice(0, 2).includes(k)); const pool = fresh.length ? fresh : a; return pool[Math.floor(Math.random() * pool.length)]; };
+    const h = new Date().getHours(), night = h >= 23 || h < 5;
     if (st === 'sleep') return 'yawn';
-    if (st === 's0') return /idée|crée|ajoute|paquet/i.test(text) ? 'aha0' : pick(cat === 'tap' ? ['hello0'] : cat === 'exam' ? ['aha0', 'talk0'] : ['talk0', 'talk0', 'point0']);
+    if (st === 's0') return /idée|crée|ajoute|paquet|astuce|conseil/i.test(text) ? 'aha0' : pick(cat === 'tap' ? ['hello0'] : cat === 'exam' ? ['aha0', 'talk0'] : ['talk0', 'talk0', 'aha0']);
     if (cat === 'roar') return 'roar';
     if (cat === 'tickle') return 'sitwave';
     if (/GRR|RAAW|rugis|rugir/i.test(text)) return 'roar';
     if (/plaque|✔|✓/.test(text)) return 'tablet';
     if (cat === 'night' || /bonne nuit|dormir|sommeil|dodo/i.test(text)) return 'yawn';
     if (/zzz|sieste|ronronne/i.test(text)) return 'nap';
-    if (cat === 'milestone') return pick(['toss', 'roar', 'wave']);
-    if (cat === 'missed') return /manqu|attend|gard/i.test(text) ? 'foot' : pick(['wave', 'sitwave', 'foot', 'think']);
-    if (cat === 'exam') return pick(['think', 'talk', 'tablet', 'pointwave']);
-    if (/bravo|fier|félicit|🎉|🏆|👏|gagné|victoire/i.test(text)) return pick(['roar', 'wave', 'toss', 'pointwave']);
-    /* the neutral moments: "talk" is only one choice among many (it used to be half of everything) */
-    const T = {
-        ready: ['talk', 'pointwave', 'tablet', 'wave', 'foot', 'sitwave', 'think'], happy: ['talk', 'wave', 'roar', 'toss', 'tablet', 'sitwave', 'pointwave'],
-        calm: ['talk', 'tablet', 'nap', 'yawn', 'think', 'sitwave'], tap: ['wave', 'talk', 'sitwave', 'pointwave', 'tablet', 'foot', 'think']
-    };
+    if (/café|☕/i.test(text) && !night) return 'scene:coffee';
+    if (/astuce|conseil|idée/i.test(text)) return 'scene:aha0';
+    if (/bouton|« ?Réviser|clique|ajoute|paquet|stats/i.test(text)) return 'show';
+    if (cat === 'milestone') return pick(['toss', 'joy']);
+    if (cat === 'missed') return /manqu|attend|gard/i.test(text) ? 'foot' : pick(['scene:arms0', 'foot', 'sitwave']);
+    if (cat === 'exam') return pick(['think', 'talk', 'show']);
+    if (/bravo|fier|félicit|🎉|🏆|👏|gagné|victoire/i.test(text)) return pick(['wave', 'sitwave', 'show']);
+    /* the neutral moments: "talk" is only one choice among a few; the other clips each have their own moment (a paw wave when he greets you, the ✓ tablet when he speaks of it...) */
+    const T = { ready: ['talk', 'show', 'talk'], happy: ['talk', 'show', 'wave'], calm: ['talk', 'nap', 'talk'], tap: ['wave', 'talk', 'show', 'sitwave'] };
     return pick(T[cat] || T[mood] || T.ready);
 }
 /* his voice follows what he does: a curious "rrr?" when he talks, a happy "rawrr" when he waves or hops, a soft "grrr, allez" to encourage, a purr when he thinks, a sleepy "rrooh" when he yawns, a ROAAR to celebrate */
 const LEO_VOICE = {
-    talk: 'leo', tablet: 'leo', pointwave: 'leohappy', wave: 'leohappy', sitwave: 'leotickle', joy: 'leohappy', hop: 'leohappy', toss: 'leocheer', roar: 'leoroar',
-    foot: 'leogo', think: 'leopurr', yawn: 'leosad', nap: 'leopurr', sleep: 'leosad', reveal: 'leohappy',
-    hello0: 'leohappy', talk0: 'leo', point0: 'leo', aha0: 'leohappy', read0: 'leopurr', arms0: 'leogo', shrug0: 'leogo'
+    talk: 'leo', tablet: 'leo', pointwave: 'leohappy', wave: 'leohappy', sitwave: 'leotickle', joy: 'leocheer', toss: 'leocheer', roar: 'leoroar', show: 'leohappy',
+    foot: 'leogo', think: 'leopurr', yawn: 'leosad', nap: 'leopurr', sleep: 'leosad', doze: 'leosad', reveal: 'leohappy', stash: 'leo', coffee: 'leopurr',
+    hello0: 'leohappy', talk0: 'leo', point0: 'leohappy', aha0: 'leohappy', read0: 'leopurr', arms0: 'leogo', shrug0: 'leogo'
 };
 /* wires up every Léo that has just appeared on screen: resting pose, idle loop, intro clip, now and then a little spontaneous move */
+const LEO_T0 = Date.now();
 function leoBoot() {
     document.querySelectorAll('.leo3d:not([data-live])').forEach(root => {
         root.dataset.live = '1'; if (LEO_IO) LEO_IO.observe(root);
-        const intro = root.dataset.intro, amb = (root.dataset.amb || '').split(',').filter(Boolean);
+        const intro = (root.dataset.intro || '').split(',').filter(k => LEO_CLIPS[k]), amb = (root.dataset.amb || '').split(',').filter(Boolean);
         if (leoMotionOff()) return;
         if (root.dataset.state === 's1') leoIdle(root);
-        if (intro) { const go = () => { if (document.getElementById('boot')) setTimeout(go, 150); else leoPlay(root, intro, { fallback: 's1', intro: true }); }; setTimeout(go, 380); }
+        if (intro.length) { const go = () => { if (document.getElementById('boot')) setTimeout(go, 150); else leoSeq(root, intro, { fallback: root.dataset.state }); }; setTimeout(go, 380); }
         if (root.dataset.amb) leoPrefetch();
         if (amb.length) {
             const tick = () => {
                 if (!root.isConnected) return;
-                if (!document.hidden && !root.classList.contains('leo-off') && !root.classList.contains('lv-clip') && root.dataset.state !== 'sleep') leoPlay(root, amb[Math.floor(Math.random() * amb.length)]);
+                const h = new Date().getHours(), night = h >= 23 || h < 5;
+                if (!document.hidden && !LEO_LOW && !root.classList.contains('leo-off') && !root.classList.contains('lv-clip') && !(root._leoBusy > Date.now()) && root.dataset.state !== 'sleep') {
+                    /* now and then (about once every 3-4 minutes on the home page) a little scene: tablet away, a clip with free hands, tablet back; coffee only in the morning */
+                    if (root.dataset.state === 's1' && root.closest('.hero') && !night && Date.now() - LEO_T0 > 90000 && Math.random() < .12) {
+                        const morning = h >= 5 && h < 11;
+                        leoScene(root, morning && Math.random() < .45 ? 'coffee' : ['talk0', 'aha0'][Math.floor(Math.random() * 2)]);
+                    } else leoPlay(root, amb[Math.floor(Math.random() * amb.length)]);
+                }
                 setTimeout(tick, 18000 + Math.random() * 16000);
             };
             setTimeout(tick, 9000 + Math.random() * 8000);
         }
     });
+}
+/* he notices when you leave him alone on the home page: a yawn after a minute, a book, a tapping foot, then a nap (asleep for good only when everything is done) */
+let LEO_LAST = Date.now();
+function leoWatch() {
+    const root = document.querySelector('#view-dashboard .hero .leo3d');
+    if (!root || !root.isConnected || document.hidden || LEO_LOW || leoMotionOff() || !window.app || app.view !== 'dashboard') return;
+    if (root.classList.contains('leo-off') || root.classList.contains('lv-clip') || root._leoBusy > Date.now() || root.dataset.state !== 's1') return;
+    const idle = (Date.now() - LEO_LAST) / 1000, mood = root.dataset.mood, h = new Date().getHours(), night = h >= 23 || h < 5;
+    if (root._leoSeen !== LEO_LAST) { root._leoSeen = LEO_LAST; root._leoStage = 0; }
+    const step = (n, at, fn) => { if (root._leoStage < n && idle >= at) { root._leoStage = n; fn(); return true; } return false; };
+    if (night && mood === 'calm') { step(5, 60, () => { sfx('leosad'); leoPlay(root, 'doze', {}); }); return; }
+    if (step(1, 60, () => { sfx('leosad'); leoPlay(root, 'yawn', {}); })) return;
+    if (step(2, 90, () => leoScene(root, 'read0'))) return;
+    if (step(3, 120, () => { if (mood === 'ready') leoPlay(root, 'foot', {}); })) return;
+    if (mood === 'calm') step(4, 180, () => { sfx('leosad'); leoPlay(root, 'doze', {}); });
+    else step(5, 300, () => { sfx('leosad'); leoPlay(root, 'sleep', {}); });
 }
 /* the clips he uses most are fetched quietly in the background so that the first tap already answers (skipped on data saver) */
 let LEO_PRE = false;
@@ -144,7 +212,7 @@ function leoTap(root) {
 function leoWarm() {
     if (LEO_WARM || (navigator.connection && (navigator.connection.saveData || /(^|-)2g|3g/.test(navigator.connection.effectiveType || '')))) return;
     LEO_WARM = true;
-    const list = ['talk', 'tablet', 'wave', 'pointwave', 'sitwave', 'roar', 'think', 'foot', 'yawn', 'nap', 'toss', 'sleep'];
+    const list = ['sitwave', 'talk', 'stash', 'reveal', 'hello0', 'wave', 'show', 'yawn', 'doze', 'sleep', 'joy', 'toss', 'roar', 'think', 'tablet', 'foot', 'nap', 'talk0', 'aha0', 'coffee', 'read0', 'arms0'];
     let i = 0;
     const next = () => { if (i >= list.length) return; if (document.hidden || !navigator.onLine) { setTimeout(next, 5000); return; } fetch(LEO_CLIPS[list[i++]].f).then(r => r.ok ? r.blob() : null).catch(() => {}).then(() => setTimeout(next, 1800)); };
     setTimeout(next, 6000);
@@ -156,14 +224,16 @@ function leoGreetOnReturn() {
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) { hiddenAt = Date.now(); return; }
         if (hiddenAt && Date.now() - hiddenAt > 60000) {
-            const r = document.querySelector('#view-dashboard .hero .leo3d');
-            if (r && window.app && app.view === 'dashboard') leoPlay(r, 'sitwave', {}); else window._leoGreet = true;
+            const r = document.querySelector('#view-dashboard .hero .leo3d'), k = leoOpenPick();
+            if (r && window.app && app.view === 'dashboard' && r.dataset.state === 's1') { if (k === 'scene') leoSeq(r, ['stash', 'hello0', 'reveal']); else leoPlay(r, k, {}); } else window._leoGreet = true;
         }
         hiddenAt = 0;
     });
 }
 function leoInit() {
     leoGreetOnReturn();
+    ['pointerdown', 'keydown', 'touchstart', 'wheel', 'scroll'].forEach(e => addEventListener(e, () => { LEO_LAST = Date.now(); }, { passive: true, capture: true }));
+    setInterval(leoWatch, 10000);
     let q = 0;
     new MutationObserver(() => { if (q) return; q = requestAnimationFrame(() => { q = 0; leoBoot(); }); }).observe(document.body, { childList: true, subtree: true });
     document.addEventListener('visibilitychange', () => {
@@ -176,7 +246,7 @@ function leoInit() {
 }
 function leoSvg(mood = 'ready', opts = {}) {
     leoInstall();
-    const state = opts.intro === 'reveal' && leoMotionOff() ? 's1' : (opts.state || 's1');
+    const state = /reveal/.test(opts.intro || '') && leoMotionOff() ? 's1' : (opts.state || 's1');
     let stars = '';
     const n = mood === 'happy' ? 14 : 8;
     for (let i = 0; i < n; i++) {

@@ -2031,6 +2031,9 @@ html[data-vt="l"]::view-transition-new(root) { animation-name: vtInL; }
 .leo3d[data-state="s1"] .lf-still { background-image: var(--leo-s1); }
 .leo3d[data-state="s0"] .lf-still { background-image: var(--leo-s0); }
 .leo3d[data-state="sleep"] .lf-still { background-image: var(--leo-sleep); }
+.leo3d[data-state="sleep"]:not(.leo-off) .lf-still { transform-origin: 50% 100%; animation: leoBreath 4.4s ease-in-out infinite; }   /* asleep, he breathes slowly */
+@keyframes leoBreath { 50% { transform: scale(1.012, 1.024); } }
+@media (prefers-reduced-motion: reduce) { .leo3d[data-state="sleep"] .lf-still { animation: none; } }
 .lv-idle .lf-still, .lv-clip .lf-still { visibility: hidden; }
 .lf-clip { position: absolute; opacity: 0; transition: opacity .14s linear; image-rendering: auto; }
 .lf-clip.on { opacity: 1; }

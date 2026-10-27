@@ -186,7 +186,10 @@ Object.assign(SFX, {
         iCub(ac, o, t, v, { a: 230, b: 380, d: 0.28, roll: 17, f1: 700, f1b: 1000, f2: 1200, f2b: 1600, vol: 0.62 });
         iCub(ac, o, t + 0.26, v, { a: 380, b: 210, d: 0.6, roll: 16, f1: 1000, f1b: 650, f2: 1600, f2b: 1050, vol: 0.58 });
         [NOTE.E6, NOTE.G6, NOTE.C7].forEach((h, k) => iGlass(ac, o, t + 0.62 + k * 0.08, h, v * 0.12, 0.7));
-    }
+    },
+    /* two tiny cub sounds, strung one after the other while he talks (one for each movement of his mouth) */
+    leoblip: (ac, o, t, v) => { iCub(ac, o, t, v, { a: 340, b: 420, d: 0.1, f1: 780, f1b: 900, f2: 1400, f2b: 1700, vol: 0.4 }); },
+    leoblip2: (ac, o, t, v) => { iCub(ac, o, t, v, { a: 430, b: 330, d: 0.12, f1: 900, f1b: 760, f2: 1500, f2b: 1250, vol: 0.4 }); }
 });
 let SND_LAST = 0;
 function sfxUi(name) {
@@ -293,7 +296,7 @@ function sndPlayClip(c) {
 }
 /* the volume changed: sounds are rendered again at the new volume, in the background */
 function sndVolChanged() { Object.keys(SND_PROM).forEach(k => delete SND_PROM[k]); if (sndClipsOk()) sndPrerender(); }
-const SND_PRE = ['leo', 'leohappy', 'leogo', 'leosad', 'leopurr', 'leotickle', 'leoroar', 'leocheer', 'reveal', 'g1', 'g2', 'g3', 'g4', 'right', 'wrong', 'done', 'tap', 'pop', 'tabswipe', 'tabbubble', 'tabclick', 'on', 'off', 'select', 'tick', 'open', 'close', 'success', 'error'];
+const SND_PRE = ['leo', 'leoblip', 'leoblip2', 'leohappy', 'leogo', 'leosad', 'leopurr', 'leotickle', 'leoroar', 'leocheer', 'reveal', 'g1', 'g2', 'g3', 'g4', 'right', 'wrong', 'done', 'tap', 'pop', 'tabswipe', 'tabbubble', 'tabclick', 'on', 'off', 'select', 'tick', 'open', 'close', 'success', 'error'];
 function sndPrerender() { SND_PRE.forEach((n, i) => setTimeout(() => SFX[n] && sndClipP(n, SFX[n], n === 'done' ? 3 : 1.6), 150 + i * 90)); }
 
 /* iPhone: Web Audio is muted by the ring/silent switch and needs a real touch to start.

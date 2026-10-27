@@ -1465,26 +1465,29 @@ class SuperAnki {
             clearTimeout(idle); idle = setTimeout(() => { const go = acc; acc = 0; if (go * .1 >= 54) { d = 54; release(); } else hide(); }, 220);
         }, { passive: true });
     }
-    /* end of a session: he reacts to the score (cap in the air above 90 %, a hop above 80 %, thoughtful above 50 %, a thumbs-up to comfort otherwise) */
+    /* end of a session: he reacts to the score (cap in the air or a jump of joy from 90 %, a roar or a wink from 80 %, a shrug and a thumbs-up otherwise) */
     mascotSummary(acc) {
         const pick = l => l[Math.floor(Math.random() * l.length)];
-        if (acc >= 90) return leoSvg('happy', { intro: 'toss' });
-        if (acc >= 80) return leoSvg('happy', { intro: pick(['roar', 'wave']) });
-        if (acc >= 50) return leoSvg('ready', { intro: 'think' });
+        if (acc >= 90) return leoSvg('happy', { intro: pick(['toss', 'joy']) });
+        if (acc >= 80) { try { navigator.vibrate && navigator.vibrate(30); } catch { /* ignore */ } return Math.random() < .5 ? leoSvg('happy', { intro: 'roar' }) : leoSvg('happy', { state: 's0', intro: 'point0' }); }
         return leoSvg('tough', { state: 's0', intro: 'shrug0' });
     }
-    /* how Léo shows up on the home card: the very first time in a session he pulls out his ✓ tablet (or hops if today is done, or dozes if it is late and nothing is due) */
-    mascotHome(mood) {
-        const night = (new Date().getHours() >= 23 || new Date().getHours() < 5), first = !window._leoIntro;
-        /* he greets you every time the app is opened (first screen after the loading, or back from the background after a while): the "sit and wave" clip */
+    /* how Léo shows up on the home card. Each time the app is opened he greets you, with one of three entrances (sit and wave / paw wave / tablet already put away, hello, tablet shown again),
+       after a yawn if it is early morning; at night, when nothing is due, he is asleep and wakes up for you. Back on the page within the same visit he does a different move. */
+    mascotHome(mood, due = 0) {
+        const h = new Date().getHours(), night = h >= 23 || h < 5, morning = h >= 5 && h < 8, first = !window._leoIntro;
         const greet = first || window._leoGreet;
         window._leoIntro = true; window._leoGreet = false;
-        const AMB = { ready: 'foot,pointwave,tablet,wave,sitwave,think', happy: 'wave,roar,tablet,toss,sitwave,pointwave', calm: 'nap,yawn,tablet,think,sitwave' };
-        /* when he is seen again inside the same visit (back from another tab) he greets differently: never the move he made last time */
-        const again = () => { const l = AMB[mood].split(',').filter(k => k !== 'sitwave'), fresh = l.filter(k => k !== window._leoLastIntro), k = fresh[Math.floor(Math.random() * fresh.length)]; window._leoLastIntro = k; return Math.random() < .75 ? k : ''; };
-        const intro = greet ? 'sitwave' : again();
-        if (mood === 'calm' && night) return leoSvg(mood, { state: 'sleep', intro: greet ? 'sitwave' : '', amb: 'yawn' });   // (at night he wakes up for you, then stays awake)
-        return leoSvg(mood, { intro, amb: AMB[mood] });
+        const AMB = { ready: due > 100 ? 'talk,show,think' : 'talk,show', happy: 'talk,show,wave', calm: night ? 'yawn,nap' : 'talk,nap' };
+        const again = () => { const l = AMB[mood].split(','), fresh = l.filter(k => k !== window._leoLastIntro), k = fresh[Math.floor(Math.random() * fresh.length)]; window._leoLastIntro = k; return Math.random() < .75 ? k : ''; };
+        let state = 's1', intro = '';
+        if (greet) {
+            const k = leoOpenPick();
+            if (k === 'scene' && !night && !morning) { state = 's0'; intro = 'hello0,reveal'; }
+            else { const g = k === 'scene' ? 'sitwave' : k; intro = night || morning ? 'yawn,' + g : g; }
+        } else intro = again();
+        if (mood === 'calm' && night) state = 'sleep';   // (at night he wakes up for you, then stays awake)
+        return leoSvg(mood, { state, intro: state === 'sleep' && !greet ? '' : intro, amb: AMB[mood] });
     }
     /* Léo's mood follows the day: asleep late at night or when everything is done, cheering once today's review is done */
     mascotMood(toStudy) {
@@ -1532,18 +1535,20 @@ class SuperAnki {
             box.classList.remove('out');
         } else { if (!sub.dataset.orig) sub.dataset.orig = sub.innerHTML; sub.classList.add('speaking'); }
         box.textContent = '';
-        const root = $('.hero .leo3d'), clip = root ? (opts.clip || leoClipFor(root, opts.cat || root.dataset.mood, text)) : '';
+        const root = $('.hero .leo3d'), clip = root ? (opts.clip || leoClipFor(root, opts.cat || root.dataset.mood, text)) : '', scene = clip.startsWith('scene:') ? clip.slice(6) : '';
         const busy = !!root && !opts.force && (root.classList.contains('lv-clip') || root._leoBusy > Date.now());   // a move is under way: he finishes it, his words and voice still answer
-        sfx(opts.sound || (busy ? 'leo' : LEO_VOICE[clip]) || 'leo');
-        if (root && !this.calm() && !busy) leoPlay(root, clip, {});
-        const stopTalk = () => {};
+        sfx(opts.sound || (busy ? 'leo' : LEO_VOICE[scene === 'coffee' ? 'coffee' : scene || clip]) || 'leo');
+        if (root && !this.calm() && !busy) { if (scene) leoScene(root, scene); else leoPlay(root, clip, {}); }
+        /* while he talks his voice follows his mouth (small sounds, one after the other); when the sentence is over the talking clip stops */
+        const talking = !busy && (clip === 'talk' || clip === 'talk0') && !this.calm();
+        const stopTalk = () => { if (talking) leoStop(root, ['talk', 'talk0']); };
         let i = 0; const full = [...text];
         const end = () => { stopTalk(); this._bubbleT = setTimeout(() => {
             if (wide) { box.classList.add('out'); setTimeout(() => box.remove(), 260); }
             else if (sub.isConnected && sub.dataset.orig) { sub.classList.remove('speaking'); sub.innerHTML = sub.dataset.orig; delete sub.dataset.orig; }
         }, 4200); };
         if (this.calm()) { box.textContent = text; end(); return; }
-        this._typeT = setInterval(() => { box.textContent = full.slice(0, ++i).join(''); if (i >= full.length) { clearInterval(this._typeT); end(); } }, 28);
+        this._typeT = setInterval(() => { box.textContent = full.slice(0, ++i).join(''); if (talking && i % 6 === 0 && full[i - 1] !== ' ') sfx(i % 12 ? 'leoblip' : 'leoblip2'); if (i >= full.length) { clearInterval(this._typeT); end(); } }, 28);
     }
     tabGo(view) { this.go(view); }   // (a browser view transition froze the page while heavy tabs were drawn: a light CSS slide is used instead)
     /* fallback for browsers without view transitions: a veil of the old background fades out over the new theme */
@@ -1728,7 +1733,7 @@ class SuperAnki {
         $('#view-dashboard').innerHTML = `
         <div class="stack">
             <div class="hero">
-                <button class="mascot" data-action="mascot" aria-label="Léo, ta mascotte : touche-le pour un encouragement" data-mood="${this.mascotMood(toStudy)}">${this.mascotHome(this.mascotMood(toStudy))}</button>
+                <button class="mascot" data-action="mascot" aria-label="Léo, ta mascotte : touche-le pour un encouragement" data-mood="${this.mascotMood(toStudy)}">${this.mascotHome(this.mascotMood(toStudy), toStudy)}</button>
                 <div class="hero-inner">
                     <div>
                         <span class="hero-kicker">${hello} 👋${goal ? ` · <b>${esc(goal.name)} : ${goal.days > 0 ? `J-${goal.days}` : goal.days === 0 ? 'c\'est aujourd\'hui !' : 'terminé'}</b>` : ''}</span>
@@ -1789,7 +1794,7 @@ class SuperAnki {
                 <label class="sort-pick"><span class="sr-only">Trier</span><select class="select select-sm" aria-label="Trier les paquets" data-input="deck-sort">${[['recent', 'Plus récents'], ['due', 'À revoir d\'abord'], ['studied', 'Révisés récemment'], ['alpha', 'A → Z'], ['size', 'Plus de cartes']].map(([v, l]) => `<option value="${v}" ${(d.settings.deckSort || 'recent') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
                 <div id="dash-find-res" class="panel dl-results hidden"></div>
                 <div id="dash-decks" class="deck-grid ${this.deckCompact() ? 'compact' : ''}">${this.dashboardDeckCards()}</div>`
-                    : `<div class="panel empty"><div class="empty-mascot">${leoSvg('ready', { state: 's0', intro: 'hello0', amb: 'aha0,read0,point0,arms0,talk0' })}</div><p>Aucun paquet pour l'instant.</p><button class="btn btn-primary" style="margin-top:14px" data-action="new-deck">${ic('folderPlus')}Créer un paquet</button></div>`}
+                    : `<div class="panel empty"><div class="empty-mascot">${leoSvg('ready', { state: 's0', intro: 'hello0', amb: 'aha0,read0,talk0' })}</div><p>Aucun paquet pour l'instant.</p><button class="btn btn-primary" style="margin-top:14px" data-action="new-deck">${ic('folderPlus')}Créer un paquet</button></div>`}
             </div>
             ${libBanner}
             ${this.tipsHtml()}
