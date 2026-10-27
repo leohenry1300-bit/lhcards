@@ -252,6 +252,7 @@ const THEMES = [
     { id: 'pluie', group: 'sombre', name: 'Pluie néon', desc: 'Ville sous la pluie, néons', font: 'Space Grotesk', p: { bg: 'linear-gradient(180deg,#060919,#1a1048 76%,#3a1562)', surface: '#0e1436', primary: '#22d3ee', text: '#e8f2ff', line: '#2a3a78', hero: 'linear-gradient(180deg,#0b1033,#3a1560)' } },
     { id: 'abysses', group: 'sombre', name: 'Fonds marins', desc: 'Bulles, poissons, algues', font: 'Nunito', p: { bg: 'linear-gradient(180deg,#0d6f86,#072d5a 62%,#041835)', surface: '#072a52', primary: '#2dd4bf', text: '#e9fbff', line: '#1f6a8c', hero: 'linear-gradient(180deg,#0f7f94,#082f66)' } },
     { id: 'hiver', group: 'clair', name: 'Hiver', desc: 'Neige, sapins, chalet', font: 'Nunito', p: { bg: 'linear-gradient(180deg,#c3dcf3,#f8fbff)', surface: '#ffffff', primary: '#2563c9', text: '#16294a', line: '#bcd0e8', hero: 'linear-gradient(180deg,#1b3560,#43699f)' } },
+    { id: 'plage', group: 'clair', name: 'Plage', desc: 'Soleil qui suit l\'heure, vagues', font: 'Nunito', p: { bg: 'linear-gradient(180deg,#bfe6f2,#fff3d6)', surface: '#ffffff', primary: '#0b8aa6', text: '#11334a', line: '#bfe0ea', hero: 'linear-gradient(180deg,#59b8ec,#dff4fc)' } },
     { id: 'savanenuit', group: 'sombre', name: 'Savane étoilée', desc: 'Nuit africaine, acacias, lune et étoiles', font: 'Nunito', p: { bg: 'linear-gradient(180deg,#050a22,#231a4f 68%,#b04a1f)', surface: '#0e1530', primary: '#fbbf24', text: '#f8eddb', line: '#3a3340', hero: 'linear-gradient(180deg,#0a1235,#1f1b4d 48%,#a8481f)' } },
     { id: 'oled', group: 'sombre', name: 'Noir OLED', desc: 'Noir pur, économe', font: 'Inter', p: { bg: '#000', surface: '#0b0b0c', primary: '#f4f4f5', text: '#f4f4f5', line: '#27272a', hero: '#0b0b0c' } },
     { id: 'luxe', group: 'sombre', name: 'Luxe', desc: 'Noir et or', font: 'Playfair Display', p: { bg: '#0c0b09', surface: '#15130f', primary: '#d4af37', text: '#f4ecd8', line: '#4a3f2a', hero: 'linear-gradient(135deg,#1d1a15,#2c2416)' } },
@@ -1002,7 +1003,7 @@ class SuperAnki {
         this.initRipple();
         this.initScrollShadow();
         leoInit();
-        this.initPull(); this.initSwipeBack(); this.initRowSwipe(); this.initTabSwipe();
+        this.initPull(); setInterval(() => this.beachSky(), 300000); document.addEventListener('visibilitychange', () => { if (!document.hidden) this.beachSky(); }); this.initSwipeBack(); this.initRowSwipe(); this.initTabSwipe();
         this.focusInit();
         this.extrasInit();
         this.ambInit();
@@ -1109,7 +1110,7 @@ class SuperAnki {
         const resolved = s.theme === 'auto' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'nuit' : 'clair') : s.theme;
         const root = document.documentElement;
         const swap = () => {
-            root.dataset.theme = resolved; this.applyLogo();
+            root.dataset.theme = resolved; this.applyLogo(); this.beachSky();
             const meta = $('meta[name="theme-color"]');
             if (meta) { const cs = getComputedStyle(document.body), n = meta.cloneNode(); n.content = cs.getPropertyValue('--theme-color').trim() || cs.getPropertyValue('--surface').trim() || '#ffffff'; meta.replaceWith(n); }   // (a new tag, so the desktop window's title bar follows)   // a theme can name the colour of the system bar
         };
@@ -1123,6 +1124,17 @@ class SuperAnki {
         /* (the colour of the system bar is set when the theme really changes: inside the swap, not before it) */
     }
     /* the logo takes the theme's colours: background = the home banner's gradient, check mark = the most colourful theme colour that stays readable on the cards */
+    /* the Plage theme follows the real time: the sun rises at 6 h, crosses the sky, sets at 20 h; the sky changes colour with the hour (set every few minutes, only while that theme is on) */
+    beachSky() {
+        const root = document.documentElement;
+        if (root.dataset.theme !== 'plage') { delete root.dataset.phase; return; }
+        const d = new Date(), h = d.getHours() + d.getMinutes() / 60;
+        const phase = h >= 20.5 || h < 5.5 ? 'night' : h >= 19 ? 'dusk' : h >= 16.5 ? 'golden' : h >= 8 ? 'day' : 'dawn';
+        root.dataset.phase = phase;
+        const day = h >= 6 && h <= 20, p = clamp((h - 6) / 14, 0, 1);
+        root.style.setProperty('--sun-x', (day ? 12 + 76 * p : 72).toFixed(1) + '%');
+        root.style.setProperty('--sun-y', (day ? 64 - 50 * Math.sin(Math.PI * p) : 24).toFixed(1) + '%');
+    }
     applyLogo() {
         const root = document.documentElement, cs = getComputedStyle(root), V = n => cs.getPropertyValue(n).trim();
         const probe = this._logoProbe || (this._logoProbe = Object.assign(document.createElement('i'), { style: 'position:absolute;visibility:hidden;transition:none!important;animation:none!important' }));
