@@ -251,13 +251,13 @@ const THEMES = [
     { id: 'etoile', group: 'sombre', name: 'Étoilé', desc: 'Ciel de nuit, étoiles filantes', font: 'Inter', p: { bg: '#01020a', surface: '#0b1022', primary: '#b9c4ff', text: '#eef1ff', line: '#1b2347', hero: 'linear-gradient(160deg,#0a1030,#1a1a5e 55%,#3a1f6e)' } },
     { id: 'oled', group: 'sombre', name: 'Noir OLED', desc: 'Noir pur, économe', font: 'Inter', p: { bg: '#000', surface: '#0b0b0c', primary: '#f4f4f5', text: '#f4f4f5', line: '#27272a', hero: '#0b0b0c' } },
     { id: 'luxe', group: 'sombre', name: 'Luxe', desc: 'Noir et or', font: 'Playfair Display', p: { bg: '#0c0b09', surface: '#15130f', primary: '#d4af37', text: '#f4ecd8', line: '#4a3f2a', hero: 'linear-gradient(135deg,#1d1a15,#2c2416)' } },
-    { id: 'neon', group: 'fun', name: 'Néon', desc: 'Cyberpunk lumineux', font: 'Space Grotesk', p: { bg: '#07000f', surface: '#120823', primary: '#ff2bd6', text: '#f5e9ff', line: '#3a1a5c', hero: 'linear-gradient(120deg,#ce23ad,#7b2bff,#00808f)' } },
+    { id: 'neon', group: 'sombre', name: 'Néon', desc: 'Cyberpunk lumineux', font: 'Space Grotesk', p: { bg: '#07000f', surface: '#120823', primary: '#ff2bd6', text: '#f5e9ff', line: '#3a1a5c', hero: 'linear-gradient(120deg,#ce23ad,#7b2bff,#00808f)' } },
 ];
 /* how long a screen kept from earlier may be shown again without being rebuilt (anything that changes data makes it out of date at once) */
 const VIEW_TTL = { dashboard: 60000, decks: 300000, stats: 300000, settings: 1800000, toeic: 1800000 };
 /* how many blocks of a tab are built before it is shown (the rest, further down the page, follows in small pieces right after) */
 const TAB_HEAD = { dashboard: 3, decks: 3, stats: 2, settings: 2 };
-const THEME_GROUPS = [['clair', 'Clairs'], ['sombre', 'Sombres'], ['fun', 'Originaux']];
+const THEME_GROUPS = [['clair', 'Clairs'], ['sombre', 'Sombres']];
 const CARD_SIZES = { s: '1.1rem', m: '1.35rem', l: '1.6rem', xl: '1.9rem', xxl: '2.4rem', xxxl: '3rem' };
 /* Study options: global defaults, can be overridden per deck (deck.opts) */
 const OPT_DEFAULTS = {
