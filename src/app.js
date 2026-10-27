@@ -997,7 +997,7 @@ class SuperAnki {
         this.initRipple();
         this.initScrollShadow();
         leoInit();
-        this.initPull();
+        this.initPull(); this.initSwipeBack(); this.initRowSwipe(); if (window.matchMedia('(pointer: coarse)').matches) this.initTabSwipe();
         this.focusInit();
         this.extrasInit();
         this.ambInit();
@@ -4116,6 +4116,7 @@ class SuperAnki {
             }
             case 'sel-none': this.ui.sel = new Set(); this.renderDeckPanel(); break;
             case 'row-click': {
+                if (Date.now() - (this._rowSwiped || 0) < 450) break;   // (the finger that just swiped a row does not open it)
                 const id = ds.card;
                 if (!this.ui.selMode) { this.openCardModal(id); break; }
                 if (e && e.shiftKey && this.lastSelId && this.visibleIds) {

@@ -2168,3 +2168,13 @@ html[data-theme="savane"][data-lite]::before, html[data-theme="savane"][data-lit
 .menu-size .ms-btns { display: inline-flex; gap: 6px; }
 .menu-size button { min-width: 44px; padding: 7px 10px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); font-weight: 800; cursor: pointer; }
 .menu-size button:hover { background: var(--primary-soft); }
+
+/* swipes: the review card shows what the answer will be, a list row shows what the swipe will do */
+.flashcard.swipe-easy { box-shadow: 0 0 0 3px var(--easy, #4d7c0f), var(--shadow-lg); }
+.flashcard.swipe-hard { box-shadow: 0 0 0 3px var(--hard, #a16207), var(--shadow-lg); }
+.flashcard[data-swipe]::after { content: attr(data-swipe); position: absolute; top: 12px; left: 50%; transform: translateX(-50%); padding: 5px 14px; border-radius: 999px; background: var(--surface-solid, #fff); color: var(--text); font-weight: 800; font-size: .9rem; box-shadow: 0 4px 14px rgba(0,0,0,.18); pointer-events: none; }
+.card-row { position: relative; touch-action: pan-y; }
+.card-row.sw-r, .card-row.sw-l { background: var(--primary-soft); }
+.card-row.sw-r::after, .card-row.sw-l::after { position: absolute; top: 50%; transform: translateY(-50%); font-weight: 800; font-size: .85rem; color: var(--primary); pointer-events: none; }
+.card-row.sw-r::after { content: "⭐ Marquer"; left: 14px; right: auto; margin-left: -118px; }
+.card-row.sw-l::after { content: "Enfouir 🙈"; right: 14px; margin-right: -118px; }

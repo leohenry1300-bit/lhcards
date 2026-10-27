@@ -148,33 +148,97 @@ Object.assign(SuperAnki.prototype, {
         if (usable && this.voice && this.voice.on && !this.voice.rec && !this.voice.starting) this.voiceRun();
         this.bindSwipe();
     },
-    /* free revision, answer shown: drag the card right (I knew it) or left (missed) */
+    /* answer shown: drag the card to answer. Review: right = Bien, left = Raté, up = Facile, down = Difficile (up/down only when the page does not scroll);
+       free revision: right = I knew it, left = missed. The buttons stay. */
     bindSwipe() {
         const s = this.session, card = $('#view-session .flashcard');
-        if (!s || s.kind !== 'practice' || !s.revealed || s.answer === 'type' || !card) return;
-        card.style.touchAction = 'pan-y';
-        if (!$('#swipe-hint')) card.insertAdjacentHTML('afterend', '<p class="swipe-hint" id="swipe-hint"><span>← Raté</span><span>Je savais →</span></p>');
-        let x0 = 0, y0 = 0, dx = 0, on = false, id = s.current;
-        const reset = () => { card.style.transition = 'transform .18s'; card.style.transform = ''; card.classList.remove('swipe-ok', 'swipe-ko'); };
-        card.addEventListener('touchstart', e => { if (e.touches.length !== 1) return; x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0; on = false; card.style.transition = 'none'; }, { passive: true });
+        if (!s || (s.kind !== 'practice' && s.kind !== 'srs') || !s.revealed || s.answer === 'type' || !card) return;
+        const srs = s.kind === 'srs', vert = srs && document.documentElement.scrollHeight <= innerHeight + 4;
+        card.style.touchAction = vert ? 'none' : 'pan-y';
+        const txt = srs ? (vert ? '<span>← Raté</span><span>↑ Facile · ↓ Difficile</span><span>Bien →</span>' : '<span>← Raté</span><span>Bien →</span>') : '<span>← Raté</span><span>Je savais →</span>';
+        const hint = $('#swipe-hint'); if (hint) hint.innerHTML = txt; else card.insertAdjacentHTML('afterend', `<p class="swipe-hint" id="swipe-hint">${txt}</p>`);
+        const NAME = { 3: 'Bien', 1: 'Raté', 4: 'Facile', 2: 'Difficile' }, CLS = { 3: 'swipe-ok', 1: 'swipe-ko', 4: 'swipe-easy', 2: 'swipe-hard' };
+        let x0 = 0, y0 = 0, dx = 0, dy = 0, axis = '', id = s.current, g = 0;
+        const gradeOf = () => axis === 'x' ? (dx > 0 ? 3 : 1) : axis === 'y' ? (dy < 0 ? 4 : 2) : 0;
+        const reset = () => { card.style.transition = 'transform .18s'; card.style.transform = ''; Object.values(CLS).forEach(c => card.classList.remove(c)); delete card.dataset.swipe; axis = ''; };
+        card.addEventListener('touchstart', e => { if (e.touches.length !== 1) return; x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = dy = 0; axis = ''; card.style.transition = 'none'; }, { passive: true });
         card.addEventListener('touchmove', e => {
             const t = e.touches[0], mx = t.clientX - x0, my = t.clientY - y0;
-            if (!on && Math.abs(mx) > 12 && Math.abs(mx) > Math.abs(my) * 1.4) on = true;
-            if (!on) return;
-            dx = mx; card.style.transform = `translateX(${dx}px) rotate(${dx / 28}deg)`;
-            card.classList.toggle('swipe-ok', dx > 50); card.classList.toggle('swipe-ko', dx < -50);
+            if (!axis) {
+                if (Math.abs(mx) > 12 && Math.abs(mx) > Math.abs(my) * 1.4) axis = 'x';
+                else if (vert && Math.abs(my) > 12 && Math.abs(my) > Math.abs(mx) * 1.4) axis = 'y';
+                else return;
+            }
+            dx = axis === 'x' ? mx : 0; dy = axis === 'y' ? my : 0;
+            card.style.transform = `translate(${dx}px, ${dy}px) rotate(${dx / 28}deg)`;
+            const far = Math.abs(axis === 'x' ? dx : dy) > 50; g = far ? gradeOf() : 0;
+            Object.entries(CLS).forEach(([k, c]) => card.classList.toggle(c, Number(k) === g));
+            if (g && srs) card.dataset.swipe = NAME[g]; else delete card.dataset.swipe;
+            if (g && !srs) card.classList.toggle('swipe-ok', dx > 0), card.classList.toggle('swipe-ko', dx < 0);
         }, { passive: true });
         const end = () => {
-            if (!on) return;
-            on = false;
-            if (Math.abs(dx) > 90 && this.session === s && s.current === id && s.revealed) {
-                const ok = dx > 0;
-                card.style.transition = 'transform .16s, opacity .16s'; card.style.transform = `translateX(${ok ? 520 : -520}px) rotate(${ok ? 16 : -16}deg)`; card.style.opacity = '0';
-                setTimeout(() => { if (this.session === s && s.current === id) this.practiceAnswer(ok); }, 130);
+            if (!axis) return;
+            const dist = axis === 'x' ? dx : dy, gr = gradeOf();
+            if (Math.abs(dist) > 90 && this.session === s && s.current === id && s.revealed) {
+                const fx = axis === 'x' ? (dist > 0 ? 520 : -520) : 0, fy = axis === 'y' ? (dist > 0 ? 520 : -520) : 0;
+                card.style.transition = 'transform .16s, opacity .16s'; card.style.transform = `translate(${fx}px, ${fy}px) rotate(${fx ? (fx > 0 ? 16 : -16) : 0}deg)`; card.style.opacity = '0';
+                setTimeout(() => { if (this.session === s && s.current === id) { if (srs) this.grade(gr); else this.practiceAnswer(gr >= 3); } }, 130);
+                axis = '';
             } else reset();
         };
         card.addEventListener('touchend', end, { passive: true });
         card.addEventListener('touchcancel', reset, { passive: true });
+    },
+    /* during a review: a swipe from the very left edge to the right goes back to the previous card (same as Z / ← on a keyboard) */
+    initSwipeBack() {
+        let x0 = -1, y0 = 0, t0 = 0;
+        document.addEventListener('touchstart', e => { const t = e.touches[0]; x0 = e.touches.length === 1 && t.clientX < 26 && this.session && (this.session.kind === 'srs' || this.session.kind === 'practice') && !this.modals.length ? t.clientX : -1; y0 = t.clientY; t0 = Date.now(); }, { passive: true });
+        document.addEventListener('touchend', e => {
+            if (x0 < 0) return; const t = e.changedTouches[0], dx = t.clientX - x0, dy = Math.abs(t.clientY - y0); x0 = -1;
+            if (dx > 80 && dy < 60 && Date.now() - t0 < 700 && this.session && this.session.history.length) this.undo();
+        }, { passive: true });
+    },
+    /* phone: a quick horizontal swipe on a page goes to the next / previous tab (not from the very edge, not on a list row, a field, a chart or anything that scrolls sideways) */
+    initTabSwipe() {
+        const ORDER = ['dashboard', 'decks', 'toeic', 'stats', 'settings'];
+        let x0 = -1, y0 = 0, t0 = 0;
+        const sideScroll = el => { for (let n = el; n && n !== document.body; n = n.parentElement) { const cs = getComputedStyle(n); if (/(auto|scroll)/.test(cs.overflowX) && n.scrollWidth > n.clientWidth + 2) return true; } return false; };
+        document.addEventListener('touchstart', e => {
+            const t = e.touches[0], el = e.target;
+            const ok = e.touches.length === 1 && !this.session && !this.modals.length && !this.popover && !this.ui.selMode && ORDER.includes(this.view) && t.clientX > 26 && t.clientX < innerWidth - 26
+                && el.closest && !el.closest('input, textarea, select, [contenteditable], .card-row, .chart, .range, [data-chart-box], .leo-bubble') && !sideScroll(el);
+            x0 = ok ? t.clientX : -1; y0 = t.clientY; t0 = Date.now();
+        }, { passive: true });
+        document.addEventListener('touchend', e => {
+            if (x0 < 0) return; const t = e.changedTouches[0], dx = t.clientX - x0, dy = Math.abs(t.clientY - y0); x0 = -1;
+            if (Math.abs(dx) < 90 || dy * 2.2 > Math.abs(dx) || Date.now() - t0 > 650 || this.session) return;
+            const i = ORDER.indexOf(this.view), j = i + (dx < 0 ? 1 : -1);
+            if (j >= 0 && j < ORDER.length) this.tabGo(ORDER[j]);
+        }, { passive: true });
+    },
+    /* the card list: swipe a row right to mark it ⭐, left to put it away until tomorrow (both can be undone from the notice) */
+    initRowSwipe() {
+        let row = null, x0 = 0, y0 = 0, dx = 0, on = false;
+        const clear = () => { if (row) { row.style.transition = 'transform .18s'; row.style.transform = ''; row.classList.remove('sw-r', 'sw-l'); } };
+        document.addEventListener('touchstart', e => {
+            row = e.touches.length === 1 && !this.ui.selMode ? e.target.closest('#card-list .card-row') : null;
+            if (row) { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0; on = false; row.style.transition = 'none'; }
+        }, { passive: true });
+        document.addEventListener('touchmove', e => {
+            if (!row) return;
+            const t = e.touches[0], mx = t.clientX - x0, my = t.clientY - y0;
+            if (!on && Math.abs(mx) > 14 && Math.abs(mx) > Math.abs(my) * 1.6) on = true;
+            if (!on) return;
+            dx = mx; row.style.transform = `translateX(${dx}px)`; row.classList.toggle('sw-r', dx > 60); row.classList.toggle('sw-l', dx < -60);
+        }, { passive: true });
+        const end = () => {
+            if (!row) return;
+            const r = row, id = r.dataset.card, d = dx, was = on; row = null; on = false;
+            if (was) { this._rowSwiped = Date.now(); if (Math.abs(d) > 100 && id) { r.style.transform = ''; r.classList.remove('sw-r', 'sw-l'); if (d > 0) this.opMark([id]); else this.opBury([id], false); return; } }
+            r.style.transition = 'transform .18s'; r.style.transform = ''; r.classList.remove('sw-r', 'sw-l');
+        };
+        document.addEventListener('touchend', end, { passive: true });
+        document.addEventListener('touchcancel', () => { clear(); row = null; on = false; }, { passive: true });
     },
     /* two separate switches under the progress bar: reading aloud (speaker) and voice commands (microphone) */
     audioBarSync(usable) {
