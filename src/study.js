@@ -159,35 +159,38 @@ Object.assign(SuperAnki.prototype, {
         const hint = $('#swipe-hint'); if (hint) hint.innerHTML = txt; else card.insertAdjacentHTML('afterend', `<p class="swipe-hint" id="swipe-hint">${txt}</p>`);
         const COL = { 1: 'var(--again, #e11d48)', 2: 'var(--hard, #d97706)', 3: 'var(--good, #2563eb)', 4: 'var(--easy, #16a34a)' };   // the colour of the answer buttons
         const NAME = { 3: 'Bien', 1: 'Raté', 4: 'Facile', 2: 'Difficile' }, CLS = { 3: 'swipe-ok', 1: 'swipe-ko', 4: 'swipe-easy', 2: 'swipe-hard' };
-        let x0 = 0, y0 = 0, dx = 0, dy = 0, axis = '', id = s.current, g = 0;
-        const gradeOf = () => axis === 'x' ? (dx > 0 ? 3 : 1) : axis === 'y' ? (dy < 0 ? 4 : 2) : 0;
-        const reset = () => { card.style.transition = 'transform .18s'; card.style.transform = ''; card.classList.remove('swiping'); card.style.removeProperty('--sw-a'); Object.values(CLS).forEach(c => card.classList.remove(c)); delete card.dataset.swipe; axis = ''; };
-        card.addEventListener('touchstart', e => { if (e.touches.length !== 1) return; x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = dy = 0; axis = ''; card.style.transition = 'none'; }, { passive: true });
+        let x0 = 0, y0 = 0, dx = 0, dy = 0, active = false, id = s.current;
+        /* once the card is moving it follows the finger in every direction: the answer is the side the card is on when the finger lifts, so a wrong choice is fixed by sliding to another side, without lifting */
+        const axisOf = () => (vert && Math.abs(dy) > Math.abs(dx) ? 'y' : 'x');
+        const gradeOf = () => (axisOf() === 'x' ? (dx > 0 ? 3 : 1) : (dy < 0 ? 4 : 2));
+        const pull = () => (axisOf() === 'x' ? Math.abs(dx) : Math.abs(dy));
+        const reset = () => { card.style.transition = 'transform .18s'; card.style.transform = ''; card.classList.remove('swiping'); card.style.removeProperty('--sw-a'); Object.values(CLS).forEach(c => card.classList.remove(c)); delete card.dataset.swipe; active = false; };
+        card.addEventListener('touchstart', e => { if (e.touches.length !== 1) return; x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = dy = 0; active = false; card.style.transition = 'none'; }, { passive: true });
         card.addEventListener('touchmove', e => {
             const t = e.touches[0], mx = t.clientX - x0, my = t.clientY - y0;
-            if (!axis) {
-                if (Math.abs(mx) > 12 && Math.abs(mx) > Math.abs(my) * 1.4) axis = 'x';
-                else if (vert && Math.abs(my) > 12 && Math.abs(my) > Math.abs(mx) * 1.4) axis = 'y';
+            if (!active) {
+                if (Math.abs(mx) > 12 && Math.abs(mx) > Math.abs(my) * 1.4) active = true;
+                else if (vert && Math.abs(my) > 12 && Math.abs(my) > Math.abs(mx) * 1.4) active = true;
                 else return;
             }
-            dx = axis === 'x' ? mx : 0; dy = axis === 'y' ? my : 0;
+            dx = mx; dy = vert ? my : 0;
             card.style.transform = `translate(${dx}px, ${dy}px) rotate(${dx / 28}deg)`;
-            /* the card takes the colour of the answer as soon as it moves, stronger the further it goes */
-            const dir = gradeOf(), pull = Math.abs(axis === 'x' ? dx : dy);
-            card.classList.add('swiping'); card.style.setProperty('--sw-c', COL[srs ? dir : (dx > 0 ? 4 : 1)]); card.style.setProperty('--sw-a', Math.min(0.46, pull / 190).toFixed(2));
-            const far = Math.abs(axis === 'x' ? dx : dy) > 50; g = far ? gradeOf() : 0;
+            const far = pull() > 50, g = far ? gradeOf() : 0;
+            /* the card takes the colour of the answer it is leaning towards, stronger the further it goes */
+            const dir = gradeOf();
+            card.classList.add('swiping'); card.style.setProperty('--sw-c', COL[srs ? dir : (dx > 0 ? 4 : 1)]); card.style.setProperty('--sw-a', Math.min(0.46, pull() / 190).toFixed(2));
             Object.entries(CLS).forEach(([k, c]) => card.classList.toggle(c, Number(k) === g));
             if (g && srs) card.dataset.swipe = NAME[g]; else delete card.dataset.swipe;
             if (g && !srs) card.classList.toggle('swipe-ok', dx > 0), card.classList.toggle('swipe-ko', dx < 0);
         }, { passive: true });
         const end = () => {
-            if (!axis) return;
-            const dist = axis === 'x' ? dx : dy, gr = gradeOf();
-            if (Math.abs(dist) > 90 && this.session === s && s.current === id && s.revealed) {
-                const fx = axis === 'x' ? (dist > 0 ? 520 : -520) : 0, fy = axis === 'y' ? (dist > 0 ? 520 : -520) : 0;
+            if (!active) return;
+            const gr = gradeOf(), ax = axisOf(), dist = ax === 'x' ? dx : dy;
+            if (pull() > 90 && this.session === s && s.current === id && s.revealed) {
+                const fx = ax === 'x' ? (dist > 0 ? 520 : -520) : 0, fy = ax === 'y' ? (dist > 0 ? 520 : -520) : 0;
                 card.style.transition = 'transform .16s, opacity .16s'; card.style.transform = `translate(${fx}px, ${fy}px) rotate(${fx ? (fx > 0 ? 16 : -16) : 0}deg)`; card.style.opacity = '0';
                 setTimeout(() => { if (this.session === s && s.current === id) { if (srs) this.grade(gr); else this.practiceAnswer(gr >= 3); } }, 130);
-                axis = '';
+                active = false;
             } else reset();
         };
         card.addEventListener('touchend', end, { passive: true });
