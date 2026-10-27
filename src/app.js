@@ -1809,7 +1809,7 @@ class SuperAnki {
         $('#view-dashboard').innerHTML = `
         <div class="stack">
             <div class="hero">
-                <i class="hero-fx" aria-hidden="true"><b class="fx-clouds"></b><b class="fx-glint"></b><b class="fx-glint2"></b><b class="fx-foam"></b><b class="fx-caus"></b><b class="fx-palm"></b><b class="fx-tint"></b></i>
+                <i class="hero-fx" aria-hidden="true"><b class="fx-clouds"></b><b class="fx-glint"></b><b class="fx-glint2"></b><b class="fx-a"></b><b class="fx-b"></b><b class="fx-c"></b><b class="fx-foam"></b><b class="fx-caus"></b><b class="fx-palm"></b><b class="fx-tint"></b></i>
                 <button class="mascot" data-action="mascot" aria-label="Léo, ta mascotte : touche-le pour un encouragement" data-mood="${this.mascotMood(toStudy)}">${this.mascotHome(this.mascotMood(toStudy), toStudy)}</button>
                 <div class="hero-inner">
                     <div>
