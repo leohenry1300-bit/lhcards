@@ -394,6 +394,7 @@ Object.assign(SuperAnki.prototype, {
         pop.dataset.kind = 'menu';
         pop.innerHTML = items.map((it, i) => {
             if (it.sep) return '<div class="menu-sep"></div>';
+            if (it.size) return `<div class="menu-size"><span>Taille du texte</span><span class="ms-btns"><button data-size="-1" aria-label="Texte plus petit" title="Plus petit">A−</button><button data-size="1" aria-label="Texte plus grand" title="Plus grand">A+</button></span></div>`;
             if (it.flags) return `<div class="menu-flags">${FLAGS.slice(1).map((f, k) => `<button data-flag="${k + 1}" class="${flagCur === k + 1 ? 'on' : ''}" title="${f.name}" style="--c:${f.color}">${ic('flag', 'i-flag')}</button>`).join('')}</div>`;
             return `<button class="menu-item ${it.danger ? 'danger' : ''}" data-mi="${i}">${it.icon ? ic(it.icon) : '<span class="i"></span>'}<span>${it.label}</span>${it.kbd ? `<kbd class="k">${it.kbd}</kbd>` : ''}</button>`;
         }).join('');
@@ -403,6 +404,8 @@ Object.assign(SuperAnki.prototype, {
         pop.style.left = `${clamp(r.right - w, 10, innerWidth - w - 10)}px`;
         pop.style.top = `${r.bottom + 8 + h > innerHeight - 10 ? Math.max(10, r.top - h - 8) : r.bottom + 8}px`;
         pop.addEventListener('click', e => {
+            const z = e.target.closest('[data-size]');
+            if (z) { this.handleAction('card-size', { dataset: { d: z.dataset.size } }); return; }   // (the menu stays open: tap again for another step)
             const f = e.target.closest('[data-flag]');
             if (f) { this.closePopover(); onFlag && onFlag(Number(f.dataset.flag)); return; }
             const b = e.target.closest('[data-mi]');
@@ -442,10 +445,9 @@ Object.assign(SuperAnki.prototype, {
         if (!s || !s.current) return;
         const ids = [s.current], c = this.card(s.current);
         const extra = [
-            { icon: 'volume', label: 'Écouter la carte', fn: () => this.speak() },
-            { icon: 'plus', label: 'Agrandir le texte', fn: () => this.handleAction('card-size', { dataset: { d: '1' } }) },
-            { icon: 'chevronDown', label: 'Réduire le texte', fn: () => this.handleAction('card-size', { dataset: { d: '-1' } }) },
             { icon: 'eyeOff', label: document.body.classList.contains('zen') ? 'Quitter le mode zen' : 'Mode zen (masquer le reste)', fn: () => this.toggleZen() },
+            { icon: 'volume', label: 'Écouter la carte', fn: () => this.speak() },
+            { size: true },
             { sep: true }
         ];
         this.showMenu(anchor, [...extra, ...this.cardMenuItems(ids, { inSession: true })], { flagCur: c.flag, onFlag: n => this.opFlag(ids, n) });
