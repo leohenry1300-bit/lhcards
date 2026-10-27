@@ -267,7 +267,7 @@ const OPT_DEFAULTS = {
     scheduler: 'sm2', retention: 0.9, learnSteps: '1 10', relearnSteps: '10', gradIvl: 1, easyIvl: 4,
     startEase: 2.5, easyBonus: 1.3, hardMult: 1.2, ivlMult: 1, lapseMult: 0.5, maxIvl: 3650,
     leechThreshold: 8, leechAction: 'suspend', newPerDay: 20, maxReviews: 200,
-    minIvl: 1, buryNewSib: true, buryRevSib: true, buryLearnSib: true, newOrder: 'random', newReviewOrder: 'mix', reviewSort: 'random',
+    minIvl: 1, buryNewSib: true, buryRevSib: true, buryLearnSib: true, newOrder: 'random', newReviewOrder: 'mix', reviewSort: 'due',
     maxAnswerSecs: 60, autoQSecs: 0, autoASecs: 0, autoAAction: 'none', easyDays: '0000000'
 };
 const DEFAULT_SETTINGS = {
@@ -304,7 +304,7 @@ function buildCfg(o) {
         buryLearnSib: g('buryLearnSib', true) !== false && g('buryLearnSib', true) !== 'false',
         newOrder: g('newOrder', 'random') === 'ordered' ? 'ordered' : 'random',
         newReviewOrder: ['mix', 'after', 'before'].includes(g('newReviewOrder', 'mix')) ? g('newReviewOrder', 'mix') : 'mix',
-        reviewSort: ['due', 'random', 'ivlAsc', 'ivlDesc', 'easeAsc', 'added'].includes(g('reviewSort', 'random')) ? g('reviewSort', 'random') : 'random',
+        reviewSort: ['due', 'random', 'ivlAsc', 'ivlDesc', 'easeAsc', 'added'].includes(g('reviewSort', 'due')) ? g('reviewSort', 'due') : 'due',
         maxAnswerSecs: clamp(Math.round(num(g('maxAnswerSecs', 60), 60)), 5, 600),
         autoQSecs: clamp(num(g('autoQSecs', 0), 0), 0, 300), autoASecs: clamp(num(g('autoASecs', 0), 0), 0, 300),
         autoAAction: ['none', 'bury', 'again', 'hard', 'good', 'easy'].includes(g('autoAAction', 'none')) ? g('autoAAction', 'none') : 'none',
@@ -431,6 +431,7 @@ function normalizeState(raw) {
     settings.newPerDay = clamp(num(settings.newPerDay, 20), 0, 9999);
     settings.rolloverHour = clamp(Math.round(num(settings.rolloverHour, 4)), 0, 12);
     settings.syncKey = String(settings.syncKey || '');
+    if (!settings.reviewOrderV2) { settings.reviewOrderV2 = true; if (settings.reviewSort === 'random') settings.reviewSort = 'due'; }   // (once) the review order follows the schedule: the card due first comes first
     if (settings.burySiblings === false) { settings.buryNewSib = settings.buryRevSib = settings.buryLearnSib = false; }
     delete settings.burySiblings;
     if (settings.autoShow > 0 && !settings.autoQSecs) settings.autoQSecs = settings.autoShow;
@@ -1357,6 +1358,22 @@ class SuperAnki {
         }
         return out;
     }
+    /* the unfinished review of today is kept on this device after every answer */
+    saveResume() {
+        const s = this.session;
+        try {
+            if (!s || s.kind !== 'srs' || s.deckId === undefined) return;
+            const queue = [...(s.current ? [s.current] : []), ...s.queue];
+            localStorage.setItem('lh_resume', JSON.stringify({ day: dayKey(), deckId: s.deckId || '', queue, history: s.history.slice(-20), done: s.done, correct: s.correct, run: s.run || 0, bestRun: s.bestRun || 0, missed: s.missed, startedAt: s.startedAt }));
+        } catch { /* ignore */ }
+    }
+    loadResume(deckId) {
+        try {
+            const r = JSON.parse(localStorage.getItem('lh_resume') || 'null');
+            return r && r.day === dayKey() && r.deckId === (deckId || '') && r.done > 0 && Array.isArray(r.queue) ? r : null;
+        } catch { return null; }
+    }
+    clearResume() { try { localStorage.removeItem('lh_resume'); } catch { /* ignore */ } }
     studyPlan(deckIds, extraNew = 0) {
         const now = Date.now(), eod = endOfDay(now);
         this.rollSeen();
@@ -2546,10 +2563,16 @@ class SuperAnki {
         const deckIds = deckId ? [deckId] : null;
         const plan = this.studyPlan(deckIds, extraNew);
         const cfg0 = deckId ? this.deckCfg(deckId) : this.defaultCfg();
-        const sorters = { due: (a, b) => a.due - b.due, ivlAsc: (a, b) => a.interval - b.interval, ivlDesc: (a, b) => b.interval - a.interval, easeAsc: (a, b) => a.ease - b.ease, added: (a, b) => a.created - b.created };
+        const sorters = { due: (a, b) => a.due - b.due || (a.lastReview || 0) - (b.lastReview || 0), ivlAsc: (a, b) => a.interval - b.interval, ivlDesc: (a, b) => b.interval - a.interval, easeAsc: (a, b) => a.ease - b.ease, added: (a, b) => a.created - b.created };
         const revs = cfg0.reviewSort === 'random' ? shuffle([...plan.reviews]) : [...plan.reviews].sort(sorters[cfg0.reviewSort]);
         const revIds = revs.map(c => c.id), newIds = plan.news.map(c => c.id);
         let queue = cfg0.newReviewOrder === 'after' ? [...revIds, ...newIds] : cfg0.newReviewOrder === 'before' ? [...newIds, ...revIds] : interleave(revIds, newIds);
+        /* a review that was interrupted the same day picks up where it stopped: same cards first (the one that was on screen first), same counters */
+        const resume = extraNew ? null : this.loadResume(deckId);
+        if (resume) {
+            const pos = new Map(resume.queue.map((id, i) => [id, i])), kept = queue.filter(id => pos.has(id)).sort((a, b) => pos.get(a) - pos.get(b));
+            queue = [...kept, ...queue.filter(id => !pos.has(id))];
+        }
         const group = this.data.settings.sessionSize;
         const grouped = group > 0 && queue.length > group;
         if (grouped) queue = queue.slice(0, group);
@@ -2566,7 +2589,8 @@ class SuperAnki {
             return;
         }
         const deck = deckId && this.deck(deckId);
-        this.beginSrs(deck ? this.deckTitle(deck) : 'Révision du jour', queue, plan.learning, { deckId: deckId || null, grouped });
+        this.beginSrs(deck ? this.deckTitle(deck) : 'Révision du jour', queue, plan.learning, { deckId: deckId || null, grouped, ...(resume ? { done: resume.done, correct: resume.correct, run: resume.run, bestRun: resume.bestRun, missed: resume.missed, startedAt: resume.startedAt, history: (resume.history || []).filter(h => h && h.card && h.lite && this.card(h.card.id)) } : {}) });
+        if (resume && resume.done) this.toast(`Reprise : ${plural(resume.done, 'carte')} déjà faite${resume.done > 1 ? 's' : ''}`, 'success');
     }
     /* Starts a scheduled (Anki-style) session on an explicit list of cards: custom study, review ahead... */
     startSrsIds(title, ids, keepOrder = false) {
@@ -2819,10 +2843,21 @@ class SuperAnki {
         const s = this.session, c = s && s.current && this.card(s.current);
         return clamp((Date.now() - s.cardStart) / 1000, 1, c ? this.cfgFor(c).maxAnswerSecs : 60);
     }
+    /* what one answer can change in the statistics, small enough to be kept for every answer (and saved with an interrupted review): all the counters, and today's entry of the per-day tables */
+    statsLite() {
+        const st = this.data.stats, day = dayKey(), { history, timeByDay, ...rest } = st;
+        return { day, hist: history[day], tbd: timeByDay[day], rest: JSON.parse(JSON.stringify(rest)) };
+    }
+    applyStatsLite(l) {
+        const st = this.data.stats;
+        Object.assign(st, JSON.parse(JSON.stringify(l.rest)));
+        if (l.hist === undefined) delete st.history[l.day]; else st.history[l.day] = l.hist;
+        if (l.tbd === undefined) delete st.timeByDay[l.day]; else st.timeByDay[l.day] = l.tbd;
+    }
     snapshot() {
         const s = this.session, c = this.card(s.current);
         s.history.push({
-            card: { ...c, tags: [...c.tags], fs: c.fs ? { ...c.fs } : null }, stats: JSON.stringify(this.data.stats),
+            card: { ...c, tags: [...c.tags], fs: c.fs ? { ...c.fs } : null }, lite: this.statsLite(),
             sibs: c.nid ? this.data.cards.filter(x => x.nid === c.nid && x.id !== c.id).map(x => [x.id, x.buriedUntil]) : [],
             queue: [...s.queue], learning: s.learning ? s.learning.map(l => ({ ...l })) : null,
             done: s.done, correct: s.correct, run: s.run || 0, bestRun: s.bestRun || 0, lastId: s.lastId, missed: [...s.missed], retries: s.retries ? { ...s.retries } : null, current: s.current, ordMax: s.ordMax,
@@ -2872,7 +2907,7 @@ class SuperAnki {
         this.recordReview(g, secs);
         this.logReview(card, g, prev === 'review' ? 1 : prev === 'relearning' ? 2 : 0, prevIvl, secs * 1000);
         s.lastId = card.id;
-        this.save();
+        this.save(); this.saveResume();
         if (leech) this.toast(cfg.leechAction === 'suspend' ? 'Carte « sangsue » : suspendue (ratée trop souvent). Reformule-la !' : 'Carte « sangsue » : ratée trop souvent', 'warning', ic('alert'));
         this.flyThen(g >= 2, () => this.nextCard());
     }
@@ -2907,7 +2942,7 @@ class SuperAnki {
         const card = this.card(h.card.id);
         if (card) Object.assign(card, h.card);
         (h.sibs || []).forEach(([id, until]) => { const x = this.card(id); if (x) x.buriedUntil = until; });
-        this.data.stats = normalizeStats(JSON.parse(h.stats));
+        if (h.lite) this.applyStatsLite(h.lite); else if (h.stats) this.data.stats = normalizeStats(JSON.parse(h.stats));
         if (this.data.revlog.length > h.revlogLen) this.data.revlog.length = h.revlogLen;
         /* cards buried or suspended since the snapshot stay out (going back must not bring a card back that was put away until tomorrow) */
         const hidden = id => { const c = this.card(id); return !c || c.suspended || c.buriedUntil > Date.now(); };
@@ -2921,7 +2956,7 @@ class SuperAnki {
         }
         s.current = h.current; s.revealed = false; s.typed = null; s.cardStart = Date.now();
         this.save();
-        this.renderSession();
+        this.renderSession(); this.saveResume();
         this.renderStreak();
         this.toast('Dernière réponse annulée', 'success', ic('undo'));
     }
@@ -3113,6 +3148,7 @@ class SuperAnki {
             const next = this.nextDueTime();
             lead = [dayNote, pending ? `${plural(pending, 'carte')} en cours d'apprentissage reviendra bientôt.` : next < Infinity ? `Prochaine révision ${fmtRelativeFuture(next)}.` : ''].filter(Boolean).join(' ');
         }
+        if (s.kind === 'srs') this.clearResume();   // (the review is finished: nothing to pick up)
         if (!s.done && s.kind !== 'chrono') { this.endSession(true); return; }
         const missed = missedIds.map(id => this.card(id)).filter(Boolean);
         const kind = s.kind;

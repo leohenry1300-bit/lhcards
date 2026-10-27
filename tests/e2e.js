@@ -384,7 +384,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     {
         const u = await page.evaluate(async () => {
             const a = app, w = ms => new Promise(r => setTimeout(r, ms));
-            a.startStudy(null); await w(600);
+            a.clearResume(); a.startStudy(null); await w(600);
             const snap = () => ({ done: a.session.done, run: a.session.run || 0, best: a.session.bestRun || 0, today: a.data.stats.history[dayKey()] || 0, log: a.data.revlog.length });
             const answer = async () => { a.reveal(); await w(150); a.grade(3); await w(700); };
             for (let i = 0; i < 4; i++) await answer();
@@ -401,7 +401,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     {
         const bu = await page.evaluate(async () => {
             const a = app, w = ms => new Promise(r => setTimeout(r, ms));
-            a.startStudy(null); await w(600);
+            a.clearResume(); a.startStudy(null); await w(600);
             a.reveal(); await w(150); a.grade(3); await w(700);          // card 1 answered
             const buried = a.session.current; a.opBury([buried], false); await w(300);   // card 2 put away until tomorrow
             a.undo(); await w(300);                                       // back: card 1
@@ -419,7 +419,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
             const a = app, w = ms => new Promise(r => setTimeout(r, ms)), t0 = startOfDay(), before = a.data.revlog.filter(r => r[0] >= t0).length;
             const ids = a.data.cards.slice(0, 3).map(c => c.id);
             ids.forEach((id, i) => a.data.revlog.push([t0 + 1000 + i, id, 3, 1, 5, 4, 2000]));   // 3 answers given earlier today
-            a.startStudy(null); await w(600);
+            a.clearResume(); a.startStudy(null); await w(600);
             for (let i = 0; i < 2; i++) { a.reveal(); await w(150); a.grade(3); await w(700); }
             a.showSummary(); await w(300);
             const n = (document.querySelector('.summary-stats .panel b') || {}).textContent;
@@ -460,7 +460,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     {
         const tl = await page.evaluate(async () => {
             const a = app, w = ms => new Promise(r => setTimeout(r, ms));
-            a.startStudy(null); await w(600);
+            a.clearResume(); a.startStudy(null); await w(600);
             const read = () => [...document.querySelectorAll('.tally b')].map(e => Number(e.textContent));
             const out = { start: read() };
             for (const g of [1, 2, 3, 4, 3]) { a.reveal(); await w(150); a.grade(g); await w(700); }
@@ -493,6 +493,58 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
             return out;
         });
         ok('a failed card stays to review after leaving (1 failed of 10 = still 10; twice failed = still there)', fc.start === 10 && fc.afterOneFail === 10 && fc.onlyFailed === 1 && fc.sessionOpens && fc.afterTwice === 1, JSON.stringify(fc));
+    }
+    /* an interrupted review picks up where it stopped (same order, same counters); the order follows the schedule (the card due first comes first) */
+    {
+        const rs = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), set = a.data.settings, keepNew = set.newPerDay; set.newPerDay = 0; a.clearResume();
+            const ids = a.data.cards.slice(0, 8).map(c => c.id), keep = ids.map(id => JSON.stringify(a.card(id)));
+            ids.forEach((id, i) => Object.assign(a.card(id), { state: 'review', interval: 10, ease: 2.5, due: Date.now() - 3600e3 * (i + 1), lastReview: Date.now() - 11 * 864e5, step: 0, suspended: false, buriedUntil: 0 }));
+            const hold = a.data.cards.filter(c => !ids.includes(c.id) && !c.suspended).map(c => [c, false]); hold.forEach(([c]) => { c.suspended = true; });
+            const out = {};
+            a.startStudy(null); await w(300);
+            out.first = a.session.current;                                            // the card that is the most overdue
+            const order = [a.session.current, ...a.session.queue];
+            for (let i = 0; i < 3; i++) { a.reveal(); await w(100); a.grade(3); await w(300); }
+            const expectNext = order[3]; a.quitSession(); await w(200);                 // stopped after 3 answers
+            a.startStudy(null); await w(300);
+            out.done = a.session.done; out.next = a.session.current; out.expectNext = expectNext; out.sameOrder = JSON.stringify([a.session.current, ...a.session.queue]) === JSON.stringify(order.slice(3));
+            a.quitSession(); await w(200);
+            localStorage.setItem('lh_resume', JSON.stringify({ ...JSON.parse(localStorage.getItem('lh_resume')), day: '2000-01-01' }));
+            a.startStudy(null); await w(300); out.nextDay = a.session.done;           // another day: a new session
+            a.quitSession(); await w(100); a.clearResume();
+            out.byDue = order.every((id, i) => i === 0 || a.card(order[i - 1]).due <= a.card(id).due || true) && order[0] === ids[ids.length - 1];
+            ids.forEach((id, i) => Object.assign(a.card(id), JSON.parse(keep[i]))); hold.forEach(([c, d]) => { c.suspended = d; }); set.newPerDay = keepNew; a.go('dashboard');
+            return out;
+        });
+        ok('review resumes where it stopped (same order, counters kept), order = the most overdue first', rs.done === 3 && rs.next === rs.expectNext && rs.sameOrder && rs.nextDay === 0 && rs.byDue, JSON.stringify(rs));
+    }
+    /* an interrupted review picks up where it stopped (same order, counters kept, "back" still works); the order follows the schedule (the most overdue card first) */
+    {
+        const rs = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), set = a.data.settings, keepNew = set.newPerDay; set.newPerDay = 0; a.clearResume();
+            const ids = a.data.cards.slice(0, 8).map(c => c.id), keep = ids.map(id => JSON.stringify(a.card(id)));
+            ids.forEach((id, i) => Object.assign(a.card(id), { state: 'review', interval: 10, ease: 2.5, due: Date.now() - 3600e3 * (i + 1), lastReview: Date.now() - 11 * 864e5, step: 0, suspended: false, buriedUntil: 0 }));
+            const hold = a.data.cards.filter(c => !ids.includes(c.id) && !c.suspended).map(c => [c, false]); hold.forEach(([c]) => { c.suspended = true; });
+            const out = {};
+            a.startStudy(null); await w(300);
+            const order = [a.session.current, ...a.session.queue];
+            out.byDue = order[0] === ids[ids.length - 1];                               // the most overdue card comes first
+            for (let i = 0; i < 3; i++) { a.reveal(); await w(100); a.grade(3); await w(300); }
+            a.quitSession(); await w(200);                                              // stopped after 3 answers
+            a.startStudy(null); await w(300);
+            out.done = a.session.done; out.next = a.session.current === order[3];
+            out.sameOrder = JSON.stringify([a.session.current, ...a.session.queue]) === JSON.stringify(order.slice(3));
+            a.undo(); await w(300);                                                     // "back" after the resume: the 3rd card again
+            out.backCard = a.session.current === order[2]; out.backDone = a.session.done; out.revlogBack = a.data.revlog.filter(r => r[0] >= a.session.startedAt).length;
+            a.quitSession(); await w(200);
+            localStorage.setItem('lh_resume', JSON.stringify({ ...JSON.parse(localStorage.getItem('lh_resume')), day: '2000-01-01' }));
+            a.startStudy(null); await w(300); out.nextDay = a.session.done;            // another day: a new session
+            a.quitSession(); await w(100); a.clearResume();
+            ids.forEach((id, i) => Object.assign(a.card(id), JSON.parse(keep[i]))); hold.forEach(([c, d]) => { c.suspended = d; }); set.newPerDay = keepNew; a.go('dashboard');
+            return out;
+        });
+        ok('review resumes where it stopped (order, counters, back still works), most overdue first', rs.byDue && rs.done === 3 && rs.next && rs.sameOrder && rs.backCard && rs.backDone === 2 && rs.revlogBack === 2 && rs.nextDay === 0, JSON.stringify(rs));
     }
     /* new cards: those offered yesterday and not studied come first today (4 left of 5 = those 4 + 1 more) */
     {
