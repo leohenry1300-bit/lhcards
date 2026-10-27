@@ -1340,6 +1340,14 @@ class SuperAnki {
         }
         return out;
     }
+    /* how many cards that were met for the first time yesterday are due again and still not reviewed today */
+    heldBack() {
+        const today = startOfDay(), yesterday = today - 864e5, eod = endOfDay(Date.now()), log = this.data.revlog, ids = new Set();
+        for (let i = log.length - 1; i >= 0 && log[i][0] >= yesterday; i--) if (log[i][0] < today && log[i][3] === 0) ids.add(log[i][1]);
+        let n = 0;
+        ids.forEach(id => { const c = this.card(id); if (c && !c.suspended && c.state !== 'new' && c.due <= eod && (c.lastReview || 0) < today) n++; });
+        return n;
+    }
     studyPlan(deckIds, extraNew = 0) {
         const now = Date.now(), eod = endOfDay(now);
         this.rollSeen();
@@ -1352,8 +1360,10 @@ class SuperAnki {
         const newRoom = Math.max(0, this.data.settings.maxReviews - st.revSeen.count - st.newSeen.count - reviews.length);
         let fresh = pool.filter(c => c.state === 'new');
         fresh = this.data.settings.newOrder === 'random' ? shuffle(fresh) : fresh.sort((a, b) => a.created - b.created);
-        const news = extraNew ? fresh.slice(0, extraNew) : this.applyLimit(fresh, 'newPerDay', st.newSeen, Math.min(this.newBudget(), newRoom));
-        return { reviews, news, learning, learningDue: learning.filter(l => l.due <= now).length, freshTotal: fresh.length, dueTotal: dueAll.length };
+        /* no new cards on top of a pile: while yesterday's new cards are not reviewed yet, today brings no new ones (asking for "10 more" still works) */
+        const held = extraNew ? 0 : this.heldBack();
+        const news = extraNew ? fresh.slice(0, extraNew) : held ? [] : this.applyLimit(fresh, 'newPerDay', st.newSeen, Math.min(this.newBudget(), newRoom));
+        return { held, reviews, news, learning, learningDue: learning.filter(l => l.due <= now).length, freshTotal: fresh.length, dueTotal: dueAll.length };
     }
     nextDueTime() {
         let min = Infinity;
@@ -1730,7 +1740,7 @@ class SuperAnki {
             const parts = [];
             if (dueCount) parts.push(`<b>${plural(dueCount, 'carte')} à revoir</b>`);
             if (plan.news.length) parts.push(`<b>${plural(plan.news.length, 'nouvelle carte', 'nouvelles cartes')}</b>`);
-            sub = `Au programme aujourd'hui : ${parts.join(' et ')}.`;
+            sub = `Au programme aujourd'hui : ${parts.join(' et ')}.${plan.held ? ` <span class="faint">Pas de nouvelles cartes tant que celles d'hier ne sont pas revues.</span>` : ''}`;
         } else {
             const next = this.nextDueTime();
             sub = `Tout est à jour, bravo ! 🎉 ${next < Infinity ? `Prochaine révision ${fmtRelativeFuture(next, now)}.` : ''}`;
