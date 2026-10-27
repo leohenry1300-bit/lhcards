@@ -472,6 +472,28 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         });
         ok('review: the count of Raté / Difficile / Bien / Facile is live and matches the saved answers', JSON.stringify(tl.start) === '[0,0,0,0]' && JSON.stringify(tl.after) === '[1,1,2,1]' && JSON.stringify(tl.logged) === '[1,1,2,1]' && JSON.stringify(tl.undone) === '[1,1,1,1]', JSON.stringify(tl));
     }
+    /* a failed card is still "to review" after leaving (it comes back within minutes); the home count always matches what is really left */
+    {
+        const fc = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), set = a.data.settings, keepNew = set.newPerDay; set.newPerDay = 0;
+            const ids = a.data.cards.slice(0, 10).map(c => c.id), keep = ids.map(id => JSON.stringify(a.card(id)));
+            ids.forEach((id, i) => { const c = a.card(id); Object.assign(c, { state: 'review', interval: 10, ease: 2.5, due: Date.now() - 3600e3 * (i + 1), lastReview: Date.now() - 11 * 864e5, step: 0, suspended: false, buriedUntil: 0 }); });
+            const count = () => { const p = a.studyPlan(null); return p.reviews.length + p.learningDue; };
+            const hold = a.data.cards.filter(c => !ids.includes(c.id) && !c.suspended).map(c => [c, false]); hold.forEach(([c]) => { c.suspended = true; });   // (only these 10 cards count in this test)
+            const out = { start: count() };
+            a.startStudy(null); await w(300);
+            a.reveal(); await w(100); a.grade(1); await w(300);              // one card failed...
+            a.quitSession(); await w(200); out.afterOneFail = count();     // ...and the app is left: 10 cards are still to review (9 + the failed one)
+            ids.forEach(id => { const c = a.card(id); if (c.state === 'review' && c.due <= endOfDay()) { c.due = Date.now() + 5 * 864e5; } });   // the other 9 are done
+            out.onlyFailed = count();
+            a.startStudy(null); await w(300); out.sessionOpens = !!a.session && ids.includes(a.session.current);
+            for (let i = 0; i < 2 && a.session; i++) { a.reveal(); await w(100); a.grade(1); await w(300); }    // failed twice in a row
+            if (a.session) a.quitSession(); await w(200); out.afterTwice = count();
+            ids.forEach((id, i) => Object.assign(a.card(id), JSON.parse(keep[i]))); hold.forEach(([c, d]) => { c.suspended = d; }); set.newPerDay = keepNew; a.go('dashboard');
+            return out;
+        });
+        ok('a failed card stays to review after leaving (1 failed of 10 = still 10; twice failed = still there)', fc.start === 10 && fc.afterOneFail === 10 && fc.onlyFailed === 1 && fc.sessionOpens && fc.afterTwice === 1, JSON.stringify(fc));
+    }
     /* new cards: those offered yesterday and not studied come first today (4 left of 5 = those 4 + 1 more) */
     {
         const nc = await page.evaluate(() => {

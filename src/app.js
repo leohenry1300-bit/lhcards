@@ -663,11 +663,14 @@ function previewLabel(card, grade, now, cfg) {
     const r = schedule(card, grade, now, false, cfg);
     return r.state === 'review' ? fmtDays(r.interval) : fmtDelay(r.due - now);
 }
+/* a card that was failed (or is on a learning step) comes back within minutes: it counts as "to review" as soon as it is due within the learn-ahead window (20 min by default),
+   so a card failed just before leaving is still there when the app is opened again */
+let LEARN_AHEAD = 20 * MIN;
 function cardStatus(c, now, eod) {
     if (c.suspended) return 'susp';
     if (c.buriedUntil > now) return 'buried';
     if (c.state === 'new') return 'new';
-    if (c.state === 'review' ? c.due <= eod : c.due <= now) return 'due';
+    if (c.state === 'review' ? c.due <= eod : c.due <= now + LEARN_AHEAD) return 'due';
     if (c.state === 'review' && c.interval >= MATURE_IVL) return 'mature';
     return 'learn';
 }
@@ -1099,7 +1102,7 @@ class SuperAnki {
     /* ---------- settings / theme ---------- */
     applySettings() {
         const s = this.data.settings;
-        setRollover(s.rolloverHour);
+        setRollover(s.rolloverHour); LEARN_AHEAD = clamp(num(s.learnAhead, 20), 0, 120) * MIN;
         fsrsApplyParams(s.fsrsW);
         const resolved = s.theme === 'auto' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'nuit' : 'clair') : s.theme;
         const root = document.documentElement;
@@ -1373,7 +1376,7 @@ class SuperAnki {
         if (prio.size) fresh = [...fresh.filter(c => prio.has(c.id)).sort((a, b) => prio.get(a.id) - prio.get(b.id)), ...fresh.filter(c => !prio.has(c.id))];
         const news = extraNew ? fresh.slice(0, extraNew) : this.applyLimit(fresh, 'newPerDay', st.newSeen, Math.min(this.newBudget(), newRoom));
         if (!deckIds && !extraNew && !st.newPrio.fixed) { st.newPrio.ids = news.map(c => c.id); st.newPrio.fixed = true; }
-        return { reviews, news, learning, learningDue: learning.filter(l => l.due <= now).length, freshTotal: fresh.length, dueTotal: dueAll.length };
+        return { reviews, news, learning, learningDue: learning.filter(l => l.due <= now + LEARN_AHEAD).length, freshTotal: fresh.length, dueTotal: dueAll.length };
     }
     nextDueTime() {
         let min = Infinity;
@@ -2550,7 +2553,7 @@ class SuperAnki {
         const group = this.data.settings.sessionSize;
         const grouped = group > 0 && queue.length > group;
         if (grouped) queue = queue.slice(0, group);
-        if (!queue.length && !plan.learning.length) {
+        if (!queue.length && !plan.learningDue) {
             if (plan.freshTotal > 0 && !extraNew) {
                 this.confirm({
                     title: 'Objectif du jour atteint 🎉', message: `Tu as déjà découvert tes nouvelles cartes du jour (limite : ${this.data.settings.newPerDay}). Veux-tu en apprendre 10 de plus ?`,
@@ -2665,7 +2668,7 @@ class SuperAnki {
             const first = s.learning[0];
             if (first && first.due <= now && !(first.id === s.lastId && s.queue.length)) id = s.learning.shift().id;
             else if (s.queue.length) id = s.queue.shift();
-            else if (first && first.due - now <= this.data.settings.learnAhead * MIN) id = s.learning.shift().id;
+            else if (first && first.due - now <= LEARN_AHEAD) id = s.learning.shift().id;
         } else if (s.queue.length) id = s.queue.shift();
         if (!id || !this.card(id)) {
             if (id) return this.nextCard();

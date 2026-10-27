@@ -189,9 +189,11 @@ Object.assign(SuperAnki.prototype, {
     bindSwipe() {
         const s = this.session, card = $('#view-session .flashcard');
         if (!s || (s.kind !== 'practice' && s.kind !== 'srs') || !s.revealed || s.answer === 'type' || !card) return;
-        const srs = s.kind === 'srs', vert = srs && document.documentElement.scrollHeight <= innerHeight + 4;
-        card.style.touchAction = vert ? 'none' : 'pan-y';
-        const txt = srs ? (vert ? '<span>← Raté</span><span>↑ Facile · ↓ Difficile</span><span>Bien →</span>' : '<span>← Raté</span><span>Bien →</span>') : '<span>← Raté</span><span>Je savais →</span>';
+        /* up / down (Facile / Difficile): with a mouse always; with a finger only when the page does not scroll (otherwise the slide would scroll the page) */
+        const srs = s.kind === 'srs', fine = window.matchMedia('(hover: hover) and (pointer: fine)').matches, still = document.documentElement.scrollHeight <= innerHeight + 4;
+        let vert = srs && still;
+        card.style.touchAction = still && srs ? 'none' : 'pan-y';
+        const txt = srs ? (vert || fine ? '<span>← Raté</span><span>↑ Facile · ↓ Difficile</span><span>Bien →</span>' : '<span>← Raté</span><span>Bien →</span>') : '<span>← Raté</span><span>Je savais →</span>';
         const hint = $('#swipe-hint'); if (hint) hint.innerHTML = txt; else card.insertAdjacentHTML('afterend', `<p class="swipe-hint" id="swipe-hint">${txt}</p>`);
         const COL = { 1: 'var(--again, #e11d48)', 2: 'var(--hard, #d97706)', 3: 'var(--good, #2563eb)', 4: 'var(--easy, #16a34a)' };   // the colour of the answer buttons
         const NAME = { 3: 'Bien', 1: 'Raté', 4: 'Facile', 2: 'Difficile' }, CLS = { 3: 'swipe-ok', 1: 'swipe-ko', 4: 'swipe-easy', 2: 'swipe-hard' };
@@ -229,7 +231,7 @@ Object.assign(SuperAnki.prototype, {
             } else reset();
         };
         const h = {
-            start: (x, y, e) => { x0 = x; y0 = y; dx = dy = 0; active = false; card.style.transition = 'none'; },
+            start: (x, y, e, mouse) => { x0 = x; y0 = y; dx = dy = 0; active = false; vert = srs && (mouse || still); card.style.transition = 'none'; },
             move: (x, y) => {
                 const mx = x - x0, my = y - y0;
                 if (!active) {
@@ -278,14 +280,19 @@ Object.assign(SuperAnki.prototype, {
             },
             cancel: () => { x0 = -1; }
         });
-        /* trackpad: two fingers sliding sideways (once per slide) */
-        let sum = 0, last = 0, rest = 0;
+        /* trackpad: two fingers sliding sideways. One slide = one tab; a new slide can start while the previous one is still gliding (its speed goes up again), so tabs can be chained quickly */
+        let sum = 0, lastT = 0, prev = 0, locked = false, fell = false;
         document.addEventListener('wheel', e => {
             if (e.ctrlKey || Math.abs(e.deltaX) <= Math.abs(e.deltaY) * 1.5 || !allowed(e.target) || e.target.closest('.card-row')) return;
             e.preventDefault();
-            const now = Date.now(); if (now - rest < 700) { rest = now - 600; return; }   // (the slide's momentum does not count again)
-            sum = now - last > 250 ? 0 : sum; last = now; sum += e.deltaX;
-            if (Math.abs(sum) > 140) { const d = sum; sum = 0; rest = now; go(d > 0 ? -1 : 1); }   // (fingers to the left = next tab)
+            const now = e.timeStamp, v = Math.abs(e.deltaX);   // (the time the event was made, not the time it was handled: a tab that takes long to draw must not look like a pause)
+            if (now - lastT > 90) { locked = false; fell = false; sum = 0; prev = 0; }   // a pause: a new slide
+            else if (locked && fell && v > prev + 3 && v > 8) { locked = false; fell = false; sum = 0; }   // slowed down, then speeding up again: the next slide
+            else if (locked && v < prev - 3) fell = true;
+            lastT = now; prev = v;
+            if (locked) return;
+            sum += e.deltaX;
+            if (Math.abs(sum) > 70) { const d = sum; sum = 0; locked = true; go(d > 0 ? -1 : 1); }   // (fingers to the left = next tab)
         }, { passive: false });
     },
     /* the card list: slide a row to the left to show two buttons (⭐ mark, 🙈 put away until tomorrow), like in iOS Messages; nothing happens until a button is tapped.
