@@ -2706,6 +2706,13 @@ class SuperAnki {
         if (cur) { curKey = cur.state === 'new' ? 'new' : cur.state === 'review' ? 'due' : 'learn'; c[curKey]++; }
         return { c, curKey };
     }
+    /* how the answers of this session were rated so far (read from the history that is saved, so it is always the real count, undo included) */
+    tallyHtml(since) {
+        const n = { 1: 0, 2: 0, 3: 0, 4: 0 };
+        const log = this.data.revlog;
+        for (let i = log.length - 1; i >= 0 && log[i][0] >= since; i--) if (n[log[i][2]] !== undefined) n[log[i][2]]++;
+        return `<div class="tally" aria-label="Réponses de la séance">${[[1, 'Raté', 'again'], [2, 'Difficile', 'hard'], [3, 'Bien', 'good'], [4, 'Facile', 'easy']].map(([g, l, v]) => `<span style="--c:var(--${v})"><i></i>${l} <b>${n[g]}</b></span>`).join('')}</div>`;
+    }
     renderSession() {
         const s = this.session, card = this.card(s.current), deck = this.deck(card.deckId);
         const set = this.data.settings, now = Date.now(), cfg = this.cfgFor(card);
@@ -2753,6 +2760,7 @@ class SuperAnki {
                 <button class="icon-btn" title="Plus d'actions" data-action="session-menu" aria-label="Plus d'actions">${ic('more')}</button>
             </div>
             <div class="pbar"><i style="width:${progress}%"></i></div>
+            ${s.kind === 'srs' ? this.tallyHtml(s.startedAt) : ''}
             ${(s.run || 0) >= 3 ? `<div class="run-pill${runPop ? ' pop' : ''}">🔥 ${s.run} d'affilée</div>` : ''}
             <div class="panel flashcard stack-${Math.min(2, (s.queue || []).length + (s.learning || []).length)}" ${s.revealed || typeMode ? '' : 'data-action="reveal" style="cursor:pointer"'}>
                 <div class="fc-top">
@@ -3076,13 +3084,14 @@ class SuperAnki {
         if (s.timer) { clearInterval(s.timer); s.timer = null; }
         let secs = Math.round((Date.now() - s.startedAt) / 1000), done = s.done, correct = s.correct, best = s.bestRun || 0, missedIds = s.missed;
         /* the recap of a review counts the whole day (morning + noon + evening), not only this last session */
-        let dayNote = '';
+        let dayNote = '', dayGrades = null;
         if (s.kind === 'srs') {
             const t0 = startOfDay(), rows = this.data.revlog.filter(r => r[0] >= t0);
             if (rows.length >= s.done) {
                 done = rows.length; correct = rows.filter(r => r[2] >= 2).length; secs = Math.round(rows.reduce((n, r) => n + (r[6] || 0), 0) / 1000);
                 let run = 0; best = 0; rows.forEach(r => { run = r[2] >= 2 ? run + 1 : 0; best = Math.max(best, run); });
                 missedIds = [...new Set([...rows.filter(r => r[2] === 1).map(r => r[1]), ...s.missed])];
+                dayGrades = [1, 2, 3, 4].map(g => rows.filter(r => r[2] === g).length);
                 if (done > s.done) dayNote = `Aujourd'hui : ${plural(done, 'réponse')} (dont ${s.done} dans cette session).`;
             }
         }
@@ -3117,6 +3126,7 @@ class SuperAnki {
             <h2 class="page-title" style="margin-top:12px">${title}</h2>
             ${lead ? `<p class="page-sub">${lead}</p>` : ''}
             ${kind === 'chrono' ? '' : `<div class="summary-ring" style="--off:${100 - acc}"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="rg-bg" cx="50" cy="50" r="44"/><circle class="rg-fg" cx="50" cy="50" r="44" pathLength="100"/></svg><div class="ring-in"><b>${acc}%</b><small>réussite</small></div></div>`}
+            ${dayGrades ? `<p class="page-sub" style="margin-top:-4px">Raté <b>${dayGrades[0]}</b> · Difficile <b>${dayGrades[1]}</b> · Bien <b>${dayGrades[2]}</b> · Facile <b>${dayGrades[3]}</b></p>` : ''}
             <div class="summary-stats">
                 <div class="panel"><b>${kind === 'chrono' ? s.score : done}</b><span>${kind === 'chrono' ? 'points' : 'cartes'}</span></div>
                 <div class="panel"><b>${kind === 'chrono' ? acc + '%' : best}</b><span>${kind === 'chrono' ? 'réussite' : 'meilleure série'}</span></div>

@@ -454,6 +454,22 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         });
         ok('deleting a deck: back to the parent deck / the page he came from', (dd.parent !== false) && dd.view === 'dashboard', JSON.stringify(dd));
     }
+    /* review: every answer (Raté / Difficile / Bien / Facile) is counted, shown live under the progress bar, and undo takes it back */
+    {
+        const tl = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms));
+            a.startStudy(null); await w(600);
+            const read = () => [...document.querySelectorAll('.tally b')].map(e => Number(e.textContent));
+            const out = { start: read() };
+            for (const g of [1, 2, 3, 4, 3]) { a.reveal(); await w(150); a.grade(g); await w(700); }
+            out.after = read(); const logged = a.data.revlog.filter(r => r[0] >= a.session.startedAt).map(r => r[2]);
+            out.logged = [1, 2, 3, 4].map(g => logged.filter(x => x === g).length);
+            a.undo(); await w(300); out.undone = read();
+            a.endSession(false); a.session = null; a.go('dashboard');
+            return out;
+        });
+        ok('review: the count of Raté / Difficile / Bien / Facile is live and matches the saved answers', JSON.stringify(tl.start) === '[0,0,0,0]' && JSON.stringify(tl.after) === '[1,1,2,1]' && JSON.stringify(tl.logged) === '[1,1,2,1]' && JSON.stringify(tl.undone) === '[1,1,1,1]', JSON.stringify(tl));
+    }
     /* new cards: those offered yesterday and not studied come first today (4 left of 5 = those 4 + 1 more) */
     {
         const nc = await page.evaluate(() => {

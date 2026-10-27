@@ -2178,4 +2178,10 @@ html[data-theme="savane"][data-lite]::before, html[data-theme="savane"][data-lit
 .card-row.sw-r::after, .card-row.sw-l::after { position: absolute; top: 50%; transform: translateY(-50%); font-weight: 800; font-size: .85rem; color: var(--primary); pointer-events: none; }
 .card-row.sw-r::after { content: "⭐ Marquer"; left: 14px; right: auto; margin-left: -118px; }
 .card-row.sw-l::after { content: "Enfouir 🙈"; right: 14px; margin-right: -118px; }
-.flashcard.swiping::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--sw-c); opacity: var(--sw-a, 0); pointer-events: none; z-index: 3; transition: opacity .06s linear; }
+.flashcard.swiping::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--sw-c); opacity: var(--sw-a, 0); pointer-events: none; z-index: 3; }
+
+.tally { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 12px; margin: 8px 0 2px; font-size: .78rem; font-weight: 700; color: var(--text-muted); }
+.tally span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.tally i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.tally b { color: var(--text); font-variant-numeric: tabular-nums; }
+body.zen .tally { display: none; }
