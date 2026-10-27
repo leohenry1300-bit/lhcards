@@ -144,7 +144,7 @@ function leoClipFor(root, cat = 'ready', text = '') {
 }
 /* his voice follows what he does: a curious "rrr?" when he talks, a happy "rawrr" when he waves or hops, a soft "grrr, allez" to encourage, a purr when he thinks, a sleepy "rrooh" when he yawns, a ROAAR to celebrate */
 const LEO_VOICE = {
-    talk: 'leo', tablet: 'leo', pointwave: 'leohappy', wave: 'leohappy', sitwave: 'leotickle', joy: 'leocheer', toss: 'leocheer', roar: 'leoroar', show: 'leohappy',
+    talk: 'leo', tablet: 'leo', wave: 'leohappy', sitwave: 'leotickle', joy: 'leocheer', toss: 'leocheer', roar: 'leoroar', show: 'leohappy',
     foot: 'leogo', think: 'leopurr', yawn: 'leosad', nap: 'leopurr', sleep: 'leosad', doze: 'leosad', reveal: 'leohappy', stash: 'leo', coffee: 'leopurr',
     hello0: 'leohappy', talk0: 'leo', point0: 'leohappy', aha0: 'leohappy', read0: 'leopurr', arms0: 'leogo', shrug0: 'leogo'
 };
