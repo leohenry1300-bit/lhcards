@@ -109,6 +109,7 @@ Object.assign(SuperAnki.prototype, {
             else if (i >= 0) this.data.cards[i] = structuredClone(state);
             else this.data.cards.push(structuredClone(state));
         });
+        if (entry.aside) this.countNewAside(entry.aside.ids, dir === 'undo' ? !entry.aside.on : entry.aside.on);
         const decks = dir === 'undo' ? entry.decksBefore : entry.decksAfter;
         if (decks) this.data.decks = structuredClone(decks);
         this.searchCache.clear();
@@ -240,7 +241,8 @@ Object.assign(SuperAnki.prototype, {
     opBury(ids, note) {
         const all = note ? this.expandNotes(ids) : ids, cards = this.cardsByIds(all), now = Date.now();
         const target = cards.every(c => c.buriedUntil > now) ? 0 : addDays(now, 1);
-        this.change(target ? 'enfouissement' : 'déterrement', all, () => { cards.forEach(c => { c.buriedUntil = target; }); });
+        this.change(target ? 'enfouissement' : 'déterrement', all, () => { cards.forEach(c => { c.buriedUntil = target; }); this.countNewAside(all, !!target); });
+        this.undoStack[this.undoStack.length - 1].aside = { ids: all, on: !!target };
         this.afterOp(all);
         this.undoToast(target ? `${plural(cards.length, 'carte')} enfouie${cards.length > 1 ? 's' : ''} jusqu'à demain` : 'Cartes déterrées', ic('eyeOff'));
     },

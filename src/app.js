@@ -382,7 +382,7 @@ function normalizeStats(s) {
         studySeconds: num(s.studySeconds, num(s.totalStudyMinutes, 0) * 60),
         quizBest: num(s.quizBest, 0)
     });
-    if (s.newSeen && typeof s.newSeen === 'object') out.newSeen = { date: s.newSeen.date || null, count: num(s.newSeen.count, 0), by: { ...(s.newSeen.by || {}) } };
+    if (s.newSeen && typeof s.newSeen === 'object') out.newSeen = { date: s.newSeen.date || null, count: num(s.newSeen.count, 0), by: { ...(s.newSeen.by || {}) }, ids: toArray(s.newSeen.ids).filter(x => typeof x === 'string').slice(0, 500) };
     else if (s.newSeenDate) out.newSeen = { date: String(s.newSeenDate).slice(0, 10), count: num(s.newSeenToday, 0), by: {} };
     if (s.newPrio && typeof s.newPrio === 'object' && Array.isArray(s.newPrio.ids)) out.newPrio = { date: s.newPrio.date || null, ids: s.newPrio.ids.filter(x => typeof x === 'string').slice(0, 500) };
     if (s.revSeen && typeof s.revSeen === 'object') out.revSeen = { date: s.revSeen.date || null, count: num(s.revSeen.count, 0), by: { ...(s.revSeen.by || {}) } };
@@ -1323,6 +1323,17 @@ class SuperAnki {
     rollSeen() {
         const st = this.data.stats, t = dayKey();
         ['newSeen', 'revSeen'].forEach(k => { if (!st[k] || st[k].date !== t) st[k] = { date: t, count: 0, by: {} }; else if (!st[k].by) st[k].by = {}; });
+    }
+    /* a new card put away until tomorrow counts as one of today's new cards (not offered again in its place); put back, it does not count any more */
+    countNewAside(ids, on) {
+        this.rollSeen();
+        const seen = this.data.stats.newSeen; seen.ids = seen.ids || [];
+        ids.forEach(id => {
+            const c = this.card(id); if (!c) return;
+            const i = seen.ids.indexOf(id), owner = this.limitOwner(c.deckId, 'newPerDay');
+            if (on && i < 0 && c.state === 'new') { seen.ids.push(id); seen.count++; if (owner) seen.by[owner] = (seen.by[owner] || 0) + 1; }
+            else if (!on && i >= 0) { seen.ids.splice(i, 1); seen.count = Math.max(0, seen.count - 1); if (owner) seen.by[owner] = Math.max(0, (seen.by[owner] || 0) - 1); }
+        });
     }
     newBudget() {
         this.rollSeen();

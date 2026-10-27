@@ -427,6 +427,19 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         });
         ok('recap counts all the answers of the day', rc.n === rc.want && /dont 2 dans cette session/.test(rc.note), JSON.stringify(rc));
     }
+    /* a new card put away until tomorrow counts as one of the day's new cards (5 a day: 2 put away = 3 left, not 5 again) */
+    {
+        const bn = await page.evaluate(() => {
+            const a = app, st = a.data.stats, set = a.data.settings, keep = set.newPerDay;
+            set.newPerDay = 5; st.newPrio = null; st.newSeen = { date: null, count: 0, by: {} };
+            const ids = a.studyPlan(null).news.map(c => c.id), n0 = ids.length;
+            a.opBury(ids.slice(0, 2), false); const n1 = a.studyPlan(null).news.length;
+            a.opBury(ids.slice(0, 2), false); const n2 = a.studyPlan(null).news.length;   // put back
+            a.cardsByIds(ids).forEach(c => { c.buriedUntil = 0; }); set.newPerDay = keep; st.newPrio = null; st.newSeen = { date: null, count: 0, by: {} };
+            return { n0, n1, n2 };
+        });
+        ok('new card put away counts for the day; put back it counts no more', bn.n0 === 5 && bn.n1 === 3 && bn.n2 === 5, JSON.stringify(bn));
+    }
     /* new cards: those offered yesterday and not studied come first today (4 left of 5 = those 4 + 1 more) */
     {
         const nc = await page.evaluate(() => {
