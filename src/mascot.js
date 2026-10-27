@@ -225,7 +225,7 @@ function leoGreetOnReturn() {
         if (document.hidden) { hiddenAt = Date.now(); return; }
         if (hiddenAt && Date.now() - hiddenAt > 60000) {
             const r = document.querySelector('#view-dashboard .hero .leo3d'), k = leoOpenPick();
-            if (r && window.app && app.view === 'dashboard' && r.dataset.state === 's1') { if (k === 'scene') leoSeq(r, ['stash', 'hello0', 'reveal']); else leoPlay(r, k, {}); } else window._leoGreet = true;
+            if (r && window.app && app.view === 'dashboard' && r.dataset.state === 's1') { if (k === 'scene') leoSeq(r, ['stash', 'hello0', 'reveal']); else leoPlay(r, k, {}); app.mascotHello(); } else window._leoGreet = true;
         }
         hiddenAt = 0;
     });

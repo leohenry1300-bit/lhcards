@@ -341,6 +341,91 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     });
     ok('home: unfolding a deck keeps the button in place and does not redraw the banner', anchor.skip || (Math.abs(anchor.moved) <= 2 && anchor.sameHero && anchor.opened), JSON.stringify(anchor));
 
+    /* clock change: the day always starts at 4 h, and "tomorrow" is 4 h tomorrow, also on the two days a year when the clock moves */
+    {
+        const cp = await (await browser.newContext({ timezoneId: 'Europe/Paris' })).newPage();
+        await cp.route(/fonts\.(googleapis|gstatic)/, r => r.abort());
+        await cp.goto(`http://localhost:${PORT}/index.html`); await cp.waitForSelector('.hero', { timeout: 15000 });
+        const dst = await cp.evaluate(() => {
+            const h = t => new Date(t).getHours(), d = (y, m, dd, hh) => new Date(y, m, dd, hh).getTime();
+            return [h(startOfDay(d(2026, 2, 29, 12))), h(addDays(d(2026, 2, 28, 10), 1)), h(startOfDay(d(2026, 9, 25, 12))), h(addDays(d(2026, 9, 24, 10), 1)), dayKey(d(2026, 2, 29, 4)), dayKey(d(2026, 2, 29, 3, 30))];
+        });
+        ok('clock change (Paris): the day starts at 4 h and due dates fall at 4 h', JSON.stringify(dst) === JSON.stringify([4, 4, 4, 4, '2026-03-29', '2026-03-28']), JSON.stringify(dst));
+        await cp.context().close();
+    }
+    /* Léo: a scene always ends with his tablet back, even when a clip cannot load; no coffee at night; he says hello */
+    {
+        await go('dashboard'); await wait(800);
+        const sc = await page.evaluate(async () => {
+            const r = document.querySelector('.hero .leo3d'); r._leoBusy = 0; r.classList.remove('lv-clip');
+            if (r.dataset.state !== 's1') leoSetState(r, 's1');
+            const saved = LEO_CLIPS.aha0.f; LEO_CLIPS.aha0.f = 'mascot/does-not-exist.webp';
+            const ok = await leoScene(r, 'aha0'); LEO_CLIPS.aha0.f = saved;
+            await new Promise(x => setTimeout(x, 500));
+            const real = Date.prototype.getHours; Date.prototype.getHours = () => 2;
+            const night = leoClipFor(r, 'ready', 'Un lion ne chasse pas sans café ☕'); Date.prototype.getHours = () => 9;
+            const day = leoClipFor(r, 'ready', 'Un lion ne chasse pas sans café ☕'); Date.prototype.getHours = real;
+            return { ok, state: r.dataset.state, clip: r.classList.contains('lv-clip'), night, day };
+        });
+        for (let i = errs.length - 1; i >= 0; i--) if (/does-not-exist/.test(errs[i])) errs.splice(i, 1);   // (the missing file is the point of this test)
+        ok('Léo: a scene with a clip that cannot load ends with his tablet back', sc.state === 's1' && !sc.clip, JSON.stringify(sc));
+        ok('Léo: coffee only by day', sc.night !== 'scene:coffee' && sc.day === 'scene:coffee', `${sc.night} / ${sc.day}`);
+        await wait(2500);
+        const hi = await page.evaluate(async () => { app.mascotHello(); await new Promise(x => setTimeout(x, 2200)); const t = (document.querySelector('.hero-sub') || {}).textContent || ''; return t; });
+        ok('Léo says hello in his bubble', /Bonjour|Bonsoir|Coucou/.test(hi), hi.slice(0, 50));
+        await go('settings'); await wait(300); await page.evaluate(() => { const t = document.querySelector('.hero-sub'); if (t) t.dataset.mark = 'x'; });
+        await go('dashboard'); await wait(2800);
+        const again = await page.evaluate(() => (document.querySelector('.hero-sub') || {}).textContent || '');
+        ok('Léo does not say hello again when coming back to the home page', !/^(Bonjour|Bonsoir|Coucou)/.test(again.trim()), again.slice(0, 50));
+    }
+    /* undo: the cancelled answer is not counted twice (counters, "d'affilée" run, history, day totals) */
+    {
+        const u = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms));
+            a.startStudy(null); await w(600);
+            const snap = () => ({ done: a.session.done, run: a.session.run || 0, best: a.session.bestRun || 0, today: a.data.stats.history[dayKey()] || 0, log: a.data.revlog.length });
+            const answer = async () => { a.reveal(); await w(150); a.grade(3); await w(700); };
+            for (let i = 0; i < 4; i++) await answer();
+            const before = snap(); await answer(); const after = snap();
+            a.undo(); await w(300); const undone = snap();
+            await answer(); const again = snap();
+            a.endSession(false); a.session = null; a.go('dashboard');
+            return { before, after, undone, again };
+        });
+        const { before: b, after: af, undone: un, again: ag } = u;
+        ok('undo: the answer and the "d\'affilée" run go back, then count once', JSON.stringify(un) === JSON.stringify(b) && af.run === b.run + 1 && ag.run === af.run && ag.done === af.done && ag.today === af.today && ag.log === af.log, JSON.stringify(u));
+    }
+    /* going back after burying a card: the buried card does not come back */
+    {
+        const bu = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms));
+            a.startStudy(null); await w(600);
+            a.reveal(); await w(150); a.grade(3); await w(700);          // card 1 answered
+            const buried = a.session.current; a.opBury([buried], false); await w(300);   // card 2 put away until tomorrow
+            a.undo(); await w(300);                                       // back: card 1
+            const inQueue = a.session.queue.includes(buried) || a.session.current === buried;
+            a.reveal(); await w(150); a.grade(3); await w(700);
+            const next = a.session.current; a.endSession(false); a.session = null; a.go('dashboard');
+            a.card(buried).buriedUntil = 0;
+            return { inQueue, backAgain: next === buried };
+        });
+        ok('going back after burying a card: the buried card does not come back', !bu.inQueue && !bu.backAgain, JSON.stringify(bu));
+    }
+    /* new cards: those offered yesterday and not studied come first today (4 left of 5 = those 4 + 1 more) */
+    {
+        const nc = await page.evaluate(() => {
+            const a = app, st = a.data.stats, set = a.data.settings, keep = [set.newOrder, set.newPerDay];
+            set.newOrder = 'random'; set.newPerDay = 5; st.newPrio = null; st.newSeen = { date: null, count: 0, by: {} };
+            const d1 = a.studyPlan(null).news.map(c => c.id), first = a.card(d1[0]), save = JSON.stringify(first);
+            first.state = 'review'; first.due = Date.now() + 5 * 864e5; first.interval = 5;
+            st.newPrio.date = '2000-01-01'; st.newSeen = { date: null, count: 0, by: {} };
+            const d2 = a.studyPlan(null).news.map(c => c.id);
+            Object.assign(first, JSON.parse(save)); [set.newOrder, set.newPerDay] = keep; st.newPrio = null;
+            return { n1: d1.length, n2: d2.length, kept: d1.slice(1).every(id => d2.includes(id)), gone: !d2.includes(d1[0]) };
+        });
+        ok('new cards of yesterday not studied come first today', nc.n1 === 5 && nc.n2 === 5 && nc.kept && nc.gone, JSON.stringify(nc));
+    }
+
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));
     console.log(R.join('\n') + `\n\n${R.length - failed}/${R.length} checks passed`);
     await browser.close(); server.close(); process.exit(failed ? 1 : 0);

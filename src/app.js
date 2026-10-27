@@ -1486,7 +1486,7 @@ class SuperAnki {
     mascotHome(mood, due = 0) {
         const h = new Date().getHours(), night = h >= 23 || h < 5, morning = h >= 5 && h < 8, first = !window._leoIntro;
         const greet = first || window._leoGreet;
-        window._leoIntro = true; window._leoGreet = false; if (greet) window._leoHello = true;
+        window._leoIntro = true; window._leoGreet = false; if (greet) window._leoHello = Date.now();   // (he says hello only for an opening of the app, never when coming back from a review or another tab)
         const AMB = { ready: due > 100 ? 'talk,show,think' : 'talk,show', happy: 'talk,show,wave', calm: night ? 'yawn,nap' : 'talk,nap' };
         const again = () => { const l = AMB[mood].split(','), fresh = l.filter(k => k !== window._leoLastIntro), k = fresh[Math.floor(Math.random() * fresh.length)]; window._leoLastIntro = k; return Math.random() < .75 ? k : ''; };
         let state = 's1', intro = '';
@@ -1516,8 +1516,8 @@ class SuperAnki {
         try {
             if (this.view !== 'dashboard' || document.hidden || !$('.hero-sub') || !this.data) return;
             if (window._leoHello) {
-                window._leoHello = false;
-                const r = $('.hero .leo3d'); if (r && r.dataset.state !== 'sleep') { this.mascotHello(); clearTimeout(this._leoT); this._leoT = setTimeout(() => this.mascotAuto(), 7000); return; }
+                const fresh = Date.now() - window._leoHello < 15000; window._leoHello = 0;
+                const r = $('.hero .leo3d'); if (fresh && r && r.dataset.state !== 'sleep') { this.mascotHello(); clearTimeout(this._leoT); this._leoT = setTimeout(() => this.mascotAuto(), 7000); return; }
             }
             let st = {}; try { st = JSON.parse(localStorage.getItem('lh_leo_auto') || '{}'); } catch { st = {}; }
             const today = dayKey(), stats = this.data.stats, streak = stats.streak || 0;
@@ -2802,7 +2802,7 @@ class SuperAnki {
             card: { ...c, tags: [...c.tags], fs: c.fs ? { ...c.fs } : null }, stats: JSON.stringify(this.data.stats),
             sibs: c.nid ? this.data.cards.filter(x => x.nid === c.nid && x.id !== c.id).map(x => [x.id, x.buriedUntil]) : [],
             queue: [...s.queue], learning: s.learning ? s.learning.map(l => ({ ...l })) : null,
-            done: s.done, correct: s.correct, missed: [...s.missed], retries: s.retries ? { ...s.retries } : null, current: s.current, ordMax: s.ordMax,
+            done: s.done, correct: s.correct, run: s.run || 0, bestRun: s.bestRun || 0, lastId: s.lastId, missed: [...s.missed], retries: s.retries ? { ...s.retries } : null, current: s.current, ordMax: s.ordMax,
             revlogLen: this.data.revlog.length
         });
         if (s.history.length > 50) s.history.shift();
@@ -2886,8 +2886,11 @@ class SuperAnki {
         (h.sibs || []).forEach(([id, until]) => { const x = this.card(id); if (x) x.buriedUntil = until; });
         this.data.stats = normalizeStats(JSON.parse(h.stats));
         if (this.data.revlog.length > h.revlogLen) this.data.revlog.length = h.revlogLen;
-        s.queue = h.queue; if (h.learning) s.learning = h.learning;
+        /* cards buried or suspended since the snapshot stay out (going back must not bring a card back that was put away until tomorrow) */
+        const hidden = id => { const c = this.card(id); return !c || c.suspended || c.buriedUntil > Date.now(); };
+        s.queue = h.queue.filter(id => !hidden(id)); if (h.learning) s.learning = h.learning.filter(l => !hidden(l.id));
         s.done = h.done; s.correct = h.correct; s.missed = h.missed; if (h.retries) s.retries = h.retries;
+        s.run = h.run; s.bestRun = h.bestRun; s.lastId = h.lastId; s._runShown = h.run;   // the "d'affilée" streak goes back too (it counted the cancelled answer again)
         if (s.ordKey && h.ordMax !== undefined) {   // "in order" session: the saved position goes back too
             s.ordMax = h.ordMax;
             const op = { ...(this.data.settings.ordPos || {}) }; op[s.ordKey] = { i: s.ordMax + 1, n: s.ordAll.length, t: Date.now() };
