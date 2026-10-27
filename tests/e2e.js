@@ -68,12 +68,14 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 
     /* 2. progressive tabs: complete, identical to a full render, quick */
     const eq = await page.evaluate(async () => {
+        /* Léo and what he says change by themselves (random greeting, clips, speech): they are not part of the page structure that is compared */
+        const snap = el => { const c = el.cloneNode(true); c.querySelectorAll('.leo3d, .leo-bubble').forEach(x => x.remove()); c.querySelectorAll('.hero-sub').forEach(x => { if (x.dataset.orig) x.innerHTML = x.dataset.orig; x.classList.remove('speaking'); delete x.dataset.orig; }); return c.innerHTML; };
         const out = {}, norm = h => h.replace(/\s+/g, ' ').replace(/> </g, '><').replace(/ style="[^"]*"/g, '').replace(/ class="([^"]*)"/g, (m, c) => ' class="' + c.split(' ').filter(x => !/^(view-in|cascade|on$|lv-|leo-off)/.test(x)).sort().join(' ') + '"').replace(/ data-w="\d+"/g, '').replace(/ data-(intro|state|live|hold)="[^"]*"/g, '')   // (Léo's random greeting is not part of the page structure).replace(/blob:[^"']+/g, '');
         for (const v of ['dashboard', 'decks', 'stats', 'settings']) {
             app._ver++; app.go(v); await new Promise(r => setTimeout(r, 2800));
-            const prog = norm(document.getElementById('view-' + v).innerHTML);
+            const prog = norm(snap(document.getElementById('view-' + v)));
             app.render(); await new Promise(r => setTimeout(r, 300));
-            out[v] = prog === norm(document.getElementById('view-' + v).innerHTML);
+            out[v] = prog === norm(snap(document.getElementById('view-' + v)));
             app.go('decks'); await new Promise(r => setTimeout(r, 200));
         }
         return out;
@@ -373,10 +375,10 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         await wait(2500);
         const hi = await page.evaluate(async () => { app.mascotHello(); await new Promise(x => setTimeout(x, 2200)); const t = (document.querySelector('.hero-sub') || {}).textContent || ''; return t; });
         ok('Léo says hello in his bubble', /Bonjour|Bonsoir|Coucou/.test(hi), hi.slice(0, 50));
-        await go('settings'); await wait(300); await page.evaluate(() => { const t = document.querySelector('.hero-sub'); if (t) t.dataset.mark = 'x'; });
-        await go('dashboard'); await wait(2800);
-        const again = await page.evaluate(() => (document.querySelector('.hero-sub') || {}).textContent || '');
-        ok('Léo does not say hello again when coming back to the home page', !/^(Bonjour|Bonsoir|Coucou)/.test(again.trim()), again.slice(0, 50));
+        await page.evaluate(() => { window.__hellos = 0; const f = app.mascotHello; app.mascotHello = function () { window.__hellos++; return f.apply(this, arguments); }; });
+        await go('settings'); await wait(300); await go('dashboard'); await wait(2500);
+        const hellos = await page.evaluate(() => window.__hellos);
+        ok('Léo does not say hello again when coming back to the home page', hellos === 0, String(hellos));
     }
     /* undo: the cancelled answer is not counted twice (counters, "d'affilée" run, history, day totals) */
     {

@@ -997,7 +997,7 @@ class SuperAnki {
         this.initRipple();
         this.initScrollShadow();
         leoInit();
-        this.initPull(); this.initSwipeBack(); this.initRowSwipe(); if (window.matchMedia('(pointer: coarse)').matches) this.initTabSwipe();
+        this.initPull(); this.initSwipeBack(); this.initRowSwipe(); this.initTabSwipe();
         this.focusInit();
         this.extrasInit();
         this.ambInit();

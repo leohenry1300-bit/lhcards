@@ -70,6 +70,42 @@ function parseVoice(heard) {
     return best;
 }
 
+/* one handler for a finger and for a mouse button held down: the same slide gestures work on a phone and on a computer.
+   h.start(x, y, event, byMouse) may answer false to ignore the gesture; move / end get the position; cancel is called when the system takes the touch away */
+function dragBind(target, h) {
+    target.addEventListener('touchstart', e => { if (e.touches.length === 1) h.start(e.touches[0].clientX, e.touches[0].clientY, e, false); else if (h.cancel) h.cancel(); }, { passive: true });
+    target.addEventListener('touchmove', e => h.move(e.touches[0].clientX, e.touches[0].clientY, e, false), { passive: true });
+    target.addEventListener('touchend', e => h.end(e.changedTouches[0].clientX, e.changedTouches[0].clientY, e, false), { passive: true });
+    target.addEventListener('touchcancel', () => { if (h.cancel) h.cancel(); }, { passive: true });
+    target.addEventListener('mousedown', e => {
+        if (e.button !== 0 || e.target.closest('button, a, input, textarea, select, [contenteditable], audio, video')) return;
+        if (h.start(e.clientX, e.clientY, e, true) === false) return;
+        let moved = false;
+        const mm = ev => {
+            if (!moved && Math.abs(ev.clientX - e.clientX) + Math.abs(ev.clientY - e.clientY) > 6) { moved = true; document.body.classList.add('dragging'); }
+            h.move(ev.clientX, ev.clientY, ev, true);
+        };
+        const mu = ev => {
+            document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', mu); document.body.classList.remove('dragging');
+            h.end(ev.clientX, ev.clientY, ev, true);
+            if (moved) { const stop = c => { c.stopPropagation(); c.preventDefault(); }; document.addEventListener('click', stop, { capture: true, once: true }); setTimeout(() => document.removeEventListener('click', stop, true), 120); }   // (the click that ends a drag is not a tap)
+        };
+        document.addEventListener('mousemove', mm); document.addEventListener('mouseup', mu);
+    });
+}
+/* two fingers sliding sideways on a trackpad (or a mouse wheel tilted sideways): calls h.start / h.move(-sum) / h.end like a drag, the end being the moment the sliding stops */
+function wheelDrag(target, h, { limit = 260 } = {}) {
+    let sum = 0, t = 0;
+    target.addEventListener('wheel', e => {
+        if (e.ctrlKey || Math.abs(e.deltaX) <= Math.abs(e.deltaY) || (h.accept && !h.accept(e))) return;
+        e.preventDefault();
+        if (!sum) h.start(0, 0, e, true);
+        sum = Math.max(-limit, Math.min(limit, sum + e.deltaX)) || 0.01;
+        h.move(-sum, 0, e, true);
+        clearTimeout(t); t = setTimeout(() => { sum = 0; h.end(0, 0, e, true); }, 180);
+    }, { passive: false });
+}
+
 Object.assign(SuperAnki.prototype, {
     /* ============ trash ============ */
     trashAdd(kind, obj, now) {
@@ -165,7 +201,6 @@ Object.assign(SuperAnki.prototype, {
         const gradeOf = () => (axisOf() === 'x' ? (dx > 0 ? 3 : 1) : (dy < 0 ? 4 : 2));
         const pull = () => (axisOf() === 'x' ? Math.abs(dx) : Math.abs(dy));
         const reset = () => { if (raf) { cancelAnimationFrame(raf); raf = 0; } lastStep = lastG = -1; card.style.willChange = ''; card.style.transition = 'transform .18s'; card.style.transform = ''; card.classList.remove('swiping'); card.style.removeProperty('--sw-a'); Object.values(CLS).forEach(c => card.classList.remove(c)); delete card.dataset.swipe; active = false; };
-        card.addEventListener('touchstart', e => { if (e.touches.length !== 1) return; x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = dy = 0; active = false; card.style.transition = 'none'; }, { passive: true });
         /* the card is moved once per screen frame (not on every touch event) and only its position changes while the finger moves; the tint changes in a few steps */
         let lastStep = -1, lastG = -1;
         const paint = () => {
@@ -182,17 +217,6 @@ Object.assign(SuperAnki.prototype, {
                 }
             } catch { /* a drawing problem must never stop the review */ }
         };
-        card.addEventListener('touchmove', e => {
-            const t = e.touches[0], mx = t.clientX - x0, my = t.clientY - y0;
-            if (!active) {
-                if (Math.abs(mx) > 12 && Math.abs(mx) > Math.abs(my) * 1.4) active = true;
-                else if (vert && Math.abs(my) > 12 && Math.abs(my) > Math.abs(mx) * 1.4) active = true;
-                else return;
-                card.style.willChange = 'transform';
-            }
-            dx = mx; dy = vert ? my : 0;
-            if (!raf) raf = requestAnimationFrame(paint);
-        }, { passive: true });
         const end = () => {
             if (!active) return;
             if (raf) { cancelAnimationFrame(raf); raf = 0; }
@@ -204,8 +228,23 @@ Object.assign(SuperAnki.prototype, {
                 active = false;
             } else reset();
         };
-        card.addEventListener('touchend', end, { passive: true });
-        card.addEventListener('touchcancel', reset, { passive: true });
+        const h = {
+            start: (x, y, e) => { x0 = x; y0 = y; dx = dy = 0; active = false; card.style.transition = 'none'; },
+            move: (x, y) => {
+                const mx = x - x0, my = y - y0;
+                if (!active) {
+                    if (Math.abs(mx) > 12 && Math.abs(mx) > Math.abs(my) * 1.4) active = true;
+                    else if (vert && Math.abs(my) > 12 && Math.abs(my) > Math.abs(mx) * 1.4) active = true;
+                    else return;
+                    card.style.willChange = 'transform';
+                    if (window.getSelection) { try { window.getSelection().removeAllRanges(); } catch { /* ignore */ } }
+                }
+                dx = mx; dy = vert ? my : 0;
+                if (!raf) raf = requestAnimationFrame(paint);
+            },
+            end, cancel: reset
+        };
+        dragBind(card, h); wheelDrag(card, h);
     },
     /* during a review: a swipe from the very left edge to the right goes back to the previous card (same as Z / ← on a keyboard) */
     initSwipeBack() {
@@ -216,64 +255,87 @@ Object.assign(SuperAnki.prototype, {
             if (dx > 80 && dy < 60 && Date.now() - t0 < 700 && this.session && this.session.history.length) this.undo();
         }, { passive: true });
     },
-    /* phone: a quick horizontal swipe on a page goes to the next / previous tab (not from the very edge, not on a list row, a field, a chart or anything that scrolls sideways) */
+    /* a quick horizontal slide on a page goes to the next / previous tab: a finger (not from the very edge), a mouse drag on an empty part of the page, or two fingers on a trackpad.
+       Not on a field, a chart, anything that scrolls sideways, or (to the left) a list row: there it shows the row's buttons. */
     initTabSwipe() {
         const ORDER = ['dashboard', 'decks', 'toeic', 'stats', 'settings'];
         let x0 = -1, y0 = 0, t0 = 0, onRow = false;
         const sideScroll = el => { for (let n = el; n && n !== document.body; n = n.parentElement) { const cs = getComputedStyle(n); if (/(auto|scroll)/.test(cs.overflowX) && n.scrollWidth > n.clientWidth + 2) return true; } return false; };
-        document.addEventListener('touchstart', e => {
-            const t = e.touches[0], el = e.target;
-            const ok = e.touches.length === 1 && !this.session && !this.modals.length && !this.popover && !this.ui.selMode && ORDER.includes(this.view) && t.clientX > 26 && t.clientX < innerWidth - 26
-                && el.closest && !el.closest('input, textarea, select, [contenteditable], .chart, .range, [data-chart-box], .leo-bubble') && !sideScroll(el);
-            x0 = ok ? t.clientX : -1; y0 = t.clientY; t0 = Date.now(); onRow = ok && !!el.closest('.card-row');
-        }, { passive: true });
-        document.addEventListener('touchend', e => {
-            if (x0 < 0) return; const t = e.changedTouches[0], dx = t.clientX - x0, dy = Math.abs(t.clientY - y0); x0 = -1;
-            /* on a list row, sliding to the left shows the row's buttons: only a slide to the right changes the tab */
-            if (Math.abs(dx) < 90 || dy * 2.2 > Math.abs(dx) || Date.now() - t0 > 650 || this.session || (onRow && dx < 0)) return;
-            const i = ORDER.indexOf(this.view), j = i + (dx < 0 ? 1 : -1);
-            if (j >= 0 && j < ORDER.length) this.tabGo(ORDER[j]);
-        }, { passive: true });
+        const allowed = el => !this.session && !this.modals.length && !this.popover && !this.ui.selMode && ORDER.includes(this.view) && el && el.closest
+            && !el.closest('input, textarea, select, [contenteditable], .chart, .range, [data-chart-box], .leo-bubble') && !sideScroll(el);
+        const go = dx => { const i = ORDER.indexOf(this.view), j = i + (dx < 0 ? 1 : -1); if (j >= 0 && j < ORDER.length) this.tabGo(ORDER[j]); };
+        dragBind(document, {
+            start: (x, y, e, mouse) => {
+                const el = e.target, ok = allowed(el) && (mouse ? !el.closest('[data-action], label, summary, .card-row, .panel-click') : x > 26 && x < innerWidth - 26);
+                x0 = ok ? x : -1; y0 = y; t0 = Date.now(); onRow = ok && !!el.closest('.card-row');
+                return ok ? true : false;
+            },
+            move: () => {},
+            end: (x, y) => {
+                if (x0 < 0) return; const dx = x - x0, dy = Math.abs(y - y0); x0 = -1;
+                if (Math.abs(dx) < 90 || dy * 2.2 > Math.abs(dx) || Date.now() - t0 > 650 || this.session || (onRow && dx < 0)) return;
+                go(dx);
+            },
+            cancel: () => { x0 = -1; }
+        });
+        /* trackpad: two fingers sliding sideways (once per slide) */
+        let sum = 0, last = 0, rest = 0;
+        document.addEventListener('wheel', e => {
+            if (e.ctrlKey || Math.abs(e.deltaX) <= Math.abs(e.deltaY) * 1.5 || !allowed(e.target) || e.target.closest('.card-row')) return;
+            e.preventDefault();
+            const now = Date.now(); if (now - rest < 700) { rest = now - 600; return; }   // (the slide's momentum does not count again)
+            sum = now - last > 250 ? 0 : sum; last = now; sum += e.deltaX;
+            if (Math.abs(sum) > 140) { const d = sum; sum = 0; rest = now; go(d > 0 ? -1 : 1); }   // (fingers to the left = next tab)
+        }, { passive: false });
     },
-    /* the card list: swipe a row right to mark it ⭐, left to put it away until tomorrow (both can be undone from the notice) */
-    /* the card list: slide a row to the left to show two buttons (⭐ mark, 🙈 put away until tomorrow), like in iOS Messages; nothing happens until a button is tapped */
+    /* the card list: slide a row to the left to show two buttons (⭐ mark, 🙈 put away until tomorrow), like in iOS Messages; nothing happens until a button is tapped.
+       Works with a finger, a mouse drag, or two fingers on a trackpad. */
     initRowSwipe() {
         const W = 168;
         let row = null, x0 = 0, y0 = 0, dx = 0, on = false, base = 0;
         const close = (r = this._openRow) => { if (!r) return; r.style.transition = 'transform .2s'; r.style.transform = ''; r.classList.remove('sw-open'); if (this._openRow === r) this._openRow = null; };
         this._closeRow = close;
         const actions = r => {
-            let box = r.querySelector('.row-actions');
-            if (!box) {
-                const c = this.card(r.dataset.card), buried = c && c.buriedUntil > Date.now();
-                box = document.createElement('span'); box.className = 'row-actions';
-                box.innerHTML = `<button data-action="row-act" data-act="mark" data-card="${esc(r.dataset.card)}" aria-label="Marquer">${ic('star')}<small>${c && c.marked ? 'Retirer' : 'Marquer'}</small></button><button data-action="row-act" data-act="bury" data-card="${esc(r.dataset.card)}" aria-label="Enfouir">${ic('eyeOff')}<small>${buried ? 'Déterrer' : 'Enfouir'}</small></button>`;
-                r.appendChild(box);
-            }
+            if (r.querySelector('.row-actions')) return;
+            const c = this.card(r.dataset.card), buried = c && c.buriedUntil > Date.now(), box = document.createElement('span'); box.className = 'row-actions';
+            box.innerHTML = `<button data-action="row-act" data-act="mark" data-card="${esc(r.dataset.card)}" aria-label="Marquer">${ic('star')}<small>${c && c.marked ? 'Retirer' : 'Marquer'}</small></button><button data-action="row-act" data-act="bury" data-card="${esc(r.dataset.card)}" aria-label="Enfouir">${ic('eyeOff')}<small>${buried ? 'Déterrer' : 'Enfouir'}</small></button>`;
+            r.appendChild(box);
         };
-        document.addEventListener('touchstart', e => {
-            const r = e.touches.length === 1 && !this.ui.selMode ? e.target.closest('#card-list .card-row') : null;
-            if (this._openRow && this._openRow !== r && !e.target.closest('.row-actions')) close();
-            row = r && !e.target.closest('.row-actions') ? r : null;
-            if (row) { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0; on = false; base = row.classList.contains('sw-open') ? -W : 0; row.style.transition = 'none'; }
-        }, { passive: true });
-        document.addEventListener('touchmove', e => {
-            if (!row) return;
-            const t = e.touches[0], mx = t.clientX - x0, my = t.clientY - y0;
-            if (!on && Math.abs(mx) > 14 && Math.abs(mx) > Math.abs(my) * 2) { on = true; actions(row); }
-            if (!on) return;
-            dx = Math.max(-W - 24, Math.min(0, base + mx)); row.style.transform = `translateX(${dx}px)`;
-        }, { passive: true });
-        const end = () => {
-            if (!row) return;
-            const r = row, was = on, d = dx; row = null; on = false;
-            if (!was) return;
-            this._rowSwiped = Date.now();
-            if (d < -W / 2) { r.style.transition = 'transform .2s'; r.style.transform = `translateX(${-W}px)`; r.classList.add('sw-open'); this._openRow = r; }
-            else close(r);
-        };
-        document.addEventListener('touchend', end, { passive: true });
-        document.addEventListener('touchcancel', () => { if (row) { close(row); row = null; on = false; } }, { passive: true });
+        const open = r => { actions(r); r.style.transition = 'transform .2s'; r.style.transform = `translateX(${-W}px)`; r.classList.add('sw-open'); this._openRow = r; };
+        dragBind(document, {
+            start: (x, y, e) => {
+                const r = !this.ui.selMode && e.target.closest ? e.target.closest('#card-list .card-row') : null;
+                if (this._openRow && this._openRow !== r && !e.target.closest('.row-actions')) close();
+                row = r && !e.target.closest('.row-actions') ? r : null;
+                if (!row) return false;
+                x0 = x; y0 = y; dx = 0; on = false; base = row.classList.contains('sw-open') ? -W : 0; row.style.transition = 'none';
+            },
+            move: (x, y) => {
+                if (!row) return;
+                const mx = x - x0, my = y - y0;
+                if (!on && Math.abs(mx) > 14 && Math.abs(mx) > Math.abs(my) * 2) { on = true; actions(row); }
+                if (!on) return;
+                dx = Math.max(-W - 24, Math.min(0, base + mx)); row.style.transform = `translateX(${dx}px)`;
+            },
+            end: () => {
+                if (!row) return;
+                const r = row, was = on, d = dx; row = null; on = false;
+                if (!was) return;
+                this._rowSwiped = Date.now();
+                if (d < -W / 2) open(r); else close(r);
+            },
+            cancel: () => { if (row) { close(row); row = null; on = false; } }
+        });
+        /* trackpad: two fingers to the left on a row shows its buttons, to the right hides them */
+        let rest = 0;
+        document.addEventListener('wheel', e => {
+            const r = e.target.closest && !this.ui.selMode ? e.target.closest('#card-list .card-row') : null;
+            if (!r || e.ctrlKey || Math.abs(e.deltaX) <= Math.abs(e.deltaY) * 1.5) return;
+            e.preventDefault();
+            const now = Date.now(); if (now - rest < 500) { rest = now - 400; return; }
+            if (e.deltaX > 20 && !r.classList.contains('sw-open')) { if (this._openRow) close(); open(r); rest = now; }
+            else if (e.deltaX < -20 && r.classList.contains('sw-open')) { close(r); rest = now; }
+        }, { passive: false });
     },
     /* two separate switches under the progress bar: reading aloud (speaker) and voice commands (microphone) */
     audioBarSync(usable) {
