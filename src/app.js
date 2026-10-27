@@ -1110,7 +1110,7 @@ class SuperAnki {
         const swap = () => {
             root.dataset.theme = resolved; this.applyLogo();
             const meta = $('meta[name="theme-color"]');
-            if (meta) { const cs = getComputedStyle(document.body); meta.content = cs.getPropertyValue('--theme-color').trim() || cs.getPropertyValue('--surface').trim() || '#ffffff'; }   // a theme can name the colour of the system bar
+            if (meta) { const cs = getComputedStyle(document.body), n = meta.cloneNode(); n.content = cs.getPropertyValue('--theme-color').trim() || cs.getPropertyValue('--surface').trim() || '#ffffff'; meta.replaceWith(n); }   // (a new tag, so the desktop window's title bar follows)   // a theme can name the colour of the system bar
         };
         if (this._themeSeen && root.dataset.theme !== resolved && !this.calm()) {
             if (document.startViewTransition) { const vt = document.startViewTransition(swap); [vt.ready, vt.finished, vt.updateCallbackDone].forEach(p => p && p.catch && p.catch(() => {})); }   // (a change started while another is running just skips the animation: not an error)   // the browser cross-fades two snapshots of the screen: smooth, no per-element transitions

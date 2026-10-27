@@ -277,6 +277,10 @@ try {{ var t = localStorage.getItem('superanki_theme'); if (t) document.document
 <style>
 {read("styles.css")}
 </style>
+<script>
+/* the colour of the window's title bar / the phone's status bar is the theme's from the very first image (it was the default blue until the app had loaded) */
+try {{ var cs = getComputedStyle(document.documentElement), c = (cs.getPropertyValue('--theme-color') || cs.getPropertyValue('--surface')).trim(); if (c) document.querySelector('meta[name="theme-color"]').content = c; }} catch (e) {{}}
+</script>
 </head>
 <body>
 {read("body.html")}
