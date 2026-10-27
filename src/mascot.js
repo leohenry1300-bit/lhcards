@@ -295,6 +295,7 @@ const LEO_SAYS = {
         "Hé, ça chatouille ! 😂", "Encore ? Je suis un lion, pas un bouton 😏", "Moustaches : ne pas toucher !",
         "OK OK, j'arrive !", "Tu cherches quoi, un câlin ? 🤗", "Je suis très occupé à être mignon.", "Continue, je vais bientôt rugir…"
     ],
+    hello: ["{hi} ! 👋", "{hi} toi ! Content de te voir 🦁", "{hi} ! On révise un peu ?", "{hi} ! Tu m'as manqué 😊", "{hi} ! Je te salue de toute ma patte 🐾"],
     wake: ["Mmh… tu m'as réveillé ?!", "Hein ? Quoi ? Je ne dormais pas !", "*bâille* Déjà ? Bon, d'accord…", "Oh… j'ai fait un petit somme 😴"],
     roar: ["GRRRR ! 🦁 Je rugis de fierté !", "RAAAWR ! Ça fait du bien 😤", "GRRR… pardon, c'était plus fort que moi 🙈"],
     milestone: {

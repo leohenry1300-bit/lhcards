@@ -1484,7 +1484,7 @@ class SuperAnki {
     mascotHome(mood, due = 0) {
         const h = new Date().getHours(), night = h >= 23 || h < 5, morning = h >= 5 && h < 8, first = !window._leoIntro;
         const greet = first || window._leoGreet;
-        window._leoIntro = true; window._leoGreet = false;
+        window._leoIntro = true; window._leoGreet = false; if (greet) window._leoHello = true;
         const AMB = { ready: due > 100 ? 'talk,show,think' : 'talk,show', happy: 'talk,show,wave', calm: night ? 'yawn,nap' : 'talk,nap' };
         const again = () => { const l = AMB[mood].split(','), fresh = l.filter(k => k !== window._leoLastIntro), k = fresh[Math.floor(Math.random() * fresh.length)]; window._leoLastIntro = k; return Math.random() < .75 ? k : ''; };
         let state = 's1', intro = '';
@@ -1505,9 +1505,18 @@ class SuperAnki {
         return 'ready';
     }
     /* Léo speaks first when something is worth it (at most once a day per event): a streak milestone, an exam coming up, a missed day */
+    /* when he greets you he says hello out loud (in his speech bubble); touching him while he waves says it again */
+    mascotHello() {
+        const h = new Date().getHours();
+        this.mascotSay(leoPick('hello', { hi: h < 5 ? 'Coucou' : h < 18 ? 'Bonjour' : 'Bonsoir' }), { cat: 'hello', clip: 'none', sound: 'leohappy' });
+    }
     mascotAuto() {
         try {
             if (this.view !== 'dashboard' || document.hidden || !$('.hero-sub') || !this.data) return;
+            if (window._leoHello) {
+                window._leoHello = false;
+                const r = $('.hero .leo3d'); if (r && r.dataset.state !== 'sleep') { this.mascotHello(); clearTimeout(this._leoT); this._leoT = setTimeout(() => this.mascotAuto(), 7000); return; }
+            }
             let st = {}; try { st = JSON.parse(localStorage.getItem('lh_leo_auto') || '{}'); } catch { st = {}; }
             const today = dayKey(), stats = this.data.stats, streak = stats.streak || 0;
             let line = '', party = false, mark = null, cat = 'ready';
@@ -4171,7 +4180,9 @@ class SuperAnki {
                 this._mTaps = (this._mTaps || []).filter(t => now - t < 2500); this._mTaps.push(now);
                 const root = el.querySelector && el.querySelector('.leo3d'), asleep = root && root.dataset.state === 'sleep';
                 if (root) leoTap(root);
+                const greeting = root && ['sitwave', 'wave', 'hello0'].includes(root._leoKey) && (root.classList.contains('lv-clip') || root._leoBusy > now);
                 if (asleep) this.mascotSay(leoPick('wake'), { cat: 'night', force: true });
+                else if (greeting && this._mTaps.length < 3) this.mascotHello();
                 else if (this._mTaps.length >= 5) { this._mTaps = []; this.mascotSay(leoPick('roar'), { cat: 'roar', force: true }); }
                 else if (this._mTaps.length >= 3) this.mascotSay(leoPick('tap'), { cat: 'tickle', force: true });
                 else this.mascotSay(leoPick(m === 'calm' && (h >= 23 || h < 5) ? 'night' : m, { streak }), { cat: this._mTaps.length === 2 ? 'tap' : m === 'calm' && (h >= 23 || h < 5) ? 'night' : m });
