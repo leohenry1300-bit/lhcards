@@ -411,6 +411,22 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         });
         ok('going back after burying a card: the buried card does not come back', !bu.inQueue && !bu.backAgain, JSON.stringify(bu));
     }
+    /* the recap at the end of a review counts the whole day, not only the last session */
+    {
+        const rc = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), t0 = startOfDay(), before = a.data.revlog.filter(r => r[0] >= t0).length;
+            const ids = a.data.cards.slice(0, 3).map(c => c.id);
+            ids.forEach((id, i) => a.data.revlog.push([t0 + 1000 + i, id, 3, 1, 5, 4, 2000]));   // 3 answers given earlier today
+            a.startStudy(null); await w(600);
+            for (let i = 0; i < 2; i++) { a.reveal(); await w(150); a.grade(3); await w(700); }
+            a.showSummary(); await w(300);
+            const n = (document.querySelector('.summary-stats .panel b') || {}).textContent;
+            const note = (document.querySelector('.summary .page-sub') || {}).textContent || '';
+            a.session = null; a.go('dashboard'); document.body.classList.remove('in-session');
+            return { n, note, want: String(before + 5) };
+        });
+        ok('recap counts all the answers of the day', rc.n === rc.want && /dont 2 dans cette session/.test(rc.note), JSON.stringify(rc));
+    }
     /* new cards: those offered yesterday and not studied come first today (4 left of 5 = those 4 + 1 more) */
     {
         const nc = await page.evaluate(() => {

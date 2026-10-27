@@ -3062,9 +3062,20 @@ class SuperAnki {
         const s = this.session;
         if (!s) return;
         if (s.timer) { clearInterval(s.timer); s.timer = null; }
-        const secs = Math.round((Date.now() - s.startedAt) / 1000);
-        const acc = s.done ? Math.round(s.correct / s.done * 100) : 0;
-        if (s.done >= 5 && acc >= 80) setTimeout(() => this.confetti(), 250);
+        let secs = Math.round((Date.now() - s.startedAt) / 1000), done = s.done, correct = s.correct, best = s.bestRun || 0, missedIds = s.missed;
+        /* the recap of a review counts the whole day (morning + noon + evening), not only this last session */
+        let dayNote = '';
+        if (s.kind === 'srs') {
+            const t0 = startOfDay(), rows = this.data.revlog.filter(r => r[0] >= t0);
+            if (rows.length >= s.done) {
+                done = rows.length; correct = rows.filter(r => r[2] >= 2).length; secs = Math.round(rows.reduce((n, r) => n + (r[6] || 0), 0) / 1000);
+                let run = 0; best = 0; rows.forEach(r => { run = r[2] >= 2 ? run + 1 : 0; best = Math.max(best, run); });
+                missedIds = [...new Set([...rows.filter(r => r[2] === 1).map(r => r[1]), ...s.missed])];
+                if (done > s.done) dayNote = `Aujourd'hui : ${plural(done, 'réponse')} (dont ${s.done} dans cette session).`;
+            }
+        }
+        const acc = done ? Math.round(correct / done * 100) : 0;
+        if (done >= 5 && acc >= 80) setTimeout(() => this.confetti(), 250);
         let emoji = acc >= 90 ? '🏆' : acc >= 70 ? '🎉' : acc >= 50 ? '💪' : '📚';
         let title = s.kind === 'srs' ? 'Session terminée !' : s.kind === 'chrono' ? 'Temps écoulé !' : s.kind === 'quiz' ? 'Quiz terminé !' : 'Entraînement terminé !';
         let lead = '';
@@ -3076,10 +3087,10 @@ class SuperAnki {
         } else if (s.kind === 'srs') {
             const pending = (s.learning || []).length;
             const next = this.nextDueTime();
-            lead = pending ? `${plural(pending, 'carte')} en cours d'apprentissage reviendra bientôt.` : next < Infinity ? `Prochaine révision ${fmtRelativeFuture(next)}.` : '';
+            lead = [dayNote, pending ? `${plural(pending, 'carte')} en cours d'apprentissage reviendra bientôt.` : next < Infinity ? `Prochaine révision ${fmtRelativeFuture(next)}.` : ''].filter(Boolean).join(' ');
         }
         if (!s.done && s.kind !== 'chrono') { this.endSession(true); return; }
-        const missed = s.missed.map(id => this.card(id)).filter(Boolean);
+        const missed = missedIds.map(id => this.card(id)).filter(Boolean);
         const kind = s.kind;
         let groupLeft = 0;
         if (kind === 'srs' && s.grouped) { const pl = this.studyPlan(s.deckId ? [s.deckId] : null); groupLeft = pl.reviews.length + pl.news.length; }
@@ -3095,8 +3106,8 @@ class SuperAnki {
             ${lead ? `<p class="page-sub">${lead}</p>` : ''}
             ${kind === 'chrono' ? '' : `<div class="summary-ring" style="--off:${100 - acc}"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="rg-bg" cx="50" cy="50" r="44"/><circle class="rg-fg" cx="50" cy="50" r="44" pathLength="100"/></svg><div class="ring-in"><b>${acc}%</b><small>réussite</small></div></div>`}
             <div class="summary-stats">
-                <div class="panel"><b>${kind === 'chrono' ? s.score : s.done}</b><span>${kind === 'chrono' ? 'points' : 'cartes'}</span></div>
-                <div class="panel"><b>${kind === 'chrono' ? acc + '%' : (s.bestRun || 0)}</b><span>${kind === 'chrono' ? 'réussite' : 'meilleure série'}</span></div>
+                <div class="panel"><b>${kind === 'chrono' ? s.score : done}</b><span>${kind === 'chrono' ? 'points' : 'cartes'}</span></div>
+                <div class="panel"><b>${kind === 'chrono' ? acc + '%' : best}</b><span>${kind === 'chrono' ? 'réussite' : 'meilleure série'}</span></div>
                 <div class="panel"><b>${fmtDuration(secs)}</b><span>durée</span></div>
             </div>
             ${missed.length ? `
