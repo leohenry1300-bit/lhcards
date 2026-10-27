@@ -443,6 +443,8 @@ Object.assign(SuperAnki.prototype, {
         const ids = [s.current], c = this.card(s.current);
         const extra = [
             { icon: 'volume', label: 'Écouter la carte', fn: () => this.speak() },
+            { icon: 'plus', label: 'Agrandir le texte', fn: () => this.handleAction('card-size', { dataset: { d: '1' } }) },
+            { icon: 'chevronDown', label: 'Réduire le texte', fn: () => this.handleAction('card-size', { dataset: { d: '-1' } }) },
             { icon: 'eyeOff', label: document.body.classList.contains('zen') ? 'Quitter le mode zen' : 'Mode zen (masquer le reste)', fn: () => this.toggleZen() },
             { sep: true }
         ];

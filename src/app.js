@@ -2492,7 +2492,7 @@ class SuperAnki {
                 <div class="kbd-list">
                     <span><kbd class="k">Espace</kbd></span><span>Afficher la réponse, puis « Bien »</span>
                     <span><kbd class="k">1</kbd> <kbd class="k">2</kbd> <kbd class="k">3</kbd> <kbd class="k">4</kbd></span><span>Raté · Difficile · Bien · Facile (ou choix du quiz)</span>
-                    <span><kbd class="k">Z</kbd></span><span>Annuler la dernière réponse</span>
+                    <span><kbd class="k">Z</kbd> · <kbd class="k">←</kbd></span><span>Annuler la dernière réponse (revenir à la carte précédente)</span>
                     <span><kbd class="k">E</kbd> · <kbd class="k">I</kbd></span><span>Modifier · informations de la carte</span>
                     <span><kbd class="k">*</kbd> · <kbd class="k">@</kbd> · <kbd class="k">!</kbd></span><span>Marquer · suspendre la carte · suspendre la note</span>
                     <span><kbd class="k">-</kbd> · <kbd class="k">=</kbd></span><span>Enfouir la carte · la note (jusqu'à demain)</span>
@@ -3886,7 +3886,7 @@ class SuperAnki {
             const ops = { '*': () => this.opMark(ids), '@': () => this.opSuspend(ids, false), '!': () => this.opSuspend(ids, true), '-': () => this.opBury(ids, false), '=': () => this.opBury(ids, true), i: () => this.openCardInfo(s.current) };
             if (ops[e.key] || ops[k]) { e.preventDefault(); (ops[e.key] || ops[k])(); return; }
         }
-        if (k === 'z') { e.preventDefault(); this.undo(); return; }
+        if (k === 'z' || (k === 'arrowleft' && (s.kind === 'srs' || !s.revealed))) { e.preventDefault(); this.undo(); return; }   // ← goes back to the previous card
         if (k === 'e') { e.preventDefault(); this.openCardModal(s.current); return; }
         if (k === 'h') { e.preventDefault(); this.handleAction('hint'); return; }
         if (!s.revealed) {
