@@ -142,8 +142,16 @@ Object.assign(SuperAnki.prototype, {
         const deckRows = (kidsOf.length ? kidsOf : scopeId && this.deck(scopeId) ? [this.deck(scopeId)] : []).map(dk => { const c = dstats.get(dk.id); return { dk, c, n: c.total, pct: this.pctMature(c), seen: this.pctSeen(c), kids: this.childrenOf(dk.id).length }; });
         const upId = scopeId && this.deck(scopeId) ? (this.deck(scopeId).parent || 'all') : null;
 
+        const errPanel = `<section class="panel panel-pad stat-card wide">
+                <div class="section-head" style="margin-bottom:6px">
+                    <h4 class="stat-title">${ic('target')} Mes erreurs</h4>
+                    ${errCount ? `<button class="btn btn-primary btn-sm" data-action="practice-errors">${ic('play')}Retravailler (${errCount})</button>` : ''}
+                </div>
+                <p class="small muted">${errCount ? `${plural(errCount, 'carte')} ratée${errCount > 1 ? 's' : ''} récemment. Elles sortent de la liste dès que tu les réussis.` : 'Aucune erreur en attente. Les cartes ratées en révision, en quiz ou au chrono apparaîtront ici.'}</p>
+            </section>`;
         const sections = [
             this.statToday(scope),
+            errPanel,
             this.statForecast(scope),
             this.statCalendar(scope),
             this.statReviews(scope),
@@ -173,13 +181,6 @@ Object.assign(SuperAnki.prototype, {
                 <div class="panel kpi"><span>Temps total</span><b>${fmtDuration(st.studySeconds)}</b><em>${plural(Object.values(st.history).reduce((a, b) => a + b, 0), 'révision')}</em></div>
             </div>
             <div class="stats-grid">${sections.join('')}</div>
-            <div class="panel panel-pad">
-                <div class="section-head" style="margin-bottom:6px">
-                    <h4 class="stat-title">${ic('target')} Mes erreurs</h4>
-                    ${errCount ? `<button class="btn btn-primary btn-sm" data-action="practice-errors">${ic('play')}Retravailler (${errCount})</button>` : ''}
-                </div>
-                <p class="small muted">${errCount ? `${plural(errCount, 'carte')} ratée${errCount > 1 ? 's' : ''} récemment. Elles sortent de la liste dès que tu les réussis.` : 'Aucune erreur en attente. Les cartes ratées en révision, en quiz ou au chrono apparaîtront ici.'}</p>
-            </div>
             <div class="panel panel-pad">
                 <div class="section-head" style="margin-bottom:8px"><h4 class="stat-title">Maîtrise par paquet</h4>${upId ? `<button class="link" data-action="stats-deck" data-deck="${esc(upId)}">${ic('chevronLeft')}Niveau au-dessus</button>` : ''}</div>
                 ${deckRows.map(r => `

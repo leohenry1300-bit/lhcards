@@ -1566,7 +1566,21 @@ class SuperAnki {
         return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2 + window.scrollY) };
     }
     /* zen mode: only the card and the answers stay on screen */
-    toggleZen() { document.body.classList.toggle('zen'); this.toast(document.body.classList.contains('zen') ? 'Mode zen activé' : 'Mode zen désactivé', 'success'); }
+    toggleZen(force) {
+        const on = force === undefined ? !document.body.classList.contains('zen') : force;
+        document.body.classList.toggle('zen', on);
+        this.zenScreen(on);
+        this.toast(on ? 'Mode zen activé' : 'Mode zen désactivé', 'success');
+    }
+    /* on a computer the zen mode also takes the whole screen (like F11); leaving it, or pressing Escape, brings the normal window back */
+    zenScreen(on) {
+        try {
+            if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches || !document.documentElement.requestFullscreen) return;
+            if (!this._zenFs) { this._zenFs = true; document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && document.body.classList.contains('zen')) { document.body.classList.remove('zen'); if (this.view === 'session') this.toast('Mode zen désactivé', 'success'); } }); }
+            if (on && !document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+            else if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {});
+        } catch { /* ignore */ }
+    }
     /* the top bar gets a soft shadow once the page is scrolled */
     initScrollShadow() {
         const bar = $('.topbar'); if (!bar) return;
@@ -1635,7 +1649,7 @@ class SuperAnki {
         document.body.classList.toggle('in-session', this.view === 'session' || this.view === 'exam');
         document.body.classList.toggle('in-exam', this.view === 'exam');
         if (this.view !== 'decks') document.body.classList.remove('deck-sheet');
-        if (this.view !== 'session') document.body.classList.remove('zen');
+        if (this.view !== 'session' && document.body.classList.contains('zen')) { document.body.classList.remove('zen'); this.zenScreen(false); }
         this.renderStreak();
         this.renderSyncIndicator();
         if (reuse) return;
