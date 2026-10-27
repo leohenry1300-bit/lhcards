@@ -1724,7 +1724,7 @@ class SuperAnki {
         if (!fromGo) this._ver = (this._ver || 0) + 1;   // a redraw asked by a change: the screens kept from earlier are out of date
         ['dashboard', 'decks', 'stats', 'settings', 'session', 'toeic', 'exam'].forEach(v => $(`#view-${v}`).classList.toggle('hidden', v !== this.view));
         $$('[data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === this.view && !b.classList.contains('brand') && !b.classList.contains('streak-chip') && !b.classList.contains('sync-dot')));
-        document.body.classList.toggle('in-session', this.view === 'session' || this.view === 'exam'); this.heroVideo();
+        document.body.dataset.view = this.view; document.body.classList.toggle('in-session', this.view === 'session' || this.view === 'exam'); this.heroVideo();
         document.body.classList.toggle('in-exam', this.view === 'exam');
         if (this.view !== 'decks') document.body.classList.remove('deck-sheet');
         if (this.view !== 'session' && document.body.classList.contains('zen')) { document.body.classList.remove('zen'); this.zenScreen(false); }
