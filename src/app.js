@@ -1389,6 +1389,7 @@ class SuperAnki {
         if (this.ex && view !== 'exam') this.exLeave();
         if (view === 'session' && this.view !== 'session' && this.view !== 'exam') this.back = { view: this.view, deck: this.ui.deck, filter: this.ui.filter, y: window.scrollY };   // where to return when the session is closed
         const prevView = this.view;
+        if (view === 'decks' && prevView && prevView !== 'decks' && prevView !== 'session' && prevView !== 'exam') this._deckPrev = prevView;   // where "back" goes when the deck he is looking at is deleted
         if (prevView && prevView !== 'session' && prevView !== 'exam') (this.scrollMem = this.scrollMem || {})[prevView] = window.scrollY;
         this.view = view;
         if (opts.deck !== undefined) { this.ui.deck = opts.deck; this.ui.limit = 60; this.touchDeck(opts.deck); }
@@ -3252,8 +3253,14 @@ class SuperAnki {
             this.data.decks = this.data.decks.filter(d => !set.has(d.id));
             this.data.cards = this.data.cards.filter(c => !set.has(c.deckId));
         }, { decks: true });
-        this.ui.deck = 'all';
-        this.render();
+        /* after deleting the deck he was looking at: back to its parent deck, else to the page he came from (never to the pile of all the cards) */
+        if (this.view === 'decks' && (this.ui.deck === deckId || set.has(this.ui.deck))) {
+            const parent = deck.parent && this.deck(deck.parent) ? deck.parent : null, from = this._deckPrev;
+            this.ui.limit = 60; this.ui.filter = 'all'; this.ui.deckQ = '';
+            if (parent) { this.ui.deck = parent; this.render(); }
+            else if (from && from !== 'decks') { this.ui.deck = 'all'; this.go(from); }
+            else { this.ui.deck = 'all'; this.ui.treeOpen = true; this.render(); }
+        } else this.render();
         this.undoToast('Paquet supprimé', ic('trash'));
     }
 

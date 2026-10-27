@@ -440,6 +440,20 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         });
         ok('new card put away counts for the day; put back it counts no more', bn.n0 === 5 && bn.n1 === 3 && bn.n2 === 5, JSON.stringify(bn));
     }
+    /* deleting the deck he is looking at: back to its parent deck, or to the page he came from (not to all the cards) */
+    {
+        const dd = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms));
+            a.confirm = async () => true;
+            const root = a.data.decks.find(d => !d.parent), sub = a.data.decks.find(d => d.parent);
+            const out = {};
+            if (sub) { a.go('decks', { deck: sub.id, filter: 'all' }); await w(300); await a.deleteDeck(sub.id); await w(300); out.parent = a.ui.deck === sub.parent; a.undoGlobal(); await w(200); }
+            a.go('dashboard'); await w(300); a.go('decks', { deck: root.id, filter: 'all' }); await w(300);
+            await a.deleteDeck(root.id); await w(500); out.view = a.view; out.all = a.ui.deck; a.undoGlobal(); await w(200); a.go('dashboard');
+            return out;
+        });
+        ok('deleting a deck: back to the parent deck / the page he came from', (dd.parent !== false) && dd.view === 'dashboard', JSON.stringify(dd));
+    }
     /* new cards: those offered yesterday and not studied come first today (4 left of 5 = those 4 + 1 more) */
     {
         const nc = await page.evaluate(() => {
