@@ -1002,7 +1002,7 @@ class SuperAnki {
         this.initRipple();
         this.initScrollShadow();
         leoInit();
-        this.initPull(); setInterval(() => this.beachSky(), 300000); document.addEventListener('visibilitychange', () => { if (!document.hidden) this.beachSky(); }); this.initSwipeBack(); this.initRowSwipe(); this.initTabSwipe();
+        this.initPull(); setInterval(() => this.beachSky(), 300000); document.addEventListener('visibilitychange', () => { if (!document.hidden) this.beachSky(); this.heroVideo(); }); this.initSwipeBack(); this.initRowSwipe(); this.initTabSwipe();
         this.focusInit();
         this.extrasInit();
         this.ambInit();
@@ -1109,7 +1109,7 @@ class SuperAnki {
         const resolved = s.theme === 'auto' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'nuit' : 'clair') : s.theme;
         const root = document.documentElement;
         const swap = () => {
-            root.dataset.theme = resolved; this.applyLogo(); this.beachSky();
+            root.dataset.theme = resolved; this.applyLogo(); this.beachSky(); this.heroVideo();
             const meta = $('meta[name="theme-color"]');
             if (meta) { const cs = getComputedStyle(document.body), n = meta.cloneNode(); n.content = cs.getPropertyValue('--theme-color').trim() || cs.getPropertyValue('--surface').trim() || '#ffffff'; meta.replaceWith(n); }   // (a new tag, so the desktop window's title bar follows)   // a theme can name the colour of the system bar
         };
@@ -1124,6 +1124,21 @@ class SuperAnki {
     }
     /* the logo takes the theme's colours: background = the home banner's gradient, check mark = the most colourful theme colour that stays readable on the cards */
     /* the Plage theme follows the real time: the sun rises at 6 h, crosses the sky, sets at 20 h; the sky changes colour with the hour (set every few minutes, only while that theme is on) */
+    /* Plage: the banner plays a short looping video of the bay (waves, gulls, palms). One video element lives for the whole session and is moved into the freshly drawn banner (no reload, no flash); it is switched off during a review, on a slow device, if motion is reduced, when the page is hidden or the theme changes (the still picture stays) */
+    heroVideo() {
+        const fx = $('#view-dashboard .hero-fx'), root = document.documentElement;
+        const on = !!fx && root.dataset.theme === 'plage' && !this.calm() && !root.dataset.lite && !document.body.classList.contains('in-session') && !document.hidden;
+        let v = this._heroVid;
+        if (!on) { if (v) { v.pause(); v.classList.remove('on'); } return; }
+        if (!v) {
+            v = this._heroVid = document.createElement('video');
+            v.className = 'fx-vid'; v.muted = true; v.loop = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.setAttribute('muted', ''); v.disablePictureInPicture = true; v.preload = 'auto'; v.setAttribute('aria-hidden', 'true');
+            v.addEventListener('playing', () => v.classList.add('on'));
+            v.src = 'scene/plage.mp4';
+        }
+        if (v.parentNode !== fx) fx.prepend(v);
+        const go = v.play(); if (go && go.catch) go.catch(() => {});
+    }
     beachSky() {
         const root = document.documentElement;
         if (root.dataset.theme !== 'plage') { delete root.dataset.phase; return; }
@@ -1708,7 +1723,7 @@ class SuperAnki {
         if (!fromGo) this._ver = (this._ver || 0) + 1;   // a redraw asked by a change: the screens kept from earlier are out of date
         ['dashboard', 'decks', 'stats', 'settings', 'session', 'toeic', 'exam'].forEach(v => $(`#view-${v}`).classList.toggle('hidden', v !== this.view));
         $$('[data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === this.view && !b.classList.contains('brand') && !b.classList.contains('streak-chip') && !b.classList.contains('sync-dot')));
-        document.body.classList.toggle('in-session', this.view === 'session' || this.view === 'exam');
+        document.body.classList.toggle('in-session', this.view === 'session' || this.view === 'exam'); this.heroVideo();
         document.body.classList.toggle('in-exam', this.view === 'exam');
         if (this.view !== 'decks') document.body.classList.remove('deck-sheet');
         if (this.view !== 'session' && document.body.classList.contains('zen')) { document.body.classList.remove('zen'); this.zenScreen(false); }
@@ -1877,6 +1892,7 @@ class SuperAnki {
             ${this.tipsHtml()}
         </div>`;
         const fresh = $('#view-dashboard .hero .leo3d');
+        this.heroVideo();
         if (keepLeo && fresh && keepLeo.isConnected === false && keepLeo.dataset.mood === fresh.dataset.mood) fresh.replaceWith(keepLeo);
     }
     tipsHtml() {
