@@ -201,40 +201,42 @@ Object.assign(SuperAnki.prototype, {
     /* phone: a quick horizontal swipe on a page goes to the next / previous tab (not from the very edge, not on a list row, a field, a chart or anything that scrolls sideways) */
     initTabSwipe() {
         const ORDER = ['dashboard', 'decks', 'toeic', 'stats', 'settings'];
-        let x0 = -1, y0 = 0, t0 = 0;
+        let x0 = -1, y0 = 0, t0 = 0, onRow = false;
         const sideScroll = el => { for (let n = el; n && n !== document.body; n = n.parentElement) { const cs = getComputedStyle(n); if (/(auto|scroll)/.test(cs.overflowX) && n.scrollWidth > n.clientWidth + 2) return true; } return false; };
         document.addEventListener('touchstart', e => {
             const t = e.touches[0], el = e.target;
             const ok = e.touches.length === 1 && !this.session && !this.modals.length && !this.popover && !this.ui.selMode && ORDER.includes(this.view) && t.clientX > 26 && t.clientX < innerWidth - 26
-                && el.closest && !el.closest('input, textarea, select, [contenteditable], .card-row, .chart, .range, [data-chart-box], .leo-bubble') && !sideScroll(el);
-            x0 = ok ? t.clientX : -1; y0 = t.clientY; t0 = Date.now();
+                && el.closest && !el.closest('input, textarea, select, [contenteditable], .chart, .range, [data-chart-box], .leo-bubble') && !sideScroll(el);
+            x0 = ok ? t.clientX : -1; y0 = t.clientY; t0 = Date.now(); onRow = ok && !!el.closest('.card-row');
         }, { passive: true });
         document.addEventListener('touchend', e => {
             if (x0 < 0) return; const t = e.changedTouches[0], dx = t.clientX - x0, dy = Math.abs(t.clientY - y0); x0 = -1;
-            if (Math.abs(dx) < 90 || dy * 2.2 > Math.abs(dx) || Date.now() - t0 > 650 || this.session) return;
+            /* on a list row only a quick flick changes the tab (a slow, long drag marks / puts away the card instead) */
+            if (Math.abs(dx) < 90 || dy * 2.2 > Math.abs(dx) || Date.now() - t0 > (onRow ? 320 : 650) || this.session) return;
             const i = ORDER.indexOf(this.view), j = i + (dx < 0 ? 1 : -1);
             if (j >= 0 && j < ORDER.length) this.tabGo(ORDER[j]);
         }, { passive: true });
     },
     /* the card list: swipe a row right to mark it ⭐, left to put it away until tomorrow (both can be undone from the notice) */
     initRowSwipe() {
-        let row = null, x0 = 0, y0 = 0, dx = 0, on = false;
+        let row = null, x0 = 0, y0 = 0, dx = 0, on = false, t0 = 0;
+        const need = () => Math.max(150, (row ? row.offsetWidth : 360) * 0.42);   // a long, deliberate drag (a quick flick is for changing tab)
         const clear = () => { if (row) { row.style.transition = 'transform .18s'; row.style.transform = ''; row.classList.remove('sw-r', 'sw-l'); } };
         document.addEventListener('touchstart', e => {
             row = e.touches.length === 1 && !this.ui.selMode ? e.target.closest('#card-list .card-row') : null;
-            if (row) { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0; on = false; row.style.transition = 'none'; }
+            if (row) { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0; on = false; t0 = Date.now(); row.style.transition = 'none'; }
         }, { passive: true });
         document.addEventListener('touchmove', e => {
             if (!row) return;
             const t = e.touches[0], mx = t.clientX - x0, my = t.clientY - y0;
-            if (!on && Math.abs(mx) > 14 && Math.abs(mx) > Math.abs(my) * 1.6) on = true;
+            if (!on && Math.abs(mx) > 14 && Math.abs(mx) > Math.abs(my) * 2.2) on = true;
             if (!on) return;
-            dx = mx; row.style.transform = `translateX(${dx}px)`; row.classList.toggle('sw-r', dx > 60); row.classList.toggle('sw-l', dx < -60);
+            dx = mx; row.style.transform = `translateX(${dx}px)`; row.classList.toggle('sw-r', dx > need()); row.classList.toggle('sw-l', dx < -need());
         }, { passive: true });
         const end = () => {
             if (!row) return;
-            const r = row, id = r.dataset.card, d = dx, was = on; row = null; on = false;
-            if (was) { this._rowSwiped = Date.now(); if (Math.abs(d) > 100 && id) { r.style.transform = ''; r.classList.remove('sw-r', 'sw-l'); if (d > 0) this.opMark([id]); else this.opBury([id], false); return; } }
+            const r = row, id = r.dataset.card, d = dx, was = on, n = need(), slow = Date.now() - t0 >= 320; row = null; on = false;
+            if (was) { this._rowSwiped = Date.now(); if (Math.abs(d) > n && slow && id) { r.style.transform = ''; r.classList.remove('sw-r', 'sw-l'); if (d > 0) this.opMark([id]); else this.opBury([id], false); return; } }
             r.style.transition = 'transform .18s'; r.style.transform = ''; r.classList.remove('sw-r', 'sw-l');
         };
         document.addEventListener('touchend', end, { passive: true });
