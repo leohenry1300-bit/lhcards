@@ -2302,7 +2302,7 @@ class SuperAnki {
         const hw = this.searchWords();
         const list = shown.map(({ c, s }) => {
             const dk = showDeck ? this.deck(c.deckId) : null;
-            const when = s === 'susp' ? 'Suspendue' : s === 'buried' ? 'Enfouie jusqu\'à demain' : c.state === 'new' ? 'Jamais vue' : s === 'due' ? 'À revoir maintenant' : `Révision ${fmtRelativeFuture(c.due, now)}`;
+            const when = s === 'susp' ? 'Suspendue' : s === 'buried' ? `Enfouie · revient ${fmtRelativeFuture(c.buriedUntil, now)}` : c.state === 'new' ? 'Jamais vue' : s === 'due' ? 'À revoir maintenant' : `Révision ${fmtRelativeFuture(c.due, now)}`;
             const checked = ui.sel.has(c.id);
             return `
             <div class="card-row ${s === 'susp' || s === 'buried' ? 'is-susp' : ''} ${checked ? 'selected' : ''}" data-action="row-click" data-card="${esc(c.id)}">
