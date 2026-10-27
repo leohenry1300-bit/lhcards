@@ -150,7 +150,20 @@ function leoWarm() {
     setTimeout(next, 6000);
 }
 let LEO_WARM = false;
+/* back from the background after a minute or more = the app is "opened" again: he greets you again */
+function leoGreetOnReturn() {
+    let hiddenAt = 0;
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) { hiddenAt = Date.now(); return; }
+        if (hiddenAt && Date.now() - hiddenAt > 60000) {
+            const r = document.querySelector('#view-dashboard .hero .leo3d');
+            if (r && window.app && app.view === 'dashboard') leoPlay(r, 'sitwave', {}); else window._leoGreet = true;
+        }
+        hiddenAt = 0;
+    });
+}
 function leoInit() {
+    leoGreetOnReturn();
     let q = 0;
     new MutationObserver(() => { if (q) return; q = requestAnimationFrame(() => { q = 0; leoBoot(); }); }).observe(document.body, { childList: true, subtree: true });
     document.addEventListener('visibilitychange', () => {
