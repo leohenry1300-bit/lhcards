@@ -252,9 +252,6 @@ const THEMES = [
     { id: 'oled', group: 'sombre', name: 'Noir OLED', desc: 'Noir pur, économe', font: 'Inter', p: { bg: '#000', surface: '#0b0b0c', primary: '#f4f4f5', text: '#f4f4f5', line: '#27272a', hero: '#0b0b0c' } },
     { id: 'luxe', group: 'sombre', name: 'Luxe', desc: 'Noir et or', font: 'Playfair Display', p: { bg: '#0c0b09', surface: '#15130f', primary: '#d4af37', text: '#f4ecd8', line: '#4a3f2a', hero: 'linear-gradient(135deg,#1d1a15,#2c2416)' } },
     { id: 'neon', group: 'fun', name: 'Néon', desc: 'Cyberpunk lumineux', font: 'Space Grotesk', p: { bg: '#07000f', surface: '#120823', primary: '#ff2bd6', text: '#f5e9ff', line: '#3a1a5c', hero: 'linear-gradient(120deg,#ce23ad,#7b2bff,#00808f)' } },
-    { id: 'synthwave', group: 'fun', name: 'Synthwave', desc: 'Coucher de soleil rétro', font: 'Space Grotesk', p: { bg: 'linear-gradient(180deg,#1a0b2e,#53196b)', surface: '#2a1147', primary: '#ff3cac', text: '#fdf0ff', line: '#4b2380', hero: 'linear-gradient(180deg,#ffb800,#ff3cac 55%,#9572b5)' } },
-    { id: 'brutal', group: 'fun', name: 'Brutaliste', desc: 'Contrasté, audacieux', font: 'Space Grotesk', p: { bg: '#fff8e7', surface: '#ffffff', primary: '#ffd400', text: '#111', line: '#111', hero: '#ff5c8a' } },
-    { id: 'contraste', group: 'fun', name: 'Contraste élevé', desc: 'Lisibilité maximale', font: 'Inter', p: { bg: '#000', surface: '#000', primary: '#ffff00', text: '#fff', line: '#fff', hero: '#000' } }
 ];
 /* how long a screen kept from earlier may be shown again without being rebuilt (anything that changes data makes it out of date at once) */
 const VIEW_TTL = { dashboard: 60000, decks: 300000, stats: 300000, settings: 1800000, toeic: 1800000 };
@@ -1137,7 +1134,7 @@ class SuperAnki {
         const fallback = prim || [79, 70, 229];
         const bg = stops.length ? stops : [fallback];
         const A = bg[0], C = bg[bg.length - 1], B = bg.length === 3 ? bg[1] : mix(A, C, .5);
-        const mono = ['oled', 'contraste'].includes(root.dataset.theme);
+        const mono = ['oled'].includes(root.dataset.theme);
         const card = { oled: [244, 244, 245] }[root.dataset.theme] || [255, 255, 255];
         const cands = [...bg, prim, prim2, onHero].filter(Boolean);
         let ok = cands.filter(c => ratio(c, card) >= 3).sort((p, q) => sat(q) - sat(p) || ratio(q, card) - ratio(p, card));

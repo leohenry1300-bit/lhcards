@@ -105,7 +105,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         const cr = (a, b) => (Math.max(lum(a), lum(b)) + .05) / (Math.min(lum(a), lum(b)) + .05);
         const bad = [];
         for (const t of THEMES) {
-            if (t.id === 'auto' || t.id === 'brutal') continue;
+            if (t.id === 'auto') continue;
             document.documentElement.dataset.theme = t.id; await new Promise(r => setTimeout(r, 40));
             const cs = getComputedStyle(document.documentElement), V = n => cs.getPropertyValue(n).trim();
             const stops = (V('--hero').match(/#[0-9a-fA-F]{3,8}|rgba?\([^)]*\)/g) || []).map(rgb).filter(Boolean), on = rgb(V('--on-hero'));
