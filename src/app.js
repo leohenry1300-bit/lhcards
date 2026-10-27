@@ -70,11 +70,13 @@ const pad = n => String(n).padStart(2, '0');
 let ROLLOVER = 4 * 3600000;
 const setRollover = h => { ROLLOVER = clamp(Math.round(num(h, 4)), 0, 12) * 3600000; };
 const dateKey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const dayKey = (t = Date.now()) => dateKey(new Date(t - ROLLOVER));
+/* the "day" starts at the rollover hour (4 h by default), counted on the clock of the wall, so the two days a year when the clock changes stay right */
+const dayStart = t => { const d = new Date(t), h = ROLLOVER / 3600000; if (d.getHours() < h) d.setDate(d.getDate() - 1); d.setHours(h, 0, 0, 0); return d; };
+const dayKey = (t = Date.now()) => dateKey(dayStart(t));
 const keyToUTC = k => { const [y, m, d] = k.split('-').map(Number); return Date.UTC(y, m - 1, d); };
 const daysBetweenKeys = (a, b) => Math.round((keyToUTC(b) - keyToUTC(a)) / DAY);
-const startOfDay = (t = Date.now()) => { const d = new Date(t - ROLLOVER); d.setHours(0, 0, 0, 0); return d.getTime() + ROLLOVER; };
-const addDays = (t, n) => { const d = new Date(startOfDay(t) - ROLLOVER); d.setDate(d.getDate() + n); return d.getTime() + ROLLOVER; };
+const startOfDay = (t = Date.now()) => dayStart(t).getTime();
+const addDays = (t, n) => { const d = dayStart(t); d.setDate(d.getDate() + n); return d.getTime(); };
 const endOfDay = (t = Date.now()) => addDays(t, 1) - 1;
 const num = (v, def = 0) => { const n = Number(v); return Number.isFinite(n) ? n : def; };
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
