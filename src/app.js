@@ -3903,7 +3903,7 @@ class SuperAnki {
             case 'free-deck': this.startFree(ds.deck); break;
             case 'ordered-deck': this.startFree(ds.deck, true); break;
             case 'practice-errors': {
-                const ids = this.errorCards().map(c => c.id);
+                const ids = (ds.deck ? this.cardsOf(ds.deck).filter(c => c.errors > 0 && !c.suspended) : this.errorCards()).map(c => c.id);
                 if (!ids.length) { this.toast('Aucune erreur à retravailler 🎉', 'success'); break; }
                 this.startPractice(null, this.data.settings.answerMode, 30, '🎯 Mes erreurs', ids);
                 break;

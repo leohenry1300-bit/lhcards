@@ -135,7 +135,15 @@ Object.assign(SuperAnki.prototype, {
         const st = this.data.stats, ui = this.statsUi, today = dayKey();
         const scope = this.statsScope();
         this.chartDefs = {};
-        const errCount = this.errorCards().length;
+        const errList = scope.all ? this.errorCards() : scope.cards.filter(c => c.errors > 0 && !c.suspended), errCount = errList.length;
+        /* the four tiles follow the chosen deck too (the streak itself is about the habit, so it stays global) */
+        let kToday = st.history[today] || 0, kTodaySec = st.timeByDay[today] || 0, kSec = st.studySeconds, kRevs = Object.values(st.history).reduce((a, b) => a + b, 0), kDays = Object.keys(st.history).filter(k => st.history[k] > 0).length;
+        if (!scope.all) {
+            const t0 = startOfDay(), days = new Set();
+            kToday = 0; kTodaySec = 0; kSec = 0; kRevs = scope.revlog.length;
+            scope.revlog.forEach(r => { const sec = (r[6] || 0) / 1000; kSec += sec; days.add(dayKey(r[0])); if (r[0] >= t0) { kToday++; kTodaySec += sec; } });
+            kDays = days.size;
+        }
         const dstats = this.deckStats();
         /* one level at a time (the whole tree made this tab several times heavier): the decks of the chosen scope; a tap goes one level down */
         const scopeId = ui.deck === 'all' ? null : ui.deck, kidsOf = this.childrenOf(scopeId);
@@ -145,7 +153,7 @@ Object.assign(SuperAnki.prototype, {
         const errPanel = `<section class="panel panel-pad stat-card wide">
                 <div class="section-head" style="margin-bottom:6px">
                     <h4 class="stat-title">${ic('target')} Mes erreurs</h4>
-                    ${errCount ? `<button class="btn btn-primary btn-sm" data-action="practice-errors">${ic('play')}Retravailler (${errCount})</button>` : ''}
+                    ${errCount ? `<button class="btn btn-primary btn-sm" data-action="practice-errors"${scope.all ? '' : ` data-deck="${esc(ui.deck)}"`}>${ic('play')}Retravailler (${errCount})</button>` : ''}
                 </div>
                 <p class="small muted">${errCount ? `${plural(errCount, 'carte')} ratée${errCount > 1 ? 's' : ''} récemment. Elles sortent de la liste dès que tu les réussis.` : 'Aucune erreur en attente. Les cartes ratées en révision, en quiz ou au chrono apparaîtront ici.'}</p>
             </section>`;
@@ -176,9 +184,9 @@ Object.assign(SuperAnki.prototype, {
             </div>
             <div class="kpi-grid">
                 <div class="panel kpi"><span>Série actuelle</span><b>🔥 ${st.streak} j</b><em>${ic('snow')} ${plural(st.freezes, 'gel')} de série</em></div>
-                <div class="panel kpi"><span>Record de série</span><b>${st.longestStreak} j</b><em>${plural(Object.keys(st.history).filter(k => st.history[k] > 0).length, 'jour actif', 'jours actifs')}</em></div>
-                <div class="panel kpi"><span>Aujourd'hui</span><b>${st.history[today] || 0}</b><em>${fmtDuration(st.timeByDay[today] || 0)} d'étude</em></div>
-                <div class="panel kpi"><span>Temps total</span><b>${fmtDuration(st.studySeconds)}</b><em>${plural(Object.values(st.history).reduce((a, b) => a + b, 0), 'révision')}</em></div>
+                <div class="panel kpi"><span>Record de série</span><b>${st.longestStreak} j</b><em>${plural(kDays, 'jour actif', 'jours actifs')}</em></div>
+                <div class="panel kpi"><span>Aujourd'hui</span><b>${kToday}</b><em>${fmtDuration(kTodaySec)} d'étude</em></div>
+                <div class="panel kpi"><span>Temps total</span><b>${fmtDuration(kSec)}</b><em>${plural(kRevs, 'révision')}</em></div>
             </div>
             <div class="stats-grid">${sections.join('')}</div>
             <div class="panel panel-pad">
