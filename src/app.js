@@ -4125,8 +4125,14 @@ class SuperAnki {
                 this.renderDeckPanel(); break;
             }
             case 'sel-none': this.ui.sel = new Set(); this.renderDeckPanel(); break;
+            case 'row-act': {
+                const id = ds.card; if (this._closeRow) this._closeRow();
+                if (ds.act === 'mark') this.opMark([id]); else this.opBury([id], false);
+                break;
+            }
             case 'row-click': {
-                if (Date.now() - (this._rowSwiped || 0) < 450) break;   // (the finger that just swiped a row does not open it)
+                if (Date.now() - (this._rowSwiped || 0) < 450) break;
+                if (this._openRow) { this._closeRow(); break; }   // a tap on an open row only closes it   // (the finger that just swiped a row does not open it)
                 const id = ds.card;
                 if (!this.ui.selMode) { this.openCardModal(id); break; }
                 if (e && e.shiftKey && this.lastSelId && this.visibleIds) {

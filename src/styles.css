@@ -2174,8 +2174,10 @@ html[data-theme="savane"][data-lite]::before, html[data-theme="savane"][data-lit
 .flashcard.swipe-hard { box-shadow: 0 0 0 3px var(--hard, #a16207), var(--shadow-lg); }
 .flashcard[data-swipe]::after { content: attr(data-swipe); position: absolute; top: 12px; left: 50%; transform: translateX(-50%); padding: 5px 14px; border-radius: 999px; background: var(--surface-solid, #fff); color: var(--text); font-weight: 800; font-size: .9rem; box-shadow: 0 4px 14px rgba(0,0,0,.18); pointer-events: none; }
 .card-row { position: relative; touch-action: pan-y; }
-.card-row.sw-r, .card-row.sw-l { background: var(--primary-soft); }
-.card-row.sw-r::after, .card-row.sw-l::after { position: absolute; top: 50%; transform: translateY(-50%); font-weight: 800; font-size: .85rem; color: var(--primary); pointer-events: none; }
+.card-row .row-actions { position: absolute; left: 100%; top: 0; bottom: 0; width: 168px; display: flex; align-items: center; justify-content: center; gap: 8px; padding-left: 8px; }
+.row-actions button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 74px; height: 56px; border: 0; border-radius: 20px; color: #fff; font: inherit; cursor: pointer; }
+.row-actions button:first-child { background: #d97706; } .row-actions button:last-child { background: #6366f1; }
+.row-actions .i { width: 20px; height: 20px; } .row-actions small { font-size: .66rem; font-weight: 800; }
 .card-row.sw-r::after { content: "⭐ Marquer"; left: 14px; right: auto; margin-left: -118px; }
 .card-row.sw-l::after { content: "Enfouir 🙈"; right: 14px; margin-right: -118px; }
 .flashcard.swiping::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--sw-c); opacity: var(--sw-a, 0); pointer-events: none; z-index: 3; }
