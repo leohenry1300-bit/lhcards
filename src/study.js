@@ -157,10 +157,11 @@ Object.assign(SuperAnki.prototype, {
         card.style.touchAction = vert ? 'none' : 'pan-y';
         const txt = srs ? (vert ? '<span>← Raté</span><span>↑ Facile · ↓ Difficile</span><span>Bien →</span>' : '<span>← Raté</span><span>Bien →</span>') : '<span>← Raté</span><span>Je savais →</span>';
         const hint = $('#swipe-hint'); if (hint) hint.innerHTML = txt; else card.insertAdjacentHTML('afterend', `<p class="swipe-hint" id="swipe-hint">${txt}</p>`);
+        const COL = { 1: 'var(--again, #e11d48)', 2: 'var(--hard, #d97706)', 3: 'var(--good, #2563eb)', 4: 'var(--easy, #16a34a)' };   // the colour of the answer buttons
         const NAME = { 3: 'Bien', 1: 'Raté', 4: 'Facile', 2: 'Difficile' }, CLS = { 3: 'swipe-ok', 1: 'swipe-ko', 4: 'swipe-easy', 2: 'swipe-hard' };
         let x0 = 0, y0 = 0, dx = 0, dy = 0, axis = '', id = s.current, g = 0;
         const gradeOf = () => axis === 'x' ? (dx > 0 ? 3 : 1) : axis === 'y' ? (dy < 0 ? 4 : 2) : 0;
-        const reset = () => { card.style.transition = 'transform .18s'; card.style.transform = ''; Object.values(CLS).forEach(c => card.classList.remove(c)); delete card.dataset.swipe; axis = ''; };
+        const reset = () => { card.style.transition = 'transform .18s'; card.style.transform = ''; card.classList.remove('swiping'); card.style.removeProperty('--sw-a'); Object.values(CLS).forEach(c => card.classList.remove(c)); delete card.dataset.swipe; axis = ''; };
         card.addEventListener('touchstart', e => { if (e.touches.length !== 1) return; x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = dy = 0; axis = ''; card.style.transition = 'none'; }, { passive: true });
         card.addEventListener('touchmove', e => {
             const t = e.touches[0], mx = t.clientX - x0, my = t.clientY - y0;
@@ -171,6 +172,9 @@ Object.assign(SuperAnki.prototype, {
             }
             dx = axis === 'x' ? mx : 0; dy = axis === 'y' ? my : 0;
             card.style.transform = `translate(${dx}px, ${dy}px) rotate(${dx / 28}deg)`;
+            /* the card takes the colour of the answer as soon as it moves, stronger the further it goes */
+            const dir = gradeOf(), pull = Math.abs(axis === 'x' ? dx : dy);
+            card.classList.add('swiping'); card.style.setProperty('--sw-c', COL[srs ? dir : (dx > 0 ? 4 : 1)]); card.style.setProperty('--sw-a', Math.min(0.46, pull / 190).toFixed(2));
             const far = Math.abs(axis === 'x' ? dx : dy) > 50; g = far ? gradeOf() : 0;
             Object.entries(CLS).forEach(([k, c]) => card.classList.toggle(c, Number(k) === g));
             if (g && srs) card.dataset.swipe = NAME[g]; else delete card.dataset.swipe;
