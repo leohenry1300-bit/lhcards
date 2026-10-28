@@ -272,7 +272,7 @@ const THEMES = [
 /* how long a screen kept from earlier may be shown again without being rebuilt (anything that changes data makes it out of date at once) */
 const VIEW_TTL = { dashboard: 60000, decks: 300000, stats: 300000, settings: 1800000, toeic: 1800000 };
 /* how many blocks of a tab are built before it is shown (the rest, further down the page, follows in small pieces right after) */
-const TAB_HEAD = { dashboard: 3, decks: 3, stats: 2, settings: 2 };
+const TAB_HEAD = { dashboard: 3, decks: 3, stats: 2, settings: 3 };
 const THEME_GROUPS = [['clair', 'Clairs'], ['sombre', 'Sombres']];
 const CARD_SIZES = { s: '1.1rem', m: '1.35rem', l: '1.6rem', xl: '1.9rem', xxl: '2.4rem', xxxl: '3rem' };
 /* Study options: global defaults, can be overridden per deck (deck.opts) */
@@ -287,7 +287,7 @@ const DEFAULT_SETTINGS = {
     theme: 'auto', cardSize: 'm', showIntervals: true,
     autoSpeak: false, autoAudio: false, loadBalance: true, filters: [], sessionSize: 0, fsrsW: null, fsrsMeta: null, answerMode: 'flip', learnAhead: 20, cloudSync: false,
     quizCount: 20, writeCount: 20, chronoDuration: 60,
-    rolloverHour: 4, syncKey: '', settingsMod: 0, autoBackup: true, libSeen: false, tipsSeen: false, goalName: '', goalDate: '', goals: [], deckSort: 'recent',
+    rolloverHour: 4, syncKey: '', settingsMod: 0, autoBackup: true, libSeen: false, tipsSeen: false, goalName: '', goalDate: '', goals: [], deckSort: 'recent', profile: { name: '', emoji: '🦁', photo: '' },
     ...OPT_DEFAULTS
 };
 function parseSteps(str, def) {
@@ -445,6 +445,7 @@ function normalizeState(raw) {
         if (raw.darkMode) settings.theme = 'nuit';
         if (raw.stats && raw.stats.dailyNewGoal) settings.newPerDay = num(raw.stats.dailyNewGoal, 20);
     }
+    { const p = settings.profile && typeof settings.profile === 'object' ? settings.profile : {}; settings.profile = { name: String(p.name || '').trim().slice(0, 30), emoji: String(p.emoji || '🦁').slice(0, 8), photo: /^media:[a-z0-9]+$/.test(String(p.photo || '')) ? String(p.photo) : '' }; }
     if (!THEMES.some(t => t.id === settings.theme)) settings.theme = 'auto';
     if (!CARD_SIZES[settings.cardSize]) settings.cardSize = 'm';
     settings.newPerDay = clamp(num(settings.newPerDay, 20), 0, 9999);
@@ -1477,6 +1478,7 @@ class SuperAnki {
         if (view === 'decks' && prevView && prevView !== 'decks' && prevView !== 'session' && prevView !== 'exam') this._deckPrev = prevView;   // where "back" goes when the deck he is looking at is deleted
         if (prevView && prevView !== 'session' && prevView !== 'exam') (this.scrollMem = this.scrollMem || {})[prevView] = window.scrollY;
         this.view = view;
+        if (view === 'settings' && prevView !== 'settings') this.ui.setGroup = null;   // arriving on the profile: the list of sections, not the last one opened
         if (opts.deck !== undefined) { this.ui.deck = opts.deck; this.ui.limit = 60; this.touchDeck(opts.deck); }
         if (opts.filter !== undefined) this.ui.filter = opts.filter;
         const rv = (this._rv || {})[view];
@@ -1766,7 +1768,7 @@ class SuperAnki {
         if (this.view !== 'decks') document.body.classList.remove('deck-sheet');
         if (this.view !== 'notes' && document.body.classList.contains('nb-open')) this.nbBarEnsure(false);
         if (this.view !== 'session' && document.body.classList.contains('zen')) { document.body.classList.remove('zen'); this.zenScreen(false); }
-        this.renderStreak();
+        this.renderStreak(); this.renderProfileBtn();
         this.renderSyncIndicator();
         if (reuse) return;
         (this._rv = this._rv || {})[this.view] = { v: this._ver || 0, t: Date.now(), d: dayKey() };
@@ -4318,7 +4320,7 @@ class SuperAnki {
             case 'toggle-deck': this.toggleOpen('side', ds.deck); this.renderDeckSidebar(); break;
             case 'dash-toggle': this.toggleOpen('dash', ds.deck); this.refreshDeckList(`#dash-decks [data-action="dash-toggle"][data-deck="${CSS.escape(ds.deck)}"]`); break;
             case 'tree-all': this.setAllOpen(ds.key, ds.open === '1'); this.renderDeckSidebar(); break;
-            case 'goals-manage': this.go('settings'); this.flushTail($('#view-settings'), true); setTimeout(() => { const g = $('#goals-panel'); if (g) { const sp = g.closest('details'); if (sp) sp.open = true; g.scrollIntoView({ block: 'start' }); window.scrollBy(0, -120); } }, 80); break;
+            case 'goals-manage': this.go('settings'); this.ui.setGroup = 'grp-rev'; this.renderSettings(); this.flushTail($('#view-settings'), true); setTimeout(() => { const g = $('#goals-panel'); if (g) { const sp = g.closest('details'); if (sp) sp.open = true; g.scrollIntoView({ block: 'start' }); window.scrollBy(0, -120); } }, 80); break;
             case 'goal-add': {
                 const f = this.goalFormSync();
                 if (!/^\d{4}-\d{2}-\d{2}$/.test(f.date)) { this.toast('Choisis une date pour ton objectif.', 'warning'); break; }
@@ -4464,7 +4466,7 @@ class SuperAnki {
             case 'tool-check': this.checkDatabase(); break;
             case 'fsrs-optimize': this.fsrsOptimizeModal(ds.id || ''); break;
             case 'fsrs-reset': this.fsrsReset(ds.id || ''); break;
-            default: if (action.startsWith('tq-')) this.toeicAction(action, el); else if (action.startsWith('qcm-')) this.qcmAction(action, el); else if (action.startsWith('mg-')) this.matchAction(action, el); else if (action.startsWith('nb-')) this.noteAction(action, el, e); break;
+            default: if (action.startsWith('tq-')) this.toeicAction(action, el); else if (action.startsWith('qcm-')) this.qcmAction(action, el); else if (action.startsWith('mg-')) this.matchAction(action, el); else if (action.startsWith('nb-')) this.noteAction(action, el, e); else if (action.startsWith('pf-')) this.profileAction(action, el); break;
         }
     }
     startQuizFromIds(ids, count, chrono, title) {

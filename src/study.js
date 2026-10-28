@@ -263,10 +263,10 @@ Object.assign(SuperAnki.prototype, {
     /* a quick horizontal slide on a page goes to the next / previous tab: a finger (not from the very edge), a mouse drag on an empty part of the page, or two fingers on a trackpad.
        Not on a field, a chart, anything that scrolls sideways, or (to the left) a list row: there it shows the row's buttons. */
     initTabSwipe() {
-        const ORDER = ['dashboard', 'decks', 'toeic', 'stats', 'settings'];
+        const ORDER = ['dashboard', 'decks', 'notes', 'stats'];
         let x0 = -1, y0 = 0, t0 = 0, onRow = false;
         const sideScroll = el => { for (let n = el; n && n !== document.body; n = n.parentElement) { const cs = getComputedStyle(n); if (/(auto|scroll)/.test(cs.overflowX) && n.scrollWidth > n.clientWidth + 2) return true; } return false; };
-        const allowed = el => !this.session && !this.modals.length && !this.popover && !this.ui.selMode && ORDER.includes(this.view) && el && el.closest
+        const allowed = el => !this.session && !this.modals.length && !this.popover && !this.ui.selMode && ORDER.includes(this.view) && !(this.view === 'notes' && this.ui.note) && el && el.closest
             && !el.closest('input, textarea, select, [contenteditable], .chart, .range, [data-chart-box], .leo-bubble') && !sideScroll(el);
         const go = dx => { const i = ORDER.indexOf(this.view), j = i + (dx < 0 ? 1 : -1); if (j >= 0 && j < ORDER.length) this.tabGo(ORDER[j]); };
         dragBind(document, {

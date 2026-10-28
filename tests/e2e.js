@@ -737,7 +737,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
             tabs['pc' + w] = await page.evaluate(() => { const t = document.querySelector('.topbar-inner'); return { over: t.scrollWidth > t.clientWidth + 1, nav: !!document.querySelector('.nav [data-nav=notes]') }; });
         }
         await page.setViewportSize({ width: 390, height: 800 });
-        ok('Notes: 6 tabs fit the bottom bar at 360, 390 and 430 px and the top bar on a computer', [360, 390, 430].every(w => tabs[w].n === 6 && !tabs[w].over && !tabs[w].cut && tabs[w].notes) && ['pc1280', 'pc1100', 'pc1000'].every(k => !tabs[k].over && tabs[k].nav), JSON.stringify(tabs));
+        ok('Notes: the 4 tabs (Accueil, Paquets, Notes, Stats) fit the bottom bar at 360, 390 and 430 px and the top bar on a computer', [360, 390, 430].every(w => tabs[w].n === 4 && !tabs[w].over && !tabs[w].cut && tabs[w].notes) && ['pc1280', 'pc1100', 'pc1000'].every(k => !tabs[k].over && tabs[k].nav), JSON.stringify(tabs));
         await page.evaluate(() => { app.go('notes'); }); await wait(300);
         await page.click('[data-action=nb-new]'); await wait(300);
         await page.keyboard.type('Cours de marketing'); await page.keyboard.press('Enter'); await wait(80);
@@ -793,6 +793,45 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
             return out;
         });
         ok('Notes: saved, merged between devices, images kept, deletion goes to the trash and can be restored', sv.saved && sv.merged && sv.media && sv.trash && sv.restored, JSON.stringify(sv));
+    }
+
+    /* Profile: round button at the right of the top bar opens the profile page; the settings are its sections; no Réglages / TOEIC tab */
+    {
+        const pf = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {};
+            a.go('dashboard'); await w(300);
+            out.noTabs = !document.querySelector('[data-nav=toeic].nav-btn, .bottom-nav [data-nav=toeic], .bottom-nav [data-nav=settings], .nav-btn[data-nav=settings]');
+            const btn = document.getElementById('profile-btn'); out.btn = !!btn && btn.offsetWidth > 20 && !!btn.querySelector('.av-emoji, .av-img');
+            const tb = document.querySelector('.topbar-inner'); out.topFits = tb.scrollWidth <= tb.clientWidth + 1;
+            btn.click(); await w(500); a.flushTail(document.getElementById('view-settings'), true);
+            out.view = a.view === 'settings' && btn.classList.contains('active');
+            out.card = !!document.querySelector('.profile-card') && /Profil/.test(document.querySelector('#view-settings .page-title').textContent);
+            const rows = [...document.querySelectorAll('.set-hub .hub-row')].map(r => r.textContent.replace(/\s+/g, ' ').trim());
+            out.rows = rows.length >= 7 && /Révision/.test(rows.join('|')) && /Apparence/.test(rows.join('|')) && /Corbeille/.test(rows.join('|')) && /TOEIC/.test(rows.join('|'));
+            out.hidden = [...document.querySelectorAll('.set-group')].every(g => getComputedStyle(g).display === 'none');
+            document.querySelector('[data-action=pf-open][data-id=grp-look]').click(); await w(200);
+            out.sub = getComputedStyle(document.getElementById('grp-look')).display !== 'none' && !!document.querySelector('.theme-opt') && !!document.querySelector('.set-back') && getComputedStyle(document.getElementById('grp-rev')).display === 'none';
+            document.querySelector('[data-action=pf-hub]').click(); await w(200); out.back = !!document.querySelector('.set-hub') && a.ui.setGroup === null;
+            /* edit: name + emoji + photo, kept in the settings, shown on the button */
+            a.openProfileEditor(); await w(100);
+            document.getElementById('pe-name').value = 'Léo'; document.querySelector('#pe-emojis [data-e="🦊"]').click();
+            document.getElementById('pe-save').click(); await w(200);
+            out.saved = a.data.settings.profile.name === 'Léo' && a.data.settings.profile.emoji === '🦊' && /🦊/.test(btn.textContent) && /Léo/.test(document.querySelector('.profile-card h3').textContent);
+            const ref = a.addMedia('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');
+            a.data.settings.profile.photo = ref; a.renderProfileBtn(); out.photo = !!btn.querySelector('img.av-img'); a.gcMedia(a.data); out.photoKept = !!a.data.media[ref.slice(6)];
+            const n = normalizeState(a.serialize()); out.persist = n.settings.profile.name === 'Léo' && n.settings.profile.photo === ref;
+            Object.assign(a.data.settings.profile, { name: '', emoji: '🦁', photo: '' }); a.renderProfileBtn();
+            /* the TOEIC exam of the home page opens the simulator */
+            const keep = a.data.settings.goals; a.data.settings.goals = [{ id: 'gt', name: 'TOEIC', date: dayKey(addDays(Date.now(), 30)), decks: [] }];
+            a.go('dashboard'); await w(300); a.flushTail(document.getElementById('view-dashboard'), true);
+            const ex = document.querySelector('.exam-row .ex-name[data-nav=toeic]'); out.examBtn = !!ex; if (ex) ex.click(); await w(400);
+            out.toeic = a.view === 'toeic'; a.data.settings.goals = keep; a.go('dashboard');
+            return out;
+        });
+        ok('Profile: round button on the right of the top bar, profile page with sections (settings inside), no Réglages / TOEIC tab', pf.noTabs && pf.btn && pf.topFits && pf.view && pf.card && pf.rows && pf.hidden && pf.sub && pf.back, JSON.stringify(pf));
+        ok('Profile: name + emoji + photo saved, shown on the button, kept in backups; the TOEIC exam on the home opens the TOEIC simulator', pf.saved && pf.photo && pf.photoKept && pf.persist && pf.examBtn && pf.toeic, JSON.stringify(pf));
+        const w360 = await (async () => { await page.setViewportSize({ width: 360, height: 800 }); await page.evaluate(() => app.go('dashboard')); await wait(250); const r = await page.evaluate(() => { const tb = document.querySelector('.topbar-inner'); return tb.scrollWidth <= tb.clientWidth + 1 && document.documentElement.scrollWidth <= 360; }); await page.setViewportSize({ width: 390, height: 800 }); return r; })();
+        ok('Profile: the top bar still fits at 360 px', w360);
     }
 
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));
