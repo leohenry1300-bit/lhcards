@@ -431,6 +431,9 @@ function normalizeState(raw) {
     });
     const seenQ = new Set();
     const qcms = toArray(raw.qcms).map(normalizeQcm).filter(q => q && !seenQ.has(q.id) && seenQ.add(q.id));
+    const seenN = new Set();
+    const notes = toArray(raw.notes).map(normalizeNote).filter(n => n && !seenN.has(n.id) && seenN.add(n.id));
+    notes.forEach(n => { if (n.deckId && !seenDecks.has(n.deckId)) n.deckId = ''; });   // a note whose folder is gone goes back to « sans dossier »
     const orphans = [...cards, ...qcms].filter(c => !seenDecks.has(c.deckId));
     if (orphans.length) {
         let misc = decks.find(d => d.id === 'misc');
@@ -464,7 +467,7 @@ function normalizeState(raw) {
     const deleted = {};
     if (raw.deleted && typeof raw.deleted === 'object') Object.entries(raw.deleted).forEach(([k, v]) => { if (num(v, 0) > 0) deleted[k] = num(v); });
     const revlog = toArray(raw.revlog).filter(r => Array.isArray(r) && r.length >= 4 && Number.isFinite(r[0])).slice(-REVLOG_MAX);
-    return { version: 6, decks, cards, qcms, presets, stats: normalizeStats(raw.stats), settings, revlog, deleted, toeic: normalizeToeic(raw.toeic), media: normalizeMedia(raw.media), noteTypes: normalizeNoteTypes(raw.noteTypes), trash: normalizeTrash(raw.trash), updatedAt: num(raw.updatedAt, 0) };
+    return { version: 6, decks, cards, qcms, notes, presets, stats: normalizeStats(raw.stats), settings, revlog, deleted, toeic: normalizeToeic(raw.toeic), media: normalizeMedia(raw.media), noteTypes: normalizeNoteTypes(raw.noteTypes), trash: normalizeTrash(raw.trash), updatedAt: num(raw.updatedAt, 0) };
 }
 function cardSig(c) {
     return [c.deckId, c.state, c.step, c.due, c.interval, c.ease, c.reps, c.lapses, c.suspended ? 1 : 0, c.flag, c.marked ? 1 : 0, c.buriedUntil, c.errors, c.wrong, c.right,
@@ -1028,8 +1031,8 @@ class SuperAnki {
     }
 
     serialize() {
-        const { version, decks, cards, qcms, presets, stats, settings, revlog, deleted, toeic, media, noteTypes, trash, updatedAt } = this.data;
-        return JSON.stringify({ version, decks, cards, qcms, presets, stats, settings, revlog, deleted, toeic, media, noteTypes, trash, updatedAt });
+        const { version, decks, cards, qcms, notes, presets, stats, settings, revlog, deleted, toeic, media, noteTypes, trash, updatedAt } = this.data;
+        return JSON.stringify({ version, decks, cards, qcms, notes, presets, stats, settings, revlog, deleted, toeic, media, noteTypes, trash, updatedAt });
     }
     /* Change tracking: per-card modification times let two devices merge instead of overwriting each other */
     initSigs() {
@@ -1037,6 +1040,8 @@ class SuperAnki {
         this.refs = new Map(this.data.cards.map(c => [c.id, c]));
         this.qsigs = new Map(this.data.qcms.map(q => [q.id, qcmSig(q)]));
         this.qrefs = new Map(this.data.qcms.map(q => [q.id, q]));
+        this.nsigs = new Map(this.data.notes.map(n => [n.id, noteSig(n)]));
+        this.nrefs = new Map(this.data.notes.map(n => [n.id, n]));
         this.drefs = new Map(this.data.decks.map(d => [d.id, d]));
         this.dsigs = new Map([...this.data.decks.map(d => [d.id, deckSig(d)]), ...this.data.presets.map(x => [x.id, presetSig(x)]), ...this.data.noteTypes.map(x => [x.id, noteTypeSig(x)])]);
     }
@@ -1057,6 +1062,14 @@ class SuperAnki {
             this.qrefs.set(q.id, q);
         });
         [...this.qsigs.keys()].forEach(id => { if (!seenQ.has(id)) { this.qsigs.delete(id); d.deleted[id] = now; const gone = this.qrefs.get(id); if (gone) this.trashAdd('qcm', gone, now); this.qrefs.delete(id); } });
+        const seenN = new Set();
+        d.notes.forEach(n => {
+            seenN.add(n.id);
+            const sig = noteSig(n);
+            if (this.nsigs.get(n.id) !== sig) { n.mod = now; this.nsigs.set(n.id, sig); delete d.deleted[n.id]; if (d.trash.length) this.trashDrop('note', n.id); }
+            this.nrefs.set(n.id, n);
+        });
+        [...this.nsigs.keys()].forEach(id => { if (!seenN.has(id)) { this.nsigs.delete(id); d.deleted[id] = now; const gone = this.nrefs.get(id); if (gone) this.trashAdd('note', gone, now); this.nrefs.delete(id); } });
         const seenD = new Set();
         d.decks.forEach(k => {
             seenD.add(k.id);
@@ -1481,7 +1494,7 @@ class SuperAnki {
         if (Math.abs(window.scrollY - wantY) > 1) window.scrollTo({ top: wantY, behavior: 'instant' in window ? 'instant' : 'auto' });   // (already there: no forced layout)
         const el = $(`#view-${view}`);
         if (el) {
-            const order = ['dashboard', 'decks', 'toeic', 'stats', 'settings'], a = order.indexOf(prevView), b = order.indexOf(view);
+            const order = ['dashboard', 'decks', 'notes', 'toeic', 'stats', 'settings'], a = order.indexOf(prevView), b = order.indexOf(view);
             el.classList.remove('view-in', 'view-in-l', 'view-in-r', 'view-in-n', 'view-in-zoom', 'cascade'); void el.offsetWidth;
             const zoom = opts.from && !this.calm();
             if (zoom) { el.style.setProperty('--ox', opts.from.x + 'px'); el.style.setProperty('--oy', opts.from.y + 'px'); }
@@ -1746,11 +1759,12 @@ class SuperAnki {
 
     render(fromGo = false, reuse = false) {
         if (!fromGo) this._ver = (this._ver || 0) + 1;   // a redraw asked by a change: the screens kept from earlier are out of date
-        ['dashboard', 'decks', 'stats', 'settings', 'session', 'toeic', 'exam'].forEach(v => $(`#view-${v}`).classList.toggle('hidden', v !== this.view));
+        ['dashboard', 'decks', 'notes', 'stats', 'settings', 'session', 'toeic', 'exam'].forEach(v => $(`#view-${v}`).classList.toggle('hidden', v !== this.view));
         $$('[data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === this.view && !b.classList.contains('brand') && !b.classList.contains('streak-chip') && !b.classList.contains('sync-dot')));
         document.body.dataset.view = this.view; document.body.classList.toggle('in-session', this.view === 'session' || this.view === 'exam'); this.heroVideo();
         document.body.classList.toggle('in-exam', this.view === 'exam');
         if (this.view !== 'decks') document.body.classList.remove('deck-sheet');
+        if (this.view !== 'notes' && document.body.classList.contains('nb-open')) this.nbBarEnsure(false);
         if (this.view !== 'session' && document.body.classList.contains('zen')) { document.body.classList.remove('zen'); this.zenScreen(false); }
         this.renderStreak();
         this.renderSyncIndicator();
@@ -1761,6 +1775,7 @@ class SuperAnki {
         else if (this.view === 'stats') this.renderStats();
         else if (this.view === 'settings') this.renderSettings();
         else if (this.view === 'toeic') this.renderToeic();
+        else if (this.view === 'notes') this.renderNotes();
         else if (this.view === 'exam') this.renderExam();
     }
     /* little sparks when the streak grows (first review of the day) */
@@ -4449,7 +4464,7 @@ class SuperAnki {
             case 'tool-check': this.checkDatabase(); break;
             case 'fsrs-optimize': this.fsrsOptimizeModal(ds.id || ''); break;
             case 'fsrs-reset': this.fsrsReset(ds.id || ''); break;
-            default: if (action.startsWith('tq-')) this.toeicAction(action, el); else if (action.startsWith('qcm-')) this.qcmAction(action, el); else if (action.startsWith('mg-')) this.matchAction(action, el); break;
+            default: if (action.startsWith('tq-')) this.toeicAction(action, el); else if (action.startsWith('qcm-')) this.qcmAction(action, el); else if (action.startsWith('mg-')) this.matchAction(action, el); else if (action.startsWith('nb-')) this.noteAction(action, el, e); break;
         }
     }
     startQuizFromIds(ids, count, chrono, title) {

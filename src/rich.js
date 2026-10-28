@@ -32,6 +32,7 @@ Object.assign(SuperAnki.prototype, {
         const used = new Set();
         const scan = s => { String(s || '').replace(/media:([a-z0-9]+)/g, (m, id) => { used.add(id); return m; }); };
         data.cards.forEach(c => { scan(c.front); scan(c.back); scan(c.hint); scan(c.detail); if (c.nf) { scan(c.nf.front); scan(c.nf.back); scan(c.nf.text); scan(c.nf.extra); if (c.nf.f) Object.values(c.nf.f).forEach(scan); } });
+        (data.notes || []).forEach(n => n.b.forEach(b => scan(b.src)));
         ids.forEach(id => { if (!used.has(id)) delete data.media[id]; });
     },
     resolveMedia(root = document) {

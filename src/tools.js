@@ -166,7 +166,7 @@ Object.assign(SuperAnki.prototype, {
         const ids = new Set(d.cards.map(c => c.id));
         const badLog = d.revlog.filter(r => !ids.has(r[1])).length;
         const mediaBefore = Object.keys(d.media || {}).length;
-        const probe = { cards: d.cards, media: { ...(d.media || {}) } };
+        const probe = { cards: d.cards, notes: d.notes, media: { ...(d.media || {}) } };
         this.gcMedia(probe);
         const orphanMedia = mediaBefore - Object.keys(probe.media).length;
         if (orphanMedia) { d.media = probe.media; fixes.push(`${plural(orphanMedia, 'fichier inutilisé supprimé', 'fichiers inutilisés supprimés')}`); }

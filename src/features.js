@@ -483,6 +483,7 @@ Object.assign(SuperAnki.prototype, {
             fsr && fs ? ['Stabilité', `${fmtNum(fs.s)} jours`] : ['Facilité', `${Math.round(c.ease * 100)} %`],
             fsr && fs ? ['Difficulté', `${fmtNum(fs.d)} / 10`] : null,
             fsr && R !== null ? ['Probabilité de souvenir', `${Math.round(R * 100)} %`] : null,
+            this.notesLinkingCard(id).length ? ['Citée dans les notes', esc(this.notesLinkingCard(id).map(n => this.noteName(n)).join(', '))] : null,
             ['Révisions', c.reps], ['Oublis', c.lapses], ['Erreurs en cours', c.errors],
             ['Temps total', fmtDuration(total)], ['Tags', c.tags.length ? esc(c.tags.join(', ')) : '-']
         ].filter(Boolean);

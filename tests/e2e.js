@@ -725,6 +725,76 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         ok('Association: not enough short cards → message; 6 pairs per round (12 tiles), +2 s per mistake, best time per deck, "next round", no card touched', g.refused && g.pool === 9 && g.kind === 'match' && g.tiles === 12 && g.err === 1 && g.final && g.best && g.result && g.round2 && g.untouched && g.mergeMin, JSON.stringify(g));
     }
 
+    /* Notes tab (6th entry): outline editor typed with the real keyboard, [[links]] + backlinks, daily note, trash, sync merge, images kept */
+    {
+        const tabs = {};
+        for (const w of [360, 390, 430]) {
+            await page.setViewportSize({ width: w, height: 800 }); await page.evaluate(() => app.go('dashboard')); await wait(250);
+            tabs[w] = await page.evaluate(() => { const bn = document.querySelector('.bottom-nav'), bs = [...bn.querySelectorAll('button')]; return { n: bs.length, over: bn.scrollWidth > bn.clientWidth + 1, cut: bs.some(b => b.scrollWidth > b.clientWidth + 1), notes: !!bn.querySelector('[data-nav=notes]') }; });
+        }
+        for (const w of [1280, 1100, 1000]) {
+            await page.setViewportSize({ width: w, height: 800 }); await page.evaluate(() => app.go('dashboard')); await wait(250);
+            tabs['pc' + w] = await page.evaluate(() => { const t = document.querySelector('.topbar-inner'); return { over: t.scrollWidth > t.clientWidth + 1, nav: !!document.querySelector('.nav [data-nav=notes]') }; });
+        }
+        await page.setViewportSize({ width: 390, height: 800 });
+        ok('Notes: 6 tabs fit the bottom bar at 360, 390 and 430 px and the top bar on a computer', [360, 390, 430].every(w => tabs[w].n === 6 && !tabs[w].over && !tabs[w].cut && tabs[w].notes) && ['pc1280', 'pc1100', 'pc1000'].every(k => !tabs[k].over && tabs[k].nav), JSON.stringify(tabs));
+        await page.evaluate(() => { app.go('notes'); }); await wait(300);
+        await page.click('[data-action=nb-new]'); await wait(300);
+        await page.keyboard.type('Cours de marketing'); await page.keyboard.press('Enter'); await wait(80);
+        await page.keyboard.type('Les 4 P'); await page.keyboard.press('Enter');
+        await page.keyboard.type('Produit'); await page.keyboard.press('Tab'); await page.keyboard.press('Enter');
+        await page.keyboard.type('Prix'); await page.keyboard.press('Enter'); await page.keyboard.type('Place'); await page.keyboard.press('Shift+Tab'); await page.keyboard.press('Enter');
+        await page.keyboard.type('# Conclusion'); await page.keyboard.press('Enter');
+        await page.keyboard.type('[] relire le cours'); await page.keyboard.press('Enter'); await page.keyboard.press('Enter');   // 2nd Enter on an empty to-do leaves the to-do
+        await page.keyboard.type('Voir [[Autre note]] et [[Plan');
+        await wait(200);
+        const nb1 = await page.evaluate(() => { const n = app.data.notes[0]; return { title: n.title, b: n.b.map(b => `${b.t}:${b.d}:${b.x}`), sug: document.querySelectorAll('.nb-suggest button').length, bar: !!document.querySelector('#nb-bar') && getComputedStyle(document.querySelector('#nb-bar')).display !== 'none' }; });
+        await page.keyboard.press('Escape'); for (let i = 0; i < 6; i++) await page.keyboard.press('Backspace');
+        await page.evaluate(() => app.nbIdle(true)); await wait(150);
+        const nb2 = await page.evaluate(() => { const n = app.data.notes[0]; return { last: n.b[n.b.length - 1].x, link: !!document.querySelector('.nb-link.miss'), saved: JSON.parse(app.serialize()).notes.length === 1 }; });
+        ok('Notes: typed outline (Enter, Tab / Shift+Tab, "# " title, "[] " to-do, Enter on empty to-do), floating bar, [[ suggestions', nb1.title === 'Cours de marketing' && JSON.stringify(nb1.b) === JSON.stringify(['p:0:Les 4 P', 'p:1:Produit', 'p:1:Prix', 'p:0:Place', 'h1:0:Conclusion', 'todo:0:relire le cours', 'p:0:Voir [[Autre note]] et [[Plan']) && nb1.sug > 0 && nb1.bar && nb2.last === 'Voir [[Autre note]] et ' && nb2.link && nb2.saved, JSON.stringify({ nb1, nb2 }));
+        const lk = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {}, d = a.data, n = d.notes[0];
+            /* the missing link is created by tapping it; the new note shows the backlink; renaming keeps the link alive */
+            document.querySelector('.nb-link.miss').click(); await w(200);
+            const t2 = d.notes.find(x => x.title === 'Autre note'); out.created = !!t2 && a.ui.note === t2.id;
+            out.back = document.querySelectorAll('#nb-backlinks .nb-bl').length === 1 && /Cours de marketing/.test(document.getElementById('nb-backlinks').textContent);
+            const ti = document.getElementById('nb-title'); ti.value = 'Seconde note'; ti.dispatchEvent(new Event('change', { bubbles: true })); await w(100);
+            out.renamed = n.b.some(b => b.x.includes('[[Seconde note]]')) && !n.b.some(b => b.x.includes('[[Autre note]]'));
+            /* a link to a card, shown on the card info */
+            const card = d.cards[0]; n.b.push({ t: 'p', x: `Carte : [[c:${card.id}|${truncate(stripHtml(card.front), 20)}]]`, d: 0 }); a.save();
+            out.cardLink = a.notesLinkingCard(card.id).length === 1 && /Carte/.test(a.inlineHtml(n.b[n.b.length - 1].x));
+            /* today's note: made once, titled with the date */
+            a.noteDaily(); await w(200); const dn = d.notes.find(x => x.daily === dayKey()); out.daily = !!dn && /\d{4}/.test(dn.title) && a.ui.note === dn.id;
+            a.noteDaily(); await w(100); out.dailyOnce = d.notes.filter(x => x.daily === dayKey()).length === 1;
+            /* fold + undo on the first note */
+            a.noteOpen(n.id); await w(200);
+            const first = document.querySelector('.nb[data-i="0"] .nb-bul'); first.click(); await w(150); out.fold = n.b[0].c === true && document.querySelectorAll('.nb.hid').length === 2; first.click(); await w(100);
+            a.nbActivate(4, 'end'); document.execCommand('insertText', false, ' !'); await w(100); a.nbUndo(); await w(150); out.undo = n.b[4].x === 'Conclusion';
+            /* to-do check */
+            document.querySelector('.nb-todo .nb-chk, .nb[data-i="5"] .nb-chk').click(); out.todo = n.b[5].done === true;
+            return out;
+        });
+        ok('Notes: [[link]] created by tapping it, backlinks, rename keeps links, card link, note of the day (once), fold, undo, to-do', lk.created && lk.back && lk.renamed && lk.cardLink && lk.daily && lk.dailyOnce && lk.fold && lk.undo && lk.todo, JSON.stringify(lk));
+        const sv = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {}, d = a.data;
+            const ser = JSON.parse(a.serialize()); out.saved = ser.notes.length === 3 && normalizeState(JSON.stringify(ser)).notes.length === 3;
+            const L = normalizeState(a.serialize()), R = normalizeState(a.serialize());
+            R.notes[0].b.push({ t: 'p', x: 'ajout distant', d: 0 }); R.notes[0].mod = Date.now() + 9000;
+            const gone = R.notes.pop(); R.deleted[gone.id] = Date.now() + 9000;
+            const m = mergeStates(L, R).data; out.merged = m.notes.some(x => x.b.some(b => b.x === 'ajout distant')) && !m.notes.some(x => x.id === gone.id);
+            /* images stay in the media store (not cleaned away) */
+            const ref = a.addMedia('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='); d.notes[0].b.push({ t: 'img', src: ref, d: 0 }); a.gcMedia(d); out.media = !!d.media[ref.slice(6)];
+            /* deleting a note: trash, undo toast restores it */
+            const id = d.notes[0].id, title = d.notes[0].title; a.noteDelete(id); await w(100);
+            out.trash = !d.notes.some(x => x.id === id) && d.trash.some(x => x.k === 'note' && x.c.id === id);
+            a.trashRestore('note', id); await w(100); out.restored = d.notes.some(x => x.id === id && x.title === title) && !d.trash.some(x => x.k === 'note' && x.c.id === id);
+            d.notes = []; a.ui.note = null; a.nbBarEnsure(false); a.go('dashboard');
+            return out;
+        });
+        ok('Notes: saved, merged between devices, images kept, deletion goes to the trash and can be restored', sv.saved && sv.merged && sv.media && sv.trash && sv.restored, JSON.stringify(sv));
+    }
+
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));
     console.log(R.join('\n') + `\n\n${R.length - failed}/${R.length} checks passed`);
     await browser.close(); server.close(); process.exit(failed ? 1 : 0);
