@@ -586,6 +586,33 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         ok('new cards of yesterday not studied come first today', nc.n1 === 5 && nc.n2 === 5 && nc.kept && nc.gone, JSON.stringify(nc));
     }
 
+    /* advanced import: "a >> b", "a <> b", "{{hole}}" typed directly; duplicates are flagged and unticked; one card per hole */
+    {
+        const im = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {};
+            const n0 = a.data.cards.length;
+            a.data.decks.push({ id: 'dimp', name: 'ImportTest', emoji: '📘', description: '', created: Date.now(), parent: null, opts: null, mod: 0 });
+            a.data.cards.push({ id: 'cimp', ...freshCard(), deckId: 'dimp', front: 'chien', back: 'dog', hint: '', detail: '', tags: [], created: 1, nid: '', kind: 'basic', ord: 0, nf: null });
+            a.openImportModal();
+            const m = document.querySelector('.modal-overlay:last-of-type') || document;
+            const sel = document.getElementById('im-deck'), ta = document.getElementById('im-text');
+            sel.value = 'dimp'; sel.dispatchEvent(new Event('change'));
+            ta.value = "Capitale de l'Italie >> Rome\nchat <> cat\nLe {{TOEIC}} évalue l'{{anglais}}\na ; b\nchien >> dog\nchat <> cat\nligne sans separateur";
+            ta.dispatchEvent(new Event('input')); await w(100);
+            out.rows = document.querySelectorAll('.im-row').length; out.dup = document.querySelectorAll('.im-row.dup').length;
+            out.label = document.getElementById('im-go').textContent.trim();
+            out.skipped = /1 ligne ignorée/.test(document.getElementById('im-preview').textContent);
+            document.getElementById('im-go').click(); await w(300);
+            const made = a.data.cards.filter(c => c.deckId === 'dimp' && c.id !== 'cimp');
+            out.made = made.length; out.kinds = made.map(c => c.kind).sort().join(',');
+            out.holes = made.filter(c => c.kind === 'cloze').length;
+            out.noChienTwice = a.data.cards.filter(c => c.deckId === 'dimp' && c.front === 'chien').length === 1;
+            a.data.cards = a.data.cards.filter(c => c.deckId !== 'dimp'); a.data.decks = a.data.decks.filter(d => d.id !== 'dimp');
+            return out;
+        });
+        ok('import: typed syntax (>> <> {{hole}}), duplicates flagged and unticked, one card per hole', im.rows === 6 && im.dup === 2 && /^Importer 6 cartes$/.test(im.label) && im.skipped && im.made === 6 && im.holes === 2 && im.noChienTwice && im.kinds === 'basic,basic,cloze,cloze,rev,rev', JSON.stringify(im));
+    }
+
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));
     console.log(R.join('\n') + `\n\n${R.length - failed}/${R.length} checks passed`);
     await browser.close(); server.close(); process.exit(failed ? 1 : 0);

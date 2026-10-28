@@ -3579,7 +3579,7 @@ class SuperAnki {
         const m = this.openModal({
             title: 'Importer des fiches', size: 'wide',
             body: `
-                <p class="small muted" style="margin-bottom:14px">Une fiche par ligne : <code>question ; réponse</code> (séparateur <code>;</code>, tabulation ou virgule). Une 3e colonne optionnelle sert d'indice. Compatible avec les exports texte d'Anki et Quizlet.</p>
+                <p class="small muted" style="margin-bottom:14px">Une fiche par ligne : <code>question ; réponse</code> (séparateur <code>;</code>, tabulation ou virgule) ou en écrivant directement : <code>question &gt;&gt; réponse</code>, <code>mot &lt;&gt; mot</code> (dans les deux sens) et <code>Le {{trou}} est…</code> (texte à trous : une carte par trou). Une 3e colonne optionnelle sert d'indice. Compatible avec les exports texte d'Anki et d'Excel.</p>
                 <div class="field"><label class="label" for="im-deck">Paquet de destination</label>
                     <select class="select" id="im-deck">${this.sortedDecks().map(d => `<option value="${esc(d.id)}" ${d.id === cur ? 'selected' : ''}>${esc(d.emoji)} ${esc(this.deckPath(d.id))}</option>`).join('')}<option value="__new">+ Nouveau paquet...</option></select></div>
                 <div class="field hidden" id="im-newdeck-wrap"><label class="label" for="im-newdeck">Nom du nouveau paquet</label><input class="input" id="im-newdeck" placeholder="Ex : Vocabulaire anglais"></div>
@@ -3588,18 +3588,39 @@ class SuperAnki {
                 <div class="field"><label class="label" for="im-text">... ou colle tes fiches ici</label><textarea class="textarea" id="im-text" rows="6" placeholder="Capitale de l'Italie ; Rome&#10;H2O ; L'eau"></textarea>
                     <div class="im-tr"><button class="btn btn-soft btn-sm" id="im-translate" type="button">Traduire les mots seuls (anglais → français)</button><span class="help" id="im-tr-st">Colle une liste de mots anglais, un par ligne : les traductions proposées s'écrivent à côté. Vérifie-les avant d'importer.</span></div></div>
                 <label class="check hidden" id="im-usedecks-wrap" style="margin-bottom:10px"><input type="checkbox" id="im-usedecks" checked> Utiliser les paquets et tags indiqués dans le fichier</label>
-                <p class="help" id="im-preview">Aucune fiche détectée pour l'instant.</p>`,
+                <div id="im-preview" class="help">Aucune fiche détectée pour l'instant.</div>`,
             foot: `<button class="btn btn-soft" data-close>Annuler</button><button class="btn btn-primary" id="im-go" disabled>${ic('import')}Importer</button>`
         });
         const ta = $('#im-text', m), prev = $('#im-preview', m), go = $('#im-go', m), sel = $('#im-deck', m);
+        const over = new Map();   // what the user ticked or unticked by hand (by line key)
+        let shown = [];
         const refresh = () => {
             const rows = parseImport(ta.value);
-            prev.innerHTML = rows.length ? `<b>${plural(rows.length, 'fiche')} détectée${rows.length > 1 ? 's' : ''}</b>. Ex. : « ${esc(truncate(stripHtml(rows[0].front), 50))} » → « ${esc(truncate(stripHtml(rows[0].back), 50))} »` : 'Aucune fiche détectée pour l\'instant.';
-            go.disabled = !rows.length;
+            const exist = sel.value === '__new' ? new Set() : importExistingKeys(this.cardsOf(sel.value)), seen = new Set();
+            rows.forEach(r => { r.key = importKey(r); r.dup = exist.has(r.key) ? 'existing' : seen.has(r.key) ? 'paste' : ''; seen.add(r.key); r.on = over.has(`${r.n}|${r.key}`) ? over.get(`${r.n}|${r.key}`) : !r.dup; });
+            shown = rows;
+            const cnt = r => r.kind === 'rev' ? 2 : r.kind === 'cloze' ? Math.max(1, clozeNumbers(r.front).length) : 1;
+            const cards = rows.filter(r => r.on).reduce((n, r) => n + cnt(r), 0), dups = rows.filter(r => r.dup).length, sk = rows.skipped || [];
+            const sym = { basic: '→', rev: '⇄', cloze: '[…]' };
+            const line = r => {
+                const f = r.kind === 'cloze' ? stripHtml(r.front).replace(CLOZE_RE, '[…]') : stripHtml(r.front), b = r.kind === 'cloze' ? stripHtml(r.back) : stripHtml(r.back);
+                return `<label class="im-row ${r.dup ? 'dup' : ''}"><input type="checkbox" data-im="${r.n}|${esc(r.key)}" ${r.on ? 'checked' : ''}><span class="im-sym">${sym[r.kind]}</span><span class="im-t"><b>${esc(truncate(f, 70))}</b>${b ? ` <span class="faint">${r.kind === 'cloze' ? '+' : sym.basic}</span> ${esc(truncate(b, 70))}` : ''}</span>${r.dup ? `<span class="im-badge">${r.dup === 'existing' ? 'déjà dans ce paquet' : 'répétée ici'}</span>` : ''}${r.kind !== 'basic' ? `<span class="im-badge ok">${plural(cnt(r), 'carte')}</span>` : ''}</label>`;
+            };
+            prev.innerHTML = rows.length || sk.length
+                ? `<b>${plural(cards, 'carte')} à importer</b>${rows.length !== cards ? ` (${plural(rows.length, 'ligne')} lue${rows.length > 1 ? 's' : ''})` : ''}${dups ? ` · ${plural(dups, 'doublon')} signalé${dups > 1 ? 's' : ''} et décoché${dups > 1 ? 's' : ''}` : ''}${sk.length ? ` · <span style="color:var(--due)">${plural(sk.length, 'ligne ignorée', 'lignes ignorées')}</span>` : ''}
+                   ${rows.length ? `<div class="im-list">${rows.slice(0, 300).map(line).join('')}</div>${rows.length > 300 ? `<div class="faint tiny" style="margin-top:4px">Les 300 premières lignes sont affichées : les suivantes sont importées aussi (sauf doublons).</div>` : ''}<div style="margin-top:6px"><button type="button" class="link" id="im-all">Tout cocher</button> · <button type="button" class="link" id="im-none">Tout décocher</button></div>` : ''}
+                   ${sk.length ? `<details style="margin-top:6px"><summary class="small">Voir les lignes ignorées (pas de séparateur ou texte vide)</summary><div class="small faint" style="margin-top:4px">${sk.slice(0, 12).map(x => `<div>ligne ${x.n} : « ${esc(truncate(x.raw.trim(), 80))} »</div>`).join('')}${sk.length > 12 ? `<div>… et ${sk.length - 12} autres</div>` : ''}</div></details>` : ''}`
+                : 'Aucune fiche détectée pour l\'instant.';
+            go.disabled = !cards;
+            go.innerHTML = `${ic('import')}${cards ? `Importer ${plural(cards, 'carte')}` : 'Importer'}`;
             const hasDecks = rows.some(r => r.deck);
             $('#im-usedecks-wrap', m).classList.toggle('hidden', !hasDecks);
-            return rows;
+            return rows.filter(r => r.on);
         };
+        prev.addEventListener('change', e => { const b = e.target.closest('[data-im]'); if (b) { over.set(b.dataset.im, b.checked); refresh(); } });
+        prev.addEventListener('click', e => {
+            if (e.target.id === 'im-all' || e.target.id === 'im-none') { shown.forEach(r => over.set(`${r.n}|${r.key}`, e.target.id === 'im-all')); refresh(); }
+        });
         ta.addEventListener('input', refresh);
         $('#im-translate', m).addEventListener('click', async () => {
             const st = $('#im-tr-st', m), btn = $('#im-translate', m);
@@ -3622,7 +3643,7 @@ class SuperAnki {
             ta.value = lines.join('\n'); refresh(); btn.disabled = false;
             st.textContent = `${batch.length - fail} traduction${batch.length - fail > 1 ? 's' : ''} ajoutée${batch.length - fail > 1 ? 's' : ''}${fail ? ` · ${fail} à compléter à la main` : ''}${todo.length > batch.length ? ` · ${todo.length - batch.length} restantes (relance)` : ''}. Vérifie avant d'importer.`;
         });
-        sel.addEventListener('change', () => $('#im-newdeck-wrap', m).classList.toggle('hidden', sel.value !== '__new'));
+        sel.addEventListener('change', () => { $('#im-newdeck-wrap', m).classList.toggle('hidden', sel.value !== '__new'); refresh(); });
         $('#im-file', m).addEventListener('click', () => {
             const input = $('#hidden-file');
             input.accept = '.txt,.csv,.tsv,text/plain,text/csv';
@@ -3663,19 +3684,26 @@ class SuperAnki {
                 });
                 return found ? found.id : deckId;
             };
+            let made = 0;
             this.change('import', [], () => {
-                const made = [];
+                const ids = [];
                 rows.forEach((r, i) => {
-                    const c = { id: uid('c'), ...freshCard(), deckId: useDecks && r.deck ? deckFor(r.deck) : deckId, front: r.front, back: r.back, hint: r.hint || '', detail: '', tags: r.tags || [], created: now + i, nid: '', kind: 'basic', ord: 0, nf: null };
-                    this.data.cards.push(c); made.push(c.id);
+                    const did = useDecks && r.deck ? deckFor(r.deck) : deckId;
+                    if (r.kind === 'basic') {
+                        const c = { id: uid('c'), ...freshCard(), deckId: did, front: r.front, back: r.back, hint: r.hint || '', detail: '', tags: r.tags || [], created: now + i, nid: '', kind: 'basic', ord: 0, nf: null };
+                        this.data.cards.push(c); ids.push(c.id); made++;
+                    } else {
+                        const got = this.createNote({ type: r.kind, deckId: did, front: r.front, back: r.back, hint: '', detail: '', tags: r.tags || [] }) || [];
+                        got.forEach(id => ids.push(id)); made += got.length;
+                    }
                 });
-                return made;
+                return ids;
             }, { decks: true });
             this.save();
             this.closeModal(m);
             this.ui.deck = deckId; this.ui.filter = 'all';
             this.go('decks');
-            this.toast(`${plural(rows.length, 'fiche importée', 'fiches importées')}`, 'success');
+            this.toast(`${plural(made, 'carte importée', 'cartes importées')}`, 'success');
         });
     }
     exportJSON() {
@@ -4427,7 +4455,37 @@ function interleave(reviews, news) {
     return out;
 }
 
-/* CSV / TXT parser: ; tab or , separators, quoted fields, Anki "#" headers */
+/* Typed straight in the paste box: "question >> answer", "a <> b" (both ways: two linked cards) and "The {{hole}} is ..." (cloze: one card per hole).
+   An optional "... >> extra" after a cloze line is the extra text shown with the answer. Returns null for a line that does not use this syntax. */
+function importSyntax(line) {
+    const t = line.trim();
+    if (/\{\{[^{}]+\}\}/.test(t)) {
+        const i = t.indexOf('>>');
+        let body = (i >= 0 ? t.slice(0, i) : t).trim(); const extra = i >= 0 ? t.slice(i + 2).trim() : '';
+        const used = new Set([...body.matchAll(/\{\{c(\d+)::/g)].map(m => Number(m[1])));
+        let n = 0;
+        body = body.replace(/\{\{(?!c\d+::)([^{}]+?)\}\}/g, (m, inner) => { do { n++; } while (used.has(n)); return `{{c${n}::${inner.trim()}}}`; });
+        return { kind: 'cloze', front: body, back: extra };
+    }
+    const m = /^(.+?)\s*(<>|>>)\s*(.+)$/.exec(t);
+    if (m) return { kind: m[2] === '<>' ? 'rev' : 'basic', front: m[1].trim(), back: m[3].trim() };
+    return null;
+}
+/* the key that tells two lines are the same card (same idea as the duplicates tool: kind + folded front) */
+const importPlain = h => fold(stripHtml(h || '')).replace(/\s+/g, ' ').trim();
+const importKey = r => `${r.kind === 'cloze' ? 'cloze' : 'basic'}|${importPlain(r.front)}`;
+function importExistingKeys(cards) {
+    const set = new Set();
+    cards.forEach(c => {
+        if (c.kind === 'cloze' && c.nf) set.add(`cloze|${importPlain(c.nf.text)}`);
+        else if (c.kind === 'rev' && c.nf) { if (c.ord === 0) set.add(`basic|${importPlain(c.nf.front)}`); }
+        else if (c.kind === 'basic' || c.kind === 'custom') set.add(`basic|${importPlain(c.front)}`);
+    });
+    return set;
+}
+
+/* CSV / TXT parser: ; tab or , separators, quoted fields, Anki "#" headers. Also the typed syntax above (not for an Anki export, which keeps its own format).
+   The result is the list of cards; its `skipped` property lists the lines that were not understood. */
 function parseImport(text) {
     const all = String(text || '').replace(/^﻿/, '').split(/\r\n|\n|\r/);
     const meta = { tagsCol: -1, deckCol: -1, sep: null };
@@ -4437,9 +4495,11 @@ function parseImport(text) {
         if ((m = /^#tags column:\s*(\d+)/i.exec(l.trim()))) meta.tagsCol = Number(m[1]) - 1;
         if ((m = /^#deck column:\s*(\d+)/i.exec(l.trim()))) meta.deckCol = Number(m[1]) - 1;
     });
-    const lines = all.filter(l => l.trim() && !/^#(separator|html|tags|columns|notetype|deck|guid|file)/i.test(l.trim()));
-    if (!lines.length) return [];
-    const sample = lines.slice(0, 20);
+    const anki = all.some(l => /^#(separator|html|tags column|deck column|notetype|guid)/i.test(l.trim()));
+    const lines = all.map((raw, i) => ({ raw, n: i + 1 })).filter(x => x.raw.trim() && !/^#(separator|html|tags|columns|notetype|deck|guid|file)/i.test(x.raw.trim()));
+    const rows = []; rows.skipped = [];
+    if (!lines.length) return rows;
+    const sample = lines.slice(0, 20).map(x => x.raw);
     const sep = meta.sep || (sample.some(l => l.includes('\t')) ? '\t' : sample.some(l => l.includes(';')) ? ';' : ',');
     const split = line => {
         const out = []; let cur = '', q = false;
@@ -4456,16 +4516,22 @@ function parseImport(text) {
         out.push(cur);
         return out.map(x => x.trim());
     };
-    const rows = [];
-    lines.forEach(l => {
+    lines.forEach(({ raw: l, n }) => {
+        const syn = anki ? null : importSyntax(l);
+        if (syn) {
+            const front = sanitizeHtml(syn.front), back = sanitizeHtml(syn.back);
+            if (isBlank(front) || (syn.kind !== 'cloze' && isBlank(back))) { rows.skipped.push({ n, raw: l }); return; }
+            rows.push({ kind: syn.kind, front, back, hint: '', tags: [], deck: '', n });
+            return;
+        }
         const f = split(l);
-        if (f.length < 2) return;
+        if (f.length < 2) { rows.skipped.push({ n, raw: l }); return; }
         const front = sanitizeHtml(f[0]), back = sanitizeHtml(f[1]);
-        if (isBlank(front) || isBlank(back)) return;
+        if (isBlank(front) || isBlank(back)) { rows.skipped.push({ n, raw: l }); return; }
         const tags = meta.tagsCol >= 0 && f[meta.tagsCol] ? f[meta.tagsCol].split(/\s+/).filter(Boolean) : [];
         const deck = meta.deckCol >= 0 && f[meta.deckCol] ? f[meta.deckCol] : '';
         const hint = f[2] && meta.tagsCol !== 2 && meta.deckCol !== 2 ? sanitizeHtml(f[2]) : '';
-        rows.push({ front, back, hint, tags, deck });
+        rows.push({ kind: 'basic', front, back, hint, tags, deck, n });
     });
     return rows;
 }
