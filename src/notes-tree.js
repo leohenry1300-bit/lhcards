@@ -123,7 +123,7 @@ Object.assign(SuperAnki.prototype, {
         <div class="notes-shell ${n || ui.nbFolder || ui.nbMem ? 'has-open' : ''}">
             <aside class="notes-side panel">
                 <div class="notes-side-head"><h2 class="page-title" style="margin:0">Notes</h2>
-                    <span class="row-gap"><button class="btn btn-primary btn-sm" data-action="nb-new-menu" id="nb-newbtn">${ic('plus')}<span>Créer</span>${ic('chevronDown')}</button></span></div>
+                    <span class="row-gap"><button class="btn btn-soft btn-sm" data-action="pdf-import-btn" title="Importer un PDF">${ic('pdf')}<span>PDF</span></button><button class="btn btn-primary btn-sm" data-action="nb-new-menu" id="nb-newbtn">${ic('plus')}<span>Créer</span>${ic('chevronDown')}</button></span></div>
                 <div id="nb-home">${this.nbHomeHtml()}</div>
                 <label class="input-icon" style="display:block;margin:10px 0 8px">${ic('search')}<input class="input" id="nb-search" type="search" placeholder="Chercher dans les notes…" value="${esc(ui.noteQ || '')}" autocomplete="off" enterkeyhint="search"></label>
                 <div class="nb-tools"><button class="btn btn-soft btn-sm" data-action="nb-sort-menu" id="nb-sortbtn">${this.nbSortLabel()}</button><button class="btn ${ui.noteSelMode ? 'btn-primary' : 'btn-soft'} btn-sm" data-action="nb-sel-toggle">${ic('checkSq')}<span>Sélection</span></button></div>

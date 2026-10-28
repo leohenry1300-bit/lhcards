@@ -51,6 +51,7 @@ Object.assign(SuperAnki.prototype, {
                 <button class="icon-btn hide-n ${pv.mode === 'text' ? 'on' : ''}" data-action="pdf-mode" aria-label="Lecteur de texte" title="Basculer entre le PDF fidèle et le texte réaffiché">${ic(pv.mode === 'text' ? 'file' : 'typeT')}</button>
                 <button class="icon-btn hide-n" data-action="pdf-read" aria-label="Lire à voix haute" title="Lire à voix haute">${ic('volume')}</button>
                 <button class="btn btn-primary btn-sm pdfv-prac" data-action="pdf-train" title="S'entraîner avec les cartes de ce PDF">${ic('play')}<span>Pratique</span></button>
+                <button class="icon-btn hide-n" data-action="pdf-side" aria-label="Note à gauche ou à droite" title="Mettre la note à gauche / à droite">${ic('columns')}</button>
                 <button class="icon-btn ${pv.notes ? 'on' : ''}" data-action="pdf-notes" aria-label="Notes" title="Afficher / masquer la note du PDF">${ic('note')}</button>
                 <button class="icon-btn hide-n" data-action="pdf-focus" aria-label="Mode concentration" title="Mode concentration (plein écran)">${ic('fullscreen')}</button>
                 <button class="icon-btn" data-action="pdf-more" aria-label="Plus d'actions" title="Plus d'actions">${ic('more')}</button>
@@ -176,7 +177,7 @@ Object.assign(SuperAnki.prototype, {
         const n = this.pdfNoteOf(pv.p); this.ui.note = n.id;
         this.nb = Object.assign(this.nb || { back: [] }, { hist: [], redo: [], active: -1, burst: 0, find: null, hits: [] });
         if (n.b.some(b => b.cd) && this.nbCardSyncAll(n)) this.save(false);
-        box.innerHTML = `<div class="pdfn-head"><span class="nb-row-ico">${n.emoji ? esc(n.emoji) : '📝'}</span><b>${esc(this.noteName(n))}</b><button class="icon-btn icon-btn-sm" data-action="pdf-note-open" title="Ouvrir cette note dans l'onglet Notes" aria-label="Ouvrir dans Notes">${ic('notebook')}</button><button class="icon-btn icon-btn-sm pdfn-close" data-action="pdf-notes" aria-label="Fermer la note">${ic('chevronDown')}</button></div>
+        box.innerHTML = `<div class="pdfn-head"><span class="nb-row-ico">${n.emoji ? esc(n.emoji) : '📝'}</span><b>${esc(this.noteName(n))}</b><button class="icon-btn icon-btn-sm pdfn-close" data-action="pdf-notes" aria-label="Fermer la note">${ic('chevronDown')}</button></div>
             <div class="nb-editor pdfn-ed" data-id="${esc(n.id)}"><div class="nb-blocks" id="nb-blocks">${this.nbBlocksHtml(n)}</div></div>`;
         this.nbBind($('#view-pdf')); this.nbBarEnsure(true); this.resolveMedia(box);
     },
@@ -208,7 +209,7 @@ Object.assign(SuperAnki.prototype, {
         return pv.texts[n];
     },
     pdfSearchPanel() {
-        const pv = this.pv; this.closePopover();
+        const pv = this.pv; this.closePopover(); { const tb = $('#pdf-tocbox'); if (tb) tb.remove(); }
         let m = $('#pdf-searchbox'); if (m) { m.remove(); return; }
         const box = document.createElement('div'); box.id = 'pdf-searchbox'; box.className = 'pdf-sheet';
         box.innerHTML = `<div class="pdf-sheet-h"><input class="input" id="pdf-q" placeholder="Chercher dans le PDF…" autocomplete="off" enterkeyhint="search"><button class="icon-btn" data-action="pdf-search" aria-label="Fermer">${ic('x')}</button></div><div class="small faint" id="pdf-qst"></div><div class="pdf-results" id="pdf-res"></div>`;
@@ -243,12 +244,18 @@ Object.assign(SuperAnki.prototype, {
         pg.divs.forEach(d => { if (fold(d.textContent).includes(f)) d.classList.add('hit'); });
         if (forced) setTimeout(() => { if (this.pv === pv && pv.hitQ !== forced) $$('.pdft span.hit', pg.el).forEach(s => s.classList.remove('hit')); }, 2600);
     },
-    pdfTocMenu(anchor) {
-        const pv = this.pv, p = pv.p, items = [];
-        if (p.toc.length) { items.push({ head: 'Table des matières' }); p.toc.slice(0, 60).forEach(t => items.push({ icon: 'chevronRight', label: `${'· '.repeat(t.d)}${esc(truncate(t.t, 46))} <span class="faint">p. ${t.n}</span>`, fn: () => this.pdfGoto(t.n) })); items.push({ sep: true }); }
-        items.push({ icon: 'layers', label: 'Aller à une page…', fn: () => { const v = prompt(`Numéro de page (1 à ${p.pg.length})`, String(this.pdfCurrent() + 1)); const n = Math.round(Number(v)); if (n >= 1 && n <= p.pg.length) this.pdfGoto(p.pg[n - 1].id); } });
-        items.push({ icon: 'arrowDown', label: 'Début du PDF', fn: () => this.pdfGoto(p.pg[0].id) }, { icon: 'arrowDown', label: 'Fin du PDF', fn: () => this.pdfGoto(p.pg[p.pg.length - 1].id) });
-        this.showMenu(anchor, items);
+    pdfTocMenu() {
+        const pv = this.pv, p = pv.p, old = $('#pdf-tocbox'); this.closePopover(); if (old) { old.remove(); return; }
+        const sb = $('#pdf-searchbox'); if (sb) sb.remove();
+        const toc = p.toc.filter(t => /[\p{L}\p{N}]/u.test(t.t || '')), cur = (pv.mode === 'text' ? pv.textAt || 0 : this.pdfCurrent()) + 1;
+        const box = document.createElement('div'); box.id = 'pdf-tocbox'; box.className = 'pdf-sheet';
+        box.innerHTML = `<div class="pdf-sheet-h"><b style="flex:1">Aller à…</b><button class="icon-btn" data-toc="x" aria-label="Fermer">${ic('x')}</button></div>
+            <div class="pdf-goto"><button class="btn btn-soft btn-sm" data-toc="first">Début</button><label>Page <input class="input" id="pdf-gp" type="number" inputmode="numeric" min="1" max="${p.pg.length}" value="${cur}"> / ${p.pg.length}</label><button class="btn btn-soft btn-sm" data-toc="last">Fin</button></div>
+            ${toc.length ? `<div class="pdf-results">${toc.slice(0, 200).map((t, k) => `<button class="pdf-toc d${t.d}" data-toc="${k}"><span>${esc(truncate(t.t.trim(), 80))}</span><small>${t.n}</small></button>`).join('')}</div>` : '<p class="small faint" style="margin:0">Ce PDF n\'a pas de table des matières.</p>'}`;
+        $('.pdfv').appendChild(box);
+        const go = n => { n = Math.round(Number(n)); if (n >= 1 && n <= p.pg.length) { this.pdfGoto(p.pg[n - 1].id); if (!this.pdfWide()) box.remove(); } };
+        $('#pdf-gp', box).addEventListener('keydown', e => { if (e.key === 'Enter') go(e.target.value); });
+        box.addEventListener('click', e => { const b = e.target.closest('[data-toc]'); if (!b) return; const k = b.dataset.toc; if (k === 'x') box.remove(); else if (k === 'first') go(1); else if (k === 'last') go(p.pg.length); else go(toc[Number(k)].n); });
     },
 
     /* ---------- text reader ---------- */
@@ -266,7 +273,7 @@ Object.assign(SuperAnki.prototype, {
             const g = pgs[i];
             if (g.k === 'b') { parts.push(`<section class="pdfr-pg" data-i="${i}" data-pid="${esc(g.id)}"><h5>Page ${i + 1} · page blanche</h5></section>`); continue; }
             await this.pdfPageText(g.n); const r = this.pdfParagraphs(g.n); bad += r.cols; lines += r.lines; total += r.chars;
-            parts.push(`<section class="pdfr-pg" data-i="${i}" data-pid="${esc(g.id)}"><h5>Page ${i + 1}</h5>${r.paras.length ? r.paras.map(t => `<p>${esc(t)}</p>`).join('') : '<p class="faint">(pas de texte sur cette page : image ou scan)</p>'}</section>`);
+            parts.push(`<section class="pdfr-pg" data-i="${i}" data-pid="${esc(g.id)}"><h5>Page ${i + 1}</h5>${r.blocks.length ? r.blocks.map(b => b.t === 'p' ? `<p>${esc(b.s)}</p>` : `<div class="pdfr-tw"><table class="pdfr-table">${b.rows.map((rw, ri) => `<tr>${rw.map(c => ri === 0 ? `<th>${esc(c)}</th>` : `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</table></div>`).join('') : '<p class="faint">(pas de texte sur cette page : image ou scan)</p>'}</section>`);
             if (i % 12 === 11) { tx.innerHTML = parts.join(''); await new Promise(r2 => setTimeout(r2, 0)); }
         }
         const msgBad = lines > 8 && (bad / lines > 0.22 || total / Math.max(1, lines) < 26);
@@ -275,16 +282,40 @@ Object.assign(SuperAnki.prototype, {
         $('#pdf-scroll').onscroll = tx.onscroll;
         const el = $(`#pdf-text [data-i="${at}"]`); if (el) $('#pdf-scroll').scrollTop = el.offsetTop - 6;
     },
-    /* lines → paragraphs; counts the lines that look like columns */
+    /* lines → paragraphs and tables (rows of cells that line up in columns are rebuilt as a real table); counts the lines that look like columns of a page */
     pdfParagraphs(n) {
         const pv = this.pv, items = (pv.items && pv.items[n]) || [], view = (pv.pw && pv.pw[n]) || [0, 0, 600, 800], W = view[2] - view[0];
         const rows = []; items.slice().sort((a, b) => b.y - a.y || a.x - b.x).forEach(it => { const r = rows.find(z => Math.abs(z.y - it.y) <= Math.max(2, it.h * 0.45)); if (r) r.its.push(it); else rows.push({ y: it.y, h: it.h, its: [it] }); });
-        rows.sort((a, b) => b.y - a.y); let cols = 0; const lines = [];
-        rows.forEach(r => { r.its.sort((a, b) => a.x - b.x); let s = '', last = null; r.its.forEach(it => { if (last && it.x - (last.x + last.w) > W * 0.2) cols++; s += (last && it.x - (last.x + last.w) > it.h * 0.15 ? ' ' : '') + it.s; last = it; }); lines.push({ s: s.replace(/\s+/g, ' ').trim(), y: r.y, h: r.h }); });
-        const paras = []; let cur = '', prev = null;
-        lines.forEach(l => { if (!l.s) return; const gap = prev ? prev.y - l.y : 0; if (cur && prev && gap > Math.max(prev.h, l.h) * 1.7) { paras.push(cur); cur = ''; } cur = cur ? (/[-­]$/.test(cur) && /^[a-zàâçéèêëîïôûùüÿ]/.test(l.s) ? cur.slice(0, -1) + l.s : cur + ' ' + l.s) : l.s; prev = l; });
-        if (cur) paras.push(cur);
-        return { paras, cols, lines: lines.length, chars: lines.reduce((s, l) => s + l.s.length, 0) };
+        rows.sort((a, b) => b.y - a.y);
+        const lines = rows.map(r => {
+            r.its.sort((a, b) => a.x - b.x); const cells = []; let last = null;
+            r.its.forEach(it => { const gap = last ? it.x - (last.x + last.w) : 0; if (last && gap > Math.max(it.h * 1.3, W * 0.02)) cells.push({ x: it.x, s: it.s }); else if (cells.length) cells[cells.length - 1].s += (last && gap > it.h * 0.15 ? ' ' : '') + it.s; else cells.push({ x: it.x, s: it.s }); last = it; });
+            cells.forEach(c => { c.s = c.s.replace(/\s+/g, ' ').trim(); });
+            return { cells: cells.filter(c => c.s), y: r.y, h: r.h };
+        }).filter(l => l.cells.length);
+        const blocks = []; let cols = 0, cur = '', prev = null;
+        const flush = () => { if (cur) blocks.push({ t: 'p', s: cur }); cur = ''; };
+        const aligned = (a, b) => a.cells.some(c => b.cells.some(d => Math.abs(c.x - d.x) < W * 0.035));
+        for (let k = 0; k < lines.length; k++) {
+            const l = lines[k];
+            if (l.cells.length >= 2) {
+                let e = k; while (e + 1 < lines.length && lines[e + 1].cells.length >= 2 && aligned(lines[e], lines[e + 1]) && lines[e].y - lines[e + 1].y < lines[e].h * 3.2) e++;
+                if (e > k) {   // at least 2 rows → a table
+                    const grp = lines.slice(k, e + 1), xs = []; grp.forEach(g => g.cells.forEach(c => { const h = xs.find(x => Math.abs(x.x - c.x) < W * 0.035); if (h) { h.x = (h.x * h.n + c.x) / (h.n + 1); h.n++; } else xs.push({ x: c.x, n: 1 }); }));
+                    xs.sort((a, b) => a.x - b.x); const cs = xs.filter(x => x.n >= 2 || grp.length < 3);
+                    if (cs.length >= 2) {
+                        flush(); blocks.push({ t: 'table', rows: grp.map(g => { const row = cs.map(() => ''); g.cells.forEach(c => { let bi = 0; cs.forEach((x, ci) => { if (Math.abs(x.x - c.x) < Math.abs(cs[bi].x - c.x)) bi = ci; }); row[bi] = (row[bi] ? row[bi] + ' ' : '') + c.s; }); return row; }) });
+                        prev = null; k = e; continue;
+                    }
+                }
+                cols++;
+            }
+            const txt = l.cells.map(c => c.s).join(' '), gap = prev ? prev.y - l.y : 0;
+            if (cur && prev && gap > Math.max(prev.h, l.h) * 1.7) flush();
+            cur = cur ? (/[-­]$/.test(cur) && /^[a-zàâçéèêëîïôûùüÿ]/.test(txt) ? cur.slice(0, -1) + txt : cur + ' ' + txt) : txt; prev = l;
+        }
+        flush();
+        return { blocks, cols, lines: lines.length, chars: lines.reduce((t, l) => t + l.cells.reduce((u, c) => u + c.s.length, 0), 0) };
     },
 
     /* ---------- reading aloud ---------- */
@@ -296,21 +327,35 @@ Object.assign(SuperAnki.prototype, {
         if (this.pv) this.pv.read = { n: chunks.length }; const b = $('[data-action=pdf-read]'); if (b) b.classList.add('on');
         chunks.forEach((c, k) => { if (!c.trim()) return; const u = new SpeechSynthesisUtterance(c); u.lang = voice ? voice.lang : lang; if (voice) u.voice = voice; u.rate = pr.rate; if (k === chunks.length - 1) u.onend = () => { if (this.pv) this.pdfSpeakStop(); }; speechSynthesis.speak(u); });
     },
-    async pdfReadMenu(anchor) {
-        const pv = this.pv, pr = this.pdfPrefs(); if (pv.read) { this.pdfSpeakStop(); return; }
-        const sel = this.pdfSelection();
-        this.showMenu(anchor, [
-            ...(sel ? [{ icon: 'volume', label: 'Lire la sélection', fn: () => this.pdfSpeak(sel.text) }] : []),
-            { icon: 'volume', label: 'Lire cette page', fn: async () => { const g = pv.p.pg[pv.mode === 'text' ? (pv.textAt || 0) : this.pdfCurrent()]; if (g.k === 'p') this.pdfSpeak(await this.pdfPageText(g.n) || 'Cette page n\'a pas de texte.'); } },
-            { icon: 'volume', label: 'Lire à partir de cette page', fn: async () => { const i = pv.mode === 'text' ? (pv.textAt || 0) : this.pdfCurrent(); let t = ''; for (const g of pv.p.pg.slice(i, i + 4)) if (g.k === 'p') t += (await this.pdfPageText(g.n)) + ' '; this.pdfSpeak(t); } },
-            { sep: true },
-            ...[0.8, 1, 1.25, 1.5].map(r => ({ icon: pr.rate === r ? 'check' : 'timer', label: `Vitesse ${r === 1 ? 'normale' : '× ' + String(r).replace('.', ',')}`, fn: () => { pr.rate = r; this.pdfPrefSave(); this.toast(`Vitesse de lecture : × ${String(r).replace('.', ',')}`, 'success', ic('volume')); } })),
-            ...(speechSynthesis.getVoices().length > 1 ? [{ sep: true }, { icon: 'mic', label: `Voix : ${pr.voice || 'automatique'} (changer)`, fn: () => this.pdfVoiceMenu(anchor) }] : [])
-        ]);
+    async pdfReadMenu() {
+        const pv = this.pv, pr = this.pdfPrefs(); this.closePopover();
+        if (pv.read) { this.pdfSpeakStop(); const o = $('#pdf-readbox'); if (o) o.remove(); return; }
+        const old = $('#pdf-readbox'); if (old) { old.remove(); return; }
+        ['#pdf-searchbox', '#pdf-tocbox'].forEach(q => { const e = $(q); if (e) e.remove(); });
+        if (!('speechSynthesis' in window)) { this.toast('La lecture à voix haute n\'est pas disponible ici.', 'warning'); return; }
+        const sel = this.pdfSelection(), voices = speechSynthesis.getVoices().filter(v => /^(fr|en)/i.test(v.lang)).slice(0, 20), rates = [0.8, 1, 1.25, 1.5, 2];
+        const box = document.createElement('div'); box.id = 'pdf-readbox'; box.className = 'pdf-sheet';
+        box.innerHTML = `<div class="pdf-sheet-h"><b style="flex:1">Lecture à voix haute</b><button class="icon-btn" data-rd="x" aria-label="Fermer">${ic('x')}</button></div>
+            <div class="pdf-rd-go">${sel ? `<button class="btn btn-primary btn-sm" data-rd="sel">${ic('volume')}Sélection</button>` : ''}<button class="btn ${sel ? 'btn-soft' : 'btn-primary'} btn-sm" data-rd="page">${ic('volume')}Cette page</button><button class="btn btn-soft btn-sm" data-rd="from">${ic('play')}À partir d'ici</button></div>
+            <div class="pdf-rd-rate" id="pdf-rates" role="group" aria-label="Vitesse">${rates.map(r => `<button class="${pr.rate === r ? 'on' : ''}" data-rate="${r}">×${String(r).replace('.', ',')}</button>`).join('')}</div>
+            ${voices.length > 1 ? `<select class="select" id="pdf-voice" aria-label="Voix"><option value="">Voix automatique</option>${voices.map(v => `<option value="${esc(v.name)}" ${pr.voice === v.name ? 'selected' : ''}>${esc(v.name)} (${esc(v.lang)})</option>`).join('')}</select>` : ''}`;
+        $('.pdfv').appendChild(box);
+        const cur = () => pv.mode === 'text' ? (pv.textAt || 0) : this.pdfCurrent();
+        box.addEventListener('click', async e => {
+            const r = e.target.closest('[data-rate]'); if (r) { pr.rate = Number(r.dataset.rate); this.pdfPrefSave(); $$('#pdf-rates button', box).forEach(b => b.classList.toggle('on', b === r)); return; }
+            const b = e.target.closest('[data-rd]'); if (!b) return; const k = b.dataset.rd;
+            if (k === 'x') { box.remove(); return; }
+            if (k === 'sel') this.pdfSpeak(sel.text);
+            else if (k === 'page') { const g = pv.p.pg[cur()]; this.pdfSpeak(g.k === 'p' ? (await this.pdfPageText(g.n)) || 'Cette page n\'a pas de texte.' : 'Page blanche.'); }
+            else if (k === 'from') { let t = ''; for (const g of pv.p.pg.slice(cur(), cur() + 4)) if (g.k === 'p') t += (await this.pdfPageText(g.n)) + ' '; this.pdfSpeak(t); }
+            box.remove();
+        });
+        const vs = $('#pdf-voice', box); if (vs) vs.addEventListener('change', () => { pr.voice = vs.value; this.pdfPrefSave(); });
     },
-    pdfVoiceMenu(anchor) {
-        const pr = this.pdfPrefs(), vs = speechSynthesis.getVoices().filter(v => /^(fr|en)/i.test(v.lang)).slice(0, 14);
-        this.showMenu(anchor, [{ icon: pr.voice ? 'mic' : 'check', label: 'Automatique (selon la langue)', fn: () => { pr.voice = ''; this.pdfPrefSave(); } }, ...vs.map(v => ({ icon: pr.voice === v.name ? 'check' : 'mic', label: `${esc(v.name)} <span class="faint">${v.lang}</span>`, fn: () => { pr.voice = v.name; this.pdfPrefSave(); } }))]);
+    pdfSwapSide() {
+        const pv = this.pv, pr = this.pdfPrefs(); pr.side = pr.side === 'right' ? 'left' : 'right'; this.pdfPrefSave(); const v = $('.pdfv'); v.classList.remove('side-left', 'side-right'); v.classList.add('side-' + pr.side);
+        if (!pv.notes) this.pdfToggleNotes(true);
+        setTimeout(() => { this.pdfSizePages(); pv.pages.forEach(g => { if (g.state) { this.pdfUnrender(g); this.pdfRenderPage(g); } }); }, 60);
     },
     pdfFocus() {
         const pv = this.pv; pv.focus = !pv.focus; document.body.classList.toggle('pdf-zen', pv.focus); const v = $('.pdfv'); if (v) v.classList.toggle('zen', pv.focus);
@@ -366,11 +411,13 @@ Object.assign(SuperAnki.prototype, {
         const ds = el.dataset || {}, pv = this.pv;
         const A = {
             'pdf-open': () => this.pdfOpen(ds.id),
+            'pdf-import-btn': () => this.pdfPick(this.ui.nbFolder && this.deck(this.ui.nbFolder) ? this.ui.nbFolder : ''),
             'pdf-back': () => this.pdfBack(),
             'pdf-search': () => this.pdfSearchPanel(),
-            'pdf-toc': () => this.pdfTocMenu(el),
+            'pdf-toc': () => this.pdfTocMenu(),
+            'pdf-side': () => this.pdfSwapSide(),
             'pdf-mode': () => { pv.mode = pv.mode === 'text' ? 'pdf' : 'text'; pv.p.mode = pv.mode; this.pdfShowMode(); },
-            'pdf-read': () => this.pdfReadMenu(el),
+            'pdf-read': () => this.pdfReadMenu(),
             'pdf-notes': () => this.pdfToggleNotes(),
             'pdf-focus': () => this.pdfFocus(),
             'pdf-more': () => this.pdfMoreMenu(el),
@@ -381,7 +428,7 @@ Object.assign(SuperAnki.prototype, {
             'pdf-fetch': async () => { const st = $('#pdf-fetchst'); try { st.textContent = 'Téléchargement…'; await this.pdfFetch(pv.p, (k, n) => { st.textContent = `Téléchargement… ${Math.round(k / n * 100)} %`; }); this.renderPdf(); } catch (er) { if (st) st.textContent = er.message || 'Échec du téléchargement.'; } },
             'pdf-reimport': () => { const input = $('#hidden-file'); input.accept = 'application/pdf,.pdf'; input.value = ''; input.onchange = async () => { const f = input.files[0]; if (!f) return; const h = await pdfHashOf(await f.arrayBuffer()); if (h !== pv.p.hash) { this.toast('Ce n\'est pas le même PDF (empreinte différente).', 'warning'); return; } await PdfStore.put(h, await f.arrayBuffer()); this.renderPdf(); }; input.click(); }
         };
-        if (A[action]) { if (!pv && !['pdf-open'].includes(action)) return; A[action](); }
+        if (A[action]) { if (!pv && !['pdf-open', 'pdf-import-btn'].includes(action)) return; A[action](); }
         else this.pdfAnnAction(action, el, e);
     },
     pdfRenameDialog(p) {

@@ -4504,7 +4504,7 @@ class SuperAnki {
             case 'tool-check': this.checkDatabase(); break;
             case 'fsrs-optimize': this.fsrsOptimizeModal(ds.id || ''); break;
             case 'fsrs-reset': this.fsrsReset(ds.id || ''); break;
-            default: if (action.startsWith('tq-')) this.toeicAction(action, el); else if (action.startsWith('qcm-')) this.qcmAction(action, el); else if (action.startsWith('mg-')) this.matchAction(action, el); else if (action.startsWith('nb-')) this.noteAction(action, el, e); else if (action.startsWith('pf-')) this.profileAction(action, el); else if (action.startsWith('pdf-')) this.pdfAction(action, el, e); break;
+            default: if (action.startsWith('tq-')) this.toeicAction(action, el); else if (action.startsWith('qcm-')) this.qcmAction(action, el); else if (action.startsWith('mg-')) this.matchAction(action, el); else if (action.startsWith('nb-')) this.noteAction(action, el, e); else if (action.startsWith('pf-')) this.profileAction(action, el); else if (action.startsWith('pdf-')) this.pdfAction(action, el, e); else if (action.startsWith('tab-')) this.tabAction(action, el); break;
         }
     }
     startQuizFromIds(ids, count, chrono, title) {

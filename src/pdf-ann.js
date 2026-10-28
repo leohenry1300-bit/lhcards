@@ -4,9 +4,9 @@
    Tout est rangé à part du fichier, en coordonnées relatives à la page (0 → 1) : ça suit le zoom et la taille de l'écran.
    ============================================================ */
 const PDF_TOOLS = [
-    ['select', 'textcursor', 'Texte', 'Sélectionner du texte pour le surligner'], ['hand', 'hand', 'Main', 'Faire défiler la page'],
+    ['select', 'textcursor', 'Surligner', 'Sélectionner du texte pour le surligner, citer ou en faire une carte'], ['hand', 'hand', 'Main', 'Déplacer la page (glisser) · toucher le haut = monter, le bas = descendre'],
     ['area', 'area', 'Zone', 'Choisir une zone (un schéma, un tableau…)'], ['pen', 'pen', 'Stylo', 'Dessiner ou écrire à la main'],
-    ['eraser', 'eraser', 'Gomme', 'Effacer des dessins'], ['text', 'typeT', 'Texte libre', 'Ajouter une zone de texte'], ['note', 'note', 'Note', 'Ajouter une note dans la marge']
+    ['eraser', 'eraser', 'Gomme', 'Effacer des dessins'], ['text', 'typeT', 'Écrire', 'Toucher n\'importe où sur la page pour écrire du texte'], ['note', 'note', 'Note', 'Ajouter une note dans la marge']
 ];
 const PDF_WIDTHS = [[0.0018, 'Fin'], [0.004, 'Moyen'], [0.009, 'Épais']];
 const pdfClone = o => JSON.parse(JSON.stringify(o));
@@ -77,8 +77,8 @@ Object.assign(SuperAnki.prototype, {
         const x = $('.pdfx', el), have = new Map($$('.pdfa-box', x).map(b => [b.dataset.i, b]));
         list.filter(a => a.t === 'tx' || a.t === 'nt').forEach(a => {
             let b = have.get(a.i); have.delete(a.i);
-            if (!b) { b = document.createElement('div'); b.dataset.i = a.i; b.innerHTML = `<div class="pdfa-grip" data-grip title="Déplacer">${ic('grip')}</div><div class="pdfa-t" contenteditable="true" spellcheck="false" role="textbox" aria-label="Texte"></div><div class="pdfa-rs" data-rs title="Largeur"></div><div class="pdfa-tb"><button data-action="pdf-bsize" data-d="-1" aria-label="Plus petit">A−</button><button data-action="pdf-bsize" data-d="1" aria-label="Plus grand">A+</button><button data-action="pdf-bcolor" aria-label="Couleur"><i></i></button><button data-action="pdf-bdel" aria-label="Supprimer">${ic('trash')}</button></div>`; x.appendChild(b); }
-            b.className = `pdfa-box ${a.t}`; b.style.cssText = `left:${a.x * 100}%;top:${a.y * 100}%;width:${a.w * 100}%;font-size:calc(var(--pw) * ${a.fs / 600});${a.t === 'tx' ? `color:${a.c === '#fde047' ? '#111827' : a.c}` : ''}`;
+            if (!b) { b = document.createElement('div'); b.dataset.i = a.i; b.innerHTML = `<div class="pdfa-grip" data-grip title="Déplacer">${ic('grip')}</div><div class="pdfa-t" contenteditable="true" spellcheck="false" role="textbox" aria-label="Texte"></div><div class="pdfa-rs" data-rs title="Largeur"></div><div class="pdfa-tb"><button data-action="pdf-bsize" data-d="-1" aria-label="Plus petit">A−</button><button data-action="pdf-bsize" data-d="1" aria-label="Plus grand">A+</button><button data-action="pdf-bold" aria-label="Gras"><b>G</b></button><button data-action="pdf-bfont" aria-label="Police">Aa</button><button data-action="pdf-bcolor" aria-label="Couleurs"><i></i></button><button data-action="pdf-bdel" aria-label="Supprimer">${ic('trash')}</button></div>`; x.appendChild(b); }
+            b.className = `pdfa-box ${a.t}`; b.style.cssText = `left:${a.x * 100}%;top:${a.y * 100}%;width:${a.w * 100}%;font-size:calc(var(--pw) * ${a.fs / 600});font-family:${a.f === 'r' ? 'Georgia,"Times New Roman",serif' : a.f === 'm' ? 'ui-monospace,Menlo,Consolas,monospace' : 'inherit'};font-weight:${a.b ? 800 : 400};${a.t === 'tx' ? `color:${a.c === '#fde047' ? '#111827' : a.c};${a.bg ? `background:${a.bg};` : ''}` : ''}`;
             const t = $('.pdfa-t', b); if (document.activeElement !== t && t.textContent !== a.s) t.textContent = a.s;
             const i = $('.pdfa-tb i', b); if (i) i.style.background = a.t === 'nt' ? '#fde047' : (a.c === '#fde047' ? '#111827' : a.c);
         });
@@ -278,6 +278,15 @@ Object.assign(SuperAnki.prototype, {
                     ov.addEventListener('pointermove', mv); ov.addEventListener('pointerup', up); ov.addEventListener('pointercancel', up);
                 }
             });
+            /* the hand : drag to move the page (mouse), tap the top / bottom of the page to go up / down */
+            root.addEventListener('pointerdown', e => {
+                const P = pv(); if (!P || !P.annotate || P.tool !== 'hand' || P.mode === 'text' || e.button) return;
+                const sc = e.target.closest('#pdf-scroll'); if (!sc || e.target.closest('.pdfa-box, #pdf-pop, button')) return;
+                const x0 = e.clientX, y0 = e.clientY, l0 = sc.scrollLeft, t0 = sc.scrollTop; let moved = false;
+                const mv = ev => { const dx = ev.clientX - x0, dy = ev.clientY - y0; if (Math.abs(dx) + Math.abs(dy) > 6) moved = true; if (moved && ev.pointerType === 'mouse') { sc.scrollLeft = l0 - dx; sc.scrollTop = t0 - dy; } };
+                const up = ev => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); if (moved) return; const r = sc.getBoundingClientRect(), f = (ev.clientY - r.top) / r.height; if (f < 0.35) sc.scrollBy({ top: -sc.clientHeight * 0.85, behavior: 'smooth' }); else if (f > 0.65) sc.scrollBy({ top: sc.clientHeight * 0.85, behavior: 'smooth' }); };
+                window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+            });
             /* a text box or margin note : move (grip), widen (corner), write */
             root.addEventListener('pointerdown', e => {
                 const P = pv(); if (!P) return; const grip = e.target.closest('[data-grip]'), rs = e.target.closest('[data-rs]'); if (!grip && !rs) return;
@@ -325,20 +334,28 @@ Object.assign(SuperAnki.prototype, {
             'pdf-blank': () => this.pdfBlankMenu(el),
             'pdf-bsize': () => { if (a) this.pdfEdit(() => { a.fs = clamp(a.fs + 2 * Number(ds.d), 8, 60); a.m = Date.now(); }); },
             'pdf-bdel': () => { if (a) this.pdfEdit(() => this.pdfAnnDel(pg.g.id, a.i)); },
-            'pdf-bcolor': () => { if (!a) return; const cols = a.t === 'nt' ? PDF_COLORS : PDF_PEN; const k = cols.indexOf(a.c); this.pdfEdit(() => { a.c = cols[(k + 1) % cols.length]; a.m = Date.now(); }); }
+            'pdf-bold': () => { if (a) this.pdfEdit(() => { a.b = !a.b; a.m = Date.now(); }); },
+            'pdf-bfont': () => { if (a) this.pdfEdit(() => { a.f = a.f === 's' ? 'r' : a.f === 'r' ? 'm' : 's'; a.m = Date.now(); }); },
+            'pdf-bcolor': () => { if (!a) return; const old = $('.pdfa-pal', box); if (old) { old.remove(); return; }
+                const txc = ['#111827', '#dc2626', '#2563eb', '#16a34a', '#f59e0b', '#9333ea', '#ffffff'], bgc = ['', '#fde047', '#86efac', '#7dd3fc', '#f9a8d4', '#ffffff'], pal = document.createElement('div'); pal.className = 'pdfa-pal';
+                pal.innerHTML = a.t === 'nt' ? `<div>${PDF_COLORS.map(c => `<button class="pdft-c" data-pc="${c}" data-w="c" style="--c:${c}"></button>`).join('')}</div>` : `<div><small>Texte</small>${txc.map(c => `<button class="pdft-c" data-pc="${c}" data-w="c" style="--c:${c}"></button>`).join('')}</div><div><small>Fond</small>${bgc.map(c => `<button class="pdft-c ${c ? '' : 'none'}" data-pc="${c}" data-w="bg" style="--c:${c || '#fff'}"></button>`).join('')}</div>`;
+                pal.addEventListener('pointerdown', e => e.preventDefault());
+                pal.addEventListener('click', e => { const b2 = e.target.closest('[data-pc]'); if (!b2) return; e.stopPropagation(); this.pdfEdit(() => { a[b2.dataset.w === 'bg' ? 'bg' : 'c'] = b2.dataset.pc; a.m = Date.now(); }); });
+                box.appendChild(pal); }
         };
         if (A[action]) A[action]();
     },
 
     /* ---------- blank pages ---------- */
     pdfBlankMenu(anchor) {
-        const pv = this.pv, p = pv.p, cur = this.pdfCurrent();
+        const pv = this.pv, p = pv.p, cur = pv.mode === 'text' ? (pv.textAt || 0) : this.pdfCurrent(), n = cur + 1;
         const add = at => { this.pdfEdit(() => p.pg.splice(at, 0, { id: uid('g'), k: 'b' })); this.pdfAfterEdit(true); setTimeout(() => this.pdfGoto(p.pg[at].id, '', true), 300); };
         this.showMenu(anchor, [
             { head: 'AJOUTER UNE PAGE BLANCHE' },
-            { icon: 'arrowUp', label: `Au-dessus de la page ${cur + 1}`, fn: () => add(cur) },
-            { icon: 'arrowDown', label: `En dessous de la page ${cur + 1}`, fn: () => add(cur + 1) },
-            { icon: 'pageadd', label: 'À la fin du PDF', fn: () => add(p.pg.length) },
+            { icon: 'arrowUp', label: 'Au début du PDF', fn: () => add(0) },
+            { icon: 'arrowUp', label: `Avant la page ${n}`, fn: () => add(cur) },
+            { icon: 'arrowDown', label: `Après la page ${n}`, fn: () => add(cur + 1) },
+            { icon: 'arrowDown', label: 'À la fin du PDF', fn: () => add(p.pg.length) },
             ...(p.pg[cur] && p.pg[cur].k === 'b' ? [{ sep: true }, { icon: 'trash', label: 'Supprimer cette page blanche', danger: true, fn: () => { this.pdfEdit(() => { const g = p.pg[cur]; delete p.ann[g.id]; p.pg.splice(cur, 1); }); this.pdfAfterEdit(true); } }] : [])
         ]);
     },
@@ -352,13 +369,11 @@ Object.assign(SuperAnki.prototype, {
             { icon: pv.mode === 'text' ? 'file' : 'typeT', label: pv.mode === 'text' ? 'Revenir au PDF fidèle' : 'Lecteur de texte (réaffiche le texte)', fn: () => this.pdfAction('pdf-mode', anchor) },
             { icon: 'volume', label: 'Lire à voix haute…', fn: () => this.pdfReadMenu(anchor) },
             { icon: 'fullscreen', label: 'Mode concentration', fn: () => this.pdfFocus() },
-            { icon: 'pageadd', label: 'Ajouter une page blanche…', fn: () => this.pdfBlankMenu(anchor) },
             { icon: 'trash', label: `Annotations effacées${p.trash.length ? ` (${p.trash.length})` : ''}`, fn: () => this.pdfTrashPanel() },
             { sep: true },
             { icon: 'export', label: 'Exporter le PDF annoté', fn: () => this.pdfExportAnnotated(p) },
             { icon: 'export', label: 'Exporter l\'original', fn: () => this.pdfExportOriginal(p) },
             { sep: true },
-            { icon: 'columns', label: pr.side === 'right' ? 'Mettre la note à gauche' : 'Mettre la note à droite', fn: () => { pr.side = pr.side === 'right' ? 'left' : 'right'; this.pdfPrefSave(); const v = $('.pdfv'); v.classList.remove('side-left', 'side-right'); v.classList.add('side-' + pr.side); setTimeout(() => { this.pdfSizePages(); pv.pages.forEach(g => { if (g.state) { this.pdfUnrender(g); this.pdfRenderPage(g); } }); }, 60); } },
             ...(pv.mode === 'text' ? [{ icon: 'typeT', label: 'Texte plus grand', fn: () => { pr.fs = clamp(pr.fs + 0.12, 0.8, 1.8); this.pdfPrefSave(); $('#pdf-text').style.fontSize = `${1.02 * pr.fs}rem`; } }, { icon: 'typeT', label: 'Texte plus petit', fn: () => { pr.fs = clamp(pr.fs - 0.12, 0.8, 1.8); this.pdfPrefSave(); $('#pdf-text').style.fontSize = `${1.02 * pr.fs}rem`; } }] : []),
             { icon: 'info', label: 'Informations', fn: () => this.pdfInfo() },
             { sep: true },
