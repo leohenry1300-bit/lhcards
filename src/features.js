@@ -57,7 +57,7 @@ function materializeCard(c) {
     }
     return c;
 }
-const freshCard = () => ({ state: 'new', step: 0, interval: 0, ease: 2.5, due: Date.now(), reps: 0, lapses: 0, lastReview: null, errors: 0, wrong: 0, right: 0, suspended: false, flag: 0, marked: false, buriedUntil: 0, fs: null, mod: 0 });
+const freshCard = () => ({ ls: null, ta: false, src: null, state: 'new', step: 0, interval: 0, ease: 2.5, due: Date.now(), reps: 0, lapses: 0, lastReview: null, errors: 0, wrong: 0, right: 0, suspended: false, flag: 0, marked: false, buriedUntil: 0, fs: null, mod: 0 });
 const noteFieldsOf = c => (c.nf ? (c.kind === 'cloze' ? { front: c.nf.text, back: c.nf.extra } : { front: c.nf.front, back: c.nf.back }) : { front: c.front, back: c.back });
 
 /* Replaces text inside HTML without touching tags */
@@ -89,12 +89,12 @@ Object.assign(SuperAnki.prototype, {
         return m;
     },
     /* Runs fn (which edits cards) and records it so it can be undone. fn may return the ids of cards it created. */
-    change(label, ids, fn, { decks = false, qcms = false } = {}) {
-        const before = this.snapCards(ids), decksBefore = decks ? structuredClone(this.data.decks) : null, qcmsBefore = qcms ? structuredClone(this.data.qcms) : null;
+    change(label, ids, fn, { decks = false, qcms = false, notes = false } = {}) {
+        const before = this.snapCards(ids), decksBefore = decks ? structuredClone(this.data.decks) : null, qcmsBefore = qcms ? structuredClone(this.data.qcms) : null, notesBefore = notes ? structuredClone(this.data.notes) : null;
         const created = fn() || [];
         created.forEach(id => { if (!before.has(id)) before.set(id, null); });
         const after = this.snapCards([...before.keys()]);
-        this.undoStack.push({ label, before, after, decksBefore, decksAfter: decks ? structuredClone(this.data.decks) : null, qcmsBefore, qcmsAfter: qcms ? structuredClone(this.data.qcms) : null });
+        this.undoStack.push({ label, before, after, decksBefore, decksAfter: decks ? structuredClone(this.data.decks) : null, qcmsBefore, qcmsAfter: qcms ? structuredClone(this.data.qcms) : null, notesBefore, notesAfter: notes ? structuredClone(this.data.notes) : null });
         if (this.undoStack.length > 40) this.undoStack.shift();
         this.redoStack = [];
         this.searchCache.clear();
@@ -114,6 +114,8 @@ Object.assign(SuperAnki.prototype, {
         if (decks) this.data.decks = structuredClone(decks);
         const qcms = dir === 'undo' ? entry.qcmsBefore : entry.qcmsAfter;
         if (qcms) this.data.qcms = structuredClone(qcms);
+        const notes = dir === 'undo' ? entry.notesBefore : entry.notesAfter;
+        if (notes) this.data.notes = structuredClone(notes);
         this.searchCache.clear();
         this.save();
         const s = this.session;
@@ -423,6 +425,7 @@ Object.assign(SuperAnki.prototype, {
         if (single) {
             items.push({ icon: 'pencil', label: 'Modifier', kbd: 'E', fn: () => this.openCardModal(c.id) });
             items.push({ icon: 'info', label: 'Informations sur la carte', kbd: 'I', fn: () => this.openCardInfo(c.id) });
+            if (this.noteOfCard(c)) items.push({ icon: 'notebook', label: 'Voir dans le cours', fn: () => this.openCardSource(c.id) });
             items.push({ sep: true });
         }
         items.push({ flags: true });
@@ -483,6 +486,7 @@ Object.assign(SuperAnki.prototype, {
             fsr && fs ? ['Stabilité', `${fmtNum(fs.s)} jours`] : ['Facilité', `${Math.round(c.ease * 100)} %`],
             fsr && fs ? ['Difficulté', `${fmtNum(fs.d)} / 10`] : null,
             fsr && R !== null ? ['Probabilité de souvenir', `${Math.round(R * 100)} %`] : null,
+            this.noteOfCard(c) ? ['Cours', esc(this.noteName(this.noteOfCard(c)))] : null,
             this.notesLinkingCard(id).length ? ['Citée dans les notes', esc(this.notesLinkingCard(id).map(n => this.noteName(n)).join(', '))] : null,
             ['Révisions', c.reps], ['Oublis', c.lapses], ['Erreurs en cours', c.errors],
             ['Temps total', fmtDuration(total)], ['Tags', c.tags.length ? esc(c.tags.join(', ')) : '-']

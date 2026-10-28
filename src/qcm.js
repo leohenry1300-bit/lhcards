@@ -12,10 +12,10 @@ function normalizeQcm(x) {
     if (!q || o.length < 2 || !o.some(a => a.ok)) return null;
     return {
         id: String(x.id || uid('q')), deckId: String(x.deckId || ''), q, o, multi: o.filter(a => a.ok).length > 1 || !!x.multi,
-        expl: String(x.expl || '').trim().slice(0, 600), created: num(x.created, 0), mod: num(x.mod, 0), right: num(x.right, 0), wrong: num(x.wrong, 0)
+        expl: String(x.expl || '').trim().slice(0, 600), created: num(x.created, 0), mod: num(x.mod, 0), right: num(x.right, 0), wrong: num(x.wrong, 0), off: !!x.off
     };
 }
-const qcmSig = q => JSON.stringify([q.deckId, q.q, q.o, q.multi, q.expl, q.right, q.wrong]);
+const qcmSig = q => JSON.stringify([q.deckId, q.q, q.o, q.multi, q.expl, q.right, q.wrong, q.off]);
 const qcmKey = q => fold(q).replace(/[^a-z0-9]+/g, ' ').trim();
 
 /* « Plusieurs QCM d'un coup » : des blocs séparés par une ligne vide.
@@ -66,9 +66,9 @@ Object.assign(SuperAnki.prototype, {
     /* those mixed into a Quiz started on these decks (everything, one deck + sub-decks; never « Mes erreurs ») */
     qcmPool(deckIds) {
         if (deckIds === 'errors') return [];
-        if (!deckIds) return this.data.qcms.slice();
+        if (!deckIds) return this.data.qcms.filter(q => !q.off);
         const set = new Set(deckIds.flatMap(id => this.descendantIds(id)));
-        return this.data.qcms.filter(q => set.has(q.deckId));
+        return this.data.qcms.filter(q => !q.off && set.has(q.deckId));
     },
     qcmRefresh() { this.searchCache.clear(); if (this.view === 'decks') this.renderDeckPanel(); else if (this.view === 'dashboard') this.render(); },
 

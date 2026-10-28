@@ -6,15 +6,23 @@
    Bloc : { t: 'p'|'h1'|'h2'|'h3'|'todo'|'quote'|'hr'|'img', x: texte, d: profondeur, done?, src?, c?: replié }
    ============================================================ */
 Object.assign(ICONS, {
+    grip: '<circle cx="9" cy="6" r="1.2"/><circle cx="15" cy="6" r="1.2"/><circle cx="9" cy="12" r="1.2"/><circle cx="15" cy="12" r="1.2"/><circle cx="9" cy="18" r="1.2"/><circle cx="15" cy="18" r="1.2"/>',
     notebook: '<path d="M6 3h12a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6z"/><path d="M9 3v18M12.5 8h3.5M12.5 12h3.5"/>'
 });
-const NB_TYPES = ['p', 'h1', 'h2', 'h3', 'todo', 'quote', 'hr', 'img'], NB_MAX_DEPTH = 6, NB_MAX_BLOCKS = 4000;
+const NB_TYPES = ['p', 'h1', 'h2', 'h3', 'todo', 'quote', 'hr', 'img', 'table'], NB_CARD_KINDS = ['basic', 'multi', 'list', 'mcq', 'cloze'], NB_MAX_DEPTH = 6, NB_MAX_BLOCKS = 4000;
 const NB_CE = (() => { try { const d = document.createElement('div'); d.contentEditable = 'plaintext-only'; return d.contentEditable === 'plaintext-only' ? 'plaintext-only' : 'true'; } catch { return 'true'; } })();
 const NB_LINK = /\[\[([^\[\]\n]{1,160})\]\]/g;
 
 function normalizeNoteBlock(x) {
     if (!x || typeof x !== 'object') return null;
-    const t = NB_TYPES.includes(x.t) ? x.t : 'p', b = { t, x: t === 'hr' || t === 'img' ? '' : String(x.x == null ? '' : x.x).replace(/\n+/g, ' ').slice(0, 4000), d: clamp(Math.round(num(x.d, 0)), 0, NB_MAX_DEPTH) };
+    const t = NB_TYPES.includes(x.t) ? x.t : 'p', b = { t, x: t === 'hr' || t === 'img' || t === 'table' ? '' : String(x.x == null ? '' : x.x).replace(/\n+/g, ' ').slice(0, 4000), d: clamp(Math.round(num(x.d, 0)), 0, NB_MAX_DEPTH) };
+    if (t === 'table') { b.rows = toArray(x.rows).slice(0, 40).map(r => toArray(r).slice(0, 8).map(c => String(c == null ? '' : c).replace(/\n+/g, ' ').slice(0, 300))).filter(r => r.length); if (!b.rows.length) b.rows = [['', ''], ['', '']]; const w = Math.max(...b.rows.map(r => r.length)); b.rows.forEach(r => { while (r.length < w) r.push(''); }); b.hdr = x.hdr !== false; b.id = String(x.id || uid('b')); }
+    if (x.ok) b.ok = true;
+    if (t === 'p' && x.cd && typeof x.cd === 'object') {   // this line is a memory card (see notes-cards.js)
+        const c = x.cd;
+        b.cd = { k: NB_CARD_KINDS.includes(c.k) ? c.k : 'basic', a: String(c.a || '').replace(/\n+/g, ' ').slice(0, 4000), dir: ['fwd', 'back', 'both'].includes(c.dir) ? c.dir : 'fwd', on: c.on !== false, ta: !!c.ta, ord: !!c.ord, mx: !!c.mx,
+            id: String(c.id || uid('b')), cid: toArray(c.cid).map(String).slice(0, 12), qid: c.qid ? String(c.qid) : '', hm: toArray(c.hm).slice(0, 40).map(h => ({ t: String(h && h.t || '').slice(0, 200), n: Math.max(1, Math.round(num(h && h.n, 1))) })), sg: String(c.sg || '').slice(0, 2000), so: c.so !== false, dead: !!c.dead };
+    }
     if (t === 'todo' && x.done) b.done = true;
     if (t === 'img') { b.src = String(x.src || ''); if (!/^(media:[a-z0-9]+|data:image\/[a-z+.-]+;base64,.+)$/i.test(b.src)) return null; }
     if (x.c) b.c = true;
@@ -26,14 +34,18 @@ function normalizeNote(x) {
     if (!b.length) b.push({ t: 'p', x: '', d: 0 });
     b[0].d = 0;
     for (let i = 1; i < b.length; i++) b[i].d = Math.min(b[i].d, b[i - 1].d + 1);   // an outline never jumps two levels at once
+    const tags = [], seen = new Set();
+    toArray(x.tags).forEach(t => { t = String(t).replace(/^#+/, '').replace(/[\s#\[\]]+/g, '-').slice(0, 30); if (t && !seen.has(t.toLowerCase())) { seen.add(t.toLowerCase()); tags.push(t); } });
     return {
         id: String(x.id || uid('n')), title: String(x.title || '').replace(/[\n\[\]]+/g, ' ').trim().slice(0, 120), deckId: x.deckId ? String(x.deckId) : '',
-        b, daily: /^\d{4}-\d{2}-\d{2}$/.test(String(x.daily || '')) ? String(x.daily) : '', fav: !!x.fav, created: num(x.created, 0), mod: num(x.mod, 0)
+        b, daily: /^\d{4}-\d{2}-\d{2}$/.test(String(x.daily || '')) ? String(x.daily) : '', fav: !!x.fav, created: num(x.created, 0), mod: num(x.mod, 0),
+        emoji: String(x.emoji || '').slice(0, 8), pin: !!x.pin, parent: x.parent ? String(x.parent) : '', tags: tags.slice(0, 12), order: num(x.order, 0)
     };
 }
-const noteSig = n => JSON.stringify([n.title, n.deckId, n.b, n.daily, n.fav]);
-const noteText = n => n.b.map(b => b.x).join('\n');
+const noteSig = n => JSON.stringify([n.title, n.deckId, n.b, n.daily, n.fav, n.emoji, n.pin, n.parent, n.tags, n.order]);
+const noteText = n => n.b.map(b => b.x + (b.cd ? ' ' + b.cd.a : '') + (b.rows ? ' ' + b.rows.map(r => r.join(' ')).join(' ') : '')).join('\n') + ' ' + n.tags.join(' ');
 const nbEmpty = () => ({ t: 'p', x: '', d: 0 });
+const nbSolid = t => t === 'hr' || t === 'img' || t === 'table';   // blocks that have no text to type in
 
 Object.assign(SuperAnki.prototype, {
     /* ---------- finding things ---------- */
@@ -54,8 +66,14 @@ Object.assign(SuperAnki.prototype, {
     },
     notesLinkingCard(cardId) { return this.data.notes.filter(o => this.noteLinks(o).some(l => l.k === 'card' && l.id === cardId)); },
     dailyTitle(key) { const [y, m, d] = key.split('-').map(Number); const s = new Date(y, m - 1, d).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); return s.charAt(0).toUpperCase() + s.slice(1); },
-    inlineHtml(x) {
-        return esc(x).replace(/\[\[([^\[\]\n]{1,160})\]\]/g, (m, inner) => {
+    /* a little formatting kept as plain text: **gras**, *italique*, ==surligné==, `code` ; q = word to highlight while searching in the note */
+    fmtHtml(h, q) {
+        h = h.replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?!\w)/g, '$1<i>$2</i>').replace(/==([^=]+)==/g, '<mark class="nb-hl">$1</mark>');
+        if (q) { const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'); h = h.split(/(<[^>]*>)/).map(t => (t.startsWith('<') ? t : t.replace(re, m => `<mark class="nb-find">${m}</mark>`))).join(''); }
+        return h;
+    },
+    inlineHtml(x, q) {
+        return this.fmtHtml(esc(x), q).replace(/\[\[([^\[\]\n]{1,160})\]\]/g, (m, inner) => {
             const c = /^c:([^|]+)\|(.*)$/.exec(inner);
             if (c) { const card = this.card(c[1]); return `<a class="nb-link card ${card ? '' : 'miss'}" data-nbc="${c[1]}">${ic('card')}${c[2] || (card ? esc(truncate(stripHtml(card.front), 40)) : 'carte supprimée')}</a>`; }
             const hit = this.noteByTitle(inner);
@@ -65,7 +83,8 @@ Object.assign(SuperAnki.prototype, {
 
     /* ---------- creating, opening, deleting ---------- */
     noteNew(title = '', opts = {}) {
-        const n = normalizeNote({ id: uid('n'), title, b: [nbEmpty()], created: Date.now(), deckId: opts.deckId || '', daily: opts.daily || '' });
+        const par = opts.parent ? this.note(opts.parent) : null;
+        const n = normalizeNote({ id: uid('n'), title, b: opts.b || [nbEmpty()], created: Date.now(), deckId: par ? par.deckId : (opts.deckId || ''), daily: opts.daily || '', parent: par ? par.id : '', emoji: opts.emoji || '', tags: opts.tags || [], order: Date.now() / 1000 });
         this.data.notes.push(n); this.save();
         return n;
     },
@@ -73,26 +92,18 @@ Object.assign(SuperAnki.prototype, {
         const n = this.note(id); if (!n) return;
         if (push && this.ui.note && this.ui.note !== id) (this.nb ? this.nb.back : (this.nb = { back: [] }).back).push(this.ui.note);
         this.nbIdle(true);
-        this.ui.note = id; this.nb = Object.assign(this.nb || { back: [] }, { hist: [], redo: [], active: -1, burst: 0 });
+        this.ui.note = id; this.ui.nbMem = false; this.nb = Object.assign(this.nb || { back: [] }, { hist: [], redo: [], active: -1, burst: 0, find: null, hits: [] });
+        if (n.b.some(b => b.cd) && this.nbCardSyncAll(n)) this.save();
         if (this.view !== 'notes') this.go('notes'); else this.renderNotes();
         if (focus === 'title') setTimeout(() => { const t = $('#nb-title'); if (t) t.focus(); }, 80);
         else if (focus === 'end') setTimeout(() => { const nn = this.note(id); if (nn) this.nbActivate(this.nbLastText(nn), 'end'); }, 80);
     },
-    nbLastText(n) { for (let i = n.b.length - 1; i >= 0; i--) if (n.b[i].t !== 'hr' && n.b[i].t !== 'img') return i; return 0; },
+    nbLastText(n) { for (let i = n.b.length - 1; i >= 0; i--) if (n.b[i].t !== 'hr' && n.b[i].t !== 'img' && n.b[i].t !== 'table') return i; return 0; },
     noteDaily() {
         const key = dayKey();
         let n = this.data.notes.find(x => x.daily === key);
         if (!n) n = this.noteNew(this.dailyTitle(key), { daily: key });
         this.noteOpen(n.id, { focus: 'end' });
-    },
-    noteDelete(id) {
-        const n = this.note(id); if (!n) return;
-        this.nbIdle(true);
-        this.data.notes = this.data.notes.filter(x => x.id !== id);
-        this.save();
-        this.ui.note = null; if (this.nb) this.nb.back = [];
-        this.renderNotes();
-        this.toast('Note supprimée', 'success', ic('trash'), { label: 'Annuler', fn: () => { this.trashRestore('note', id); this.noteOpen(id, { push: false }); } });
     },
     /* renaming a note keeps the [[links]] to it working */
     noteRename(n, title) {
@@ -113,63 +124,24 @@ Object.assign(SuperAnki.prototype, {
     },
 
     /* ---------- screen ---------- */
-    noteListHtml() {
-        const q = fold((this.ui.noteQ || '').trim()), fav = this.ui.noteFav;
-        let list = this.data.notes.slice().sort((a, b) => b.mod - a.mod || b.created - a.created);
-        if (fav) list = list.filter(n => n.fav);
-        if (q) list = list.filter(n => fold(n.title).includes(q) || fold(noteText(n)).includes(q));
-        if (!list.length) return `<p class="small faint" style="padding:14px 4px">${q ? 'Aucune note ne correspond.' : fav ? 'Aucune note favorite.' : 'Aucune note pour l\'instant. Crée la première ou ouvre la note du jour.'}</p>`;
-        return list.map(n => {
-            const first = n.b.find(b => b.x && b.t !== 'hr'), when = new Date(n.mod || n.created).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-            return `<button class="nb-row ${n.id === this.ui.note ? 'on' : ''}" data-action="nb-open" data-id="${esc(n.id)}"><span class="nb-row-ico">${ic(n.daily ? 'calendar' : 'notebook')}</span><span class="nb-row-t"><b>${esc(this.noteName(n))}</b><small>${esc(truncate(first ? first.x : 'Note vide', 80))}</small></span><span class="nb-row-d">${n.fav ? ic('star', 'i-fill') : ''}<small>${when}</small></span></button>`;
-        }).join('');
-    },
-    renderNotes() {
-        const ui = this.ui, n = this.note(ui.note);
-        if (ui.note && !n) ui.note = null;
-        $('#view-notes').innerHTML = `
-        <div class="notes-shell ${n ? 'has-open' : ''}">
-            <aside class="notes-side panel">
-                <div class="notes-side-head"><h2 class="page-title" style="margin:0">Notes</h2>
-                    <span class="row-gap"><button class="btn btn-soft btn-sm" data-action="nb-daily" title="Ouvre la note d'aujourd'hui (le jour change à 4 h)">${ic('calendar')}<span>Note du jour</span></button><button class="btn btn-primary btn-sm" data-action="nb-new">${ic('plus')}<span>Nouvelle</span></button></span></div>
-                <label class="input-icon" style="display:block;margin:10px 0 8px">${ic('search')}<input class="input" id="nb-search" type="search" placeholder="Chercher dans les notes…" value="${esc(ui.noteQ || '')}" autocomplete="off" enterkeyhint="search"></label>
-                <div class="chip-row" style="margin-bottom:6px"><button class="chip ${ui.noteFav ? '' : 'active'}" data-action="nb-fav-filter" data-on="0">Toutes <span class="count">${this.data.notes.length}</span></button><button class="chip ${ui.noteFav ? 'active' : ''}" data-action="nb-fav-filter" data-on="1">${ic('star', 'i-fill')} Favorites <span class="count">${this.data.notes.filter(x => x.fav).length}</span></button></div>
-                <div id="nb-list">${this.noteListHtml()}</div>
-            </aside>
-            <section class="notes-main">${n ? this.noteEditorHtml(n) : `<div class="panel panel-pad nb-empty">${ic('notebook')}<h3>Tes notes</h3><p class="muted">Un plan en puces pour tes cours. Tape <code>[[</code> pour lier une note ou une carte.</p><div class="row-gap" style="justify-content:center"><button class="btn btn-primary" data-action="nb-new">${ic('plus')}Nouvelle note</button><button class="btn btn-soft" data-action="nb-daily">${ic('calendar')}Note du jour</button></div></div>`}</section>
-        </div>`;
-        this.nbBind(); this.nbBarEnsure(!!n);
-        if (n) this.resolveMedia($('#nb-blocks'));
-    },
-    nbRefreshList() { const l = $('#nb-list'); if (l) l.innerHTML = this.noteListHtml(); },
-    noteEditorHtml(n) {
-        const back = this.nb && this.nb.back.length ? this.note(this.nb.back[this.nb.back.length - 1]) : null, bl = this.noteBacklinks(n);
-        return `<div class="panel nb-editor" data-id="${esc(n.id)}">
-            <div class="nb-head">
-                <button class="icon-btn" data-action="nb-close" title="${back ? `Retour à « ${esc(this.noteName(back))} »` : 'Retour à la liste'}" aria-label="Retour">${ic('arrowLeft')}</button>
-                <input class="nb-title" id="nb-title" maxlength="120" placeholder="Titre de la note" value="${esc(n.title)}" autocomplete="off" enterkeyhint="next">
-                <button class="icon-btn ${n.fav ? 'nb-fav on' : 'nb-fav'}" data-action="nb-fav" title="Favori" aria-label="Favori">${ic('star', n.fav ? 'i-fill' : '')}</button>
-                <button class="icon-btn" data-action="nb-more" title="Plus d'actions" aria-label="Plus d'actions">${ic('more')}</button>
-            </div>
-            ${n.daily ? `<p class="small faint" style="margin:-4px 0 8px">${ic('calendar')} Note du jour</p>` : ''}
-            <div class="nb-blocks" id="nb-blocks">${this.nbBlocksHtml(n)}</div>
-            <div class="nb-back" id="nb-backlinks">${this.nbBacklinksHtml(n, bl)}</div>
-        </div>`;
-    },
     /* the bar lives on the page itself (never inside an animated or blurred panel) so it can follow the keyboard */
     nbBarEnsure(open) {
         let bar = $('#nb-bar');
         if (!open) { if (bar) bar.remove(); document.body.classList.remove('nb-open', 'nb-editing'); return; }
         if (!bar) document.body.insertAdjacentHTML('beforeend', `<div class="nb-bar" id="nb-bar" role="toolbar" aria-label="Mise en forme">
-    <button data-nb="out" title="Remonter d'un niveau" aria-label="Remonter d'un niveau">${ic('chevronLeft')}</button>
-    <button data-nb="in" title="Descendre d'un niveau" aria-label="Descendre d'un niveau">${ic('chevronRight')}</button>
+    <button data-nb="out" title="Remonter d'un niveau" aria-label="Remonter d'un niveau">${ic('chevronLeft')}<span>Niveau</span></button>
+    <button data-nb="in" title="Descendre d'un niveau" aria-label="Descendre d'un niveau">${ic('chevronRight')}<span>Niveau</span></button>
     <span class="nb-sep"></span>
-    <button data-nb="head" title="Titre" aria-label="Titre"><b>Titre</b></button>
-    <button data-nb="todo" title="À faire (case à cocher)" aria-label="À faire">${ic('checkSq')}</button>
-    <button data-nb="img" title="Image" aria-label="Image">${ic('image')}</button>
-    <button data-nb="plus" title="Plus : citation, séparateur, lien [[ ]]" aria-label="Plus">${ic('plus')}</button>
+    <button data-nb="card" title="Carte mémoire" aria-label="Carte mémoire">${ic('copy')}<span>Carte ▾</span></button>
+    <button data-nb="head" title="Titre" aria-label="Titre">${ic('heading')}<span>Titre ▾</span></button>
+    <button data-nb="todo" title="À faire (case à cocher)" aria-label="À faire">${ic('checkSq')}<span>À faire</span></button>
+    <button data-nb="img" title="Image" aria-label="Image">${ic('image')}<span>Image</span></button>
+    <button data-nb="table" title="Tableau" aria-label="Tableau">${ic('table')}<span>Tableau ▾</span></button>
+    <button data-nb="fmt" title="Gras, italique, surligné, code" aria-label="Mise en forme"><b class="nb-aa">Aa</b><span>Texte ▾</span></button>
+    <button data-nb="plus" title="Plus : lien, citation, séparateur, déplacer…" aria-label="Plus">${ic('plus')}<span>Plus</span></button>
+    <button data-nb="undo" title="Annuler" aria-label="Annuler">${ic('undo')}<span>Annuler</span></button>
     <span class="nb-sep"></span>
-    <button data-nb="undo" title="Annuler" aria-label="Annuler">${ic('undo')}</button>
+    <button data-nb="kbd" title="Fermer le clavier" aria-label="Fermer le clavier">${ic('kbdoff')}<span>Clavier</span></button>
 </div>`);
         document.body.classList.add('nb-open'); this.nbPlaceBar();
     },
@@ -183,15 +155,22 @@ Object.assign(SuperAnki.prototype, {
         return hide;
     },
     nbHasKids(b, i) { return !!b[i + 1] && b[i + 1].d > b[i].d; },
-    nbBlockHtml(n, i, hide) {
-        const b = n.b[i], kids = this.nbHasKids(n.b, i);
+    nbBlockHtml(n, i, hide, own) {
+        const b = n.b[i], kids = this.nbHasKids(n.b, i), cd = b.cd, q = this.nb && this.nb.find ? this.nb.find.q : '';
+        const owner = own ? own[i] : -1, om = owner >= 0 ? n.b[owner].cd.k : '';
         const gut = b.t === 'todo' ? `<button class="nb-chk ${b.done ? 'on' : ''}" data-nbk="chk" aria-label="${b.done ? 'Décocher' : 'Cocher'}" aria-pressed="${!!b.done}">${b.done ? ic('check') : ''}</button>`
+            : om === 'mcq' && n.b[i].d === n.b[owner].d + 1 ? `<button class="nb-okb ${b.ok ? 'on' : ''}" data-nbk="ok" aria-label="${b.ok ? 'Bonne réponse' : 'Marquer comme bonne réponse'}" aria-pressed="${!!b.ok}" title="Bonne réponse">${b.ok ? ic('check') : ''}</button>`
             : b.t === 'p' || b.t === 'quote' ? `<button class="nb-bul ${kids ? 'kids' : ''} ${b.c ? 'fold' : ''}" data-nbk="bul" aria-label="${kids ? (b.c ? 'Déplier' : 'Replier') : 'Puce'}"><i></i></button>` : '<span class="nb-nogut"></span>';
-        const body = b.t === 'hr' ? '<hr class="nb-hr">' : b.t === 'img' ? `<figure class="nb-img"><img src="${esc(b.src)}" alt=""><button class="icon-btn icon-btn-sm nb-img-x" data-nbk="imgx" aria-label="Retirer l'image">${ic('x')}</button></figure>`
-            : `<div class="nb-view">${this.inlineHtml(b.x)}</div><div class="nb-t" contenteditable="${NB_CE}" role="textbox" aria-multiline="false" spellcheck="true" autocapitalize="sentences"></div>`;
-        return `<div class="nb nb-${b.t} ${b.done ? 'done' : ''} ${hide[i] ? 'hid' : ''}" data-i="${i}" style="--d:${b.d}">${gut}<div class="nb-body">${body}</div></div>`;
+        let body;
+        if (b.t === 'hr') body = '<hr class="nb-hr">';
+        else if (b.t === 'img') body = `<figure class="nb-img"><img src="${esc(b.src)}" alt=""><button class="icon-btn icon-btn-sm nb-img-x" data-nbk="imgx" aria-label="Retirer l'image">${ic('x')}</button></figure>`;
+        else if (b.t === 'table') body = this.nbTableHtml(b);
+        else if (cd) body = this.nbCardLineHtml(n, i, q);
+        else body = `<div class="nb-view">${this.inlineHtml(b.x, q)}</div><div class="nb-t" contenteditable="${NB_CE}" role="textbox" aria-multiline="false" spellcheck="true" autocapitalize="sentences"></div>`;
+        const cls = `nb nb-${b.t} ${b.done ? 'done' : ''} ${hide[i] ? 'hid' : ''} ${cd ? 'has-card' : ''} ${owner >= 0 ? 'in-card in-' + om : ''}`;
+        return `<div class="${cls}" data-i="${i}" ${cd ? `data-bid="${esc(cd.id)}"` : ''} style="--d:${b.d}">${gut}<div class="nb-body">${body}</div></div>`;
     },
-    nbBlocksHtml(n) { const hide = this.nbHidden(n.b); return n.b.map((_, i) => this.nbBlockHtml(n, i, hide)).join('') + `<div class="nb-tail" data-nbk="tail"></div>`; },
+    nbBlocksHtml(n) { const hide = this.nbHidden(n.b), own = this.nbCardOwners(n); return n.b.map((_, i) => this.nbBlockHtml(n, i, hide, own)).join('') + `<div class="nb-tail" data-nbk="tail"></div>`; },
     /* redraws the blocks (after a structure change), then puts the cursor back */
     nbRender(focusI, pos) {
         const n = this.note(this.ui.note), box = $('#nb-blocks'); if (!n || !box) return;
@@ -199,12 +178,12 @@ Object.assign(SuperAnki.prototype, {
         box.innerHTML = this.nbBlocksHtml(n); this.resolveMedia(box);
         if (focusI != null && focusI >= 0) this.nbActivate(focusI, pos == null ? 'end' : pos);
     },
-    nbVisible(n) { const hide = this.nbHidden(n.b); return n.b.map((_, i) => i).filter(i => !hide[i] && n.b[i].t !== 'hr' && n.b[i].t !== 'img'); },
+    nbVisible(n) { const hide = this.nbHidden(n.b); return n.b.map((_, i) => i).filter(i => !hide[i] && n.b[i].t !== 'hr' && n.b[i].t !== 'img' && n.b[i].t !== 'table'); },
 
     /* ---------- one block being typed in ---------- */
     nbEl(i) { return $(`#nb-blocks .nb[data-i="${i}"]`); },
     nbActivate(i, pos = 'end') {
-        const n = this.note(this.ui.note); if (!n || !n.b[i] || n.b[i].t === 'hr' || n.b[i].t === 'img') return;
+        const n = this.note(this.ui.note); if (!n || !n.b[i] || nbSolid(n.b[i].t)) return;
         this.nbDeactivate();
         const row = this.nbEl(i); if (!row) return;
         const t = $('.nb-t', row); if (!t) return;
@@ -219,13 +198,13 @@ Object.assign(SuperAnki.prototype, {
     nbDeactivate() {
         const i = this.nb && this.nb.active; if (i == null || i < 0) return;
         const row = this.nbEl(i), n = this.note(this.ui.note);
-        if (row && n && n.b[i]) { row.classList.remove('on'); const v = $('.nb-view', row); if (v) v.innerHTML = this.inlineHtml(n.b[i].x); }
+        if (row && n && n.b[i]) { row.classList.remove('on'); const v = $('.nb-view', row); if (v) v.innerHTML = this.inlineHtml(n.b[i].x, this.nb.find ? this.nb.find.q : ''); }
         this.nb.active = -1; this.nbSuggestClose();
     },
     /* leave the editor: used when the focus really goes away */
     nbIdle(force = false) {
         if (!this.nb) return;
-        if (!force) { const a = document.activeElement; if (a && a.closest && a.closest('.nb-t, .nb-bar, .nb-suggest, .nb-menu, #nb-title')) return; }
+        if (!force) { const a = document.activeElement; if (a && a.closest && a.closest('.nb-t, .nbc-ain, .nb-table, .nb-bar, .nb-suggest, .nb-menu, .nbcm, .nbprev, #nb-title')) return; }
         this.nbDeactivate(); this.nbMenuClose(); document.body.classList.remove('nb-editing');
         clearTimeout(this.nb.saveT); this.nbFlush();
     },
@@ -261,7 +240,7 @@ Object.assign(SuperAnki.prototype, {
     },
     nbFlush() {
         const n = this.note(this.ui.note); if (!n) return;
-        if (this.nb.dirty !== false) { this.save(); this.nb.dirty = false; }
+        if (this.nb.dirty !== false) { this.nbCardSyncAll(n); this.save(); this.nb.dirty = false; this.nbRefreshBadges(); }
         this.nbRefreshList();
         const bl = $('#nb-backlinks'); if (bl) bl.innerHTML = this.nbBacklinksHtml(n, this.noteBacklinks(n));
     },
@@ -269,7 +248,8 @@ Object.assign(SuperAnki.prototype, {
     /* a structure change: save a step for « Annuler », do it, redraw */
     nbOp(fn, focusI, pos) {
         const n = this.note(this.ui.note); if (!n) return;
-        this.nbPush(); fn(n);
+        this.nbPush(); const cardsBefore = this.nbCardIdsOf(n); fn(n);
+        this.nbCardsGone(cardsBefore, n);
         n.b[0].d = 0; for (let k = 1; k < n.b.length; k++) n.b[k].d = Math.min(n.b[k].d, n.b[k - 1].d + 1);
         this.nb.burst = 0; this.nbChanged(); this.nbRender(focusI, pos);
     },
@@ -283,6 +263,10 @@ Object.assign(SuperAnki.prototype, {
     nbSplit(i) {
         const n = this.note(this.ui.note), b = n.b[i], t = $('.nb-t', this.nbEl(i)), pos = this.nbCaret(t).s;
         if (!b.x && b.t !== 'p') { this.nbOp(() => { b.t = 'p'; delete b.done; }, i, 0); return; }
+        if (b.cd && NB_KIDS.includes(b.cd.k) && pos >= b.x.length) { const first = i + 1; const hasKid = n.b[first] && n.b[first].d > b.d; if (hasKid) { this.nbActivate(first, 'end'); return; } this.nbOp(nn => { nn.b.splice(i + 1, 0, { t: 'p', x: '', d: b.d + 1 }); }, i + 1, 0); return; }
+        const ow = this.nbCardOwners(n)[i];
+        if (ow >= 0 && b.x && pos >= b.x.length) { const nx = n.b[i + 1]; if (nx && !nx.x && nx.t === 'p' && nx.d === b.d && !nx.cd) { this.nbActivate(i + 1, 'start'); return; } }   // the next empty answer line is reused
+        if (!b.x && ow >= 0 && n.b[ow].cd && n.b[ow].d + 1 === b.d) { this.nbOp(nn => { nn.b[i].d = n.b[ow].d; delete nn.b[i].ok; }, i, 0); return; }   // an empty answer line + Enter = leave the card
         if (!b.x && b.d > 0) { this.nbIndent(i, -1); return; }
         const left = b.x.slice(0, pos), right = b.x.slice(pos);
         this.nbOp(nn => {
@@ -293,11 +277,12 @@ Object.assign(SuperAnki.prototype, {
     },
     nbBackspace(i) {
         const n = this.note(this.ui.note), b = n.b[i];
+        if (b.cd) { if (!b.x && !b.cd.a && !b.cd.cid.length && !b.cd.qid) { this.nbOp(() => { delete b.cd; }, i, 0); return true; } return true; }
         if (b.t !== 'p') { this.nbOp(() => { b.t = 'p'; delete b.done; }, i, 0); return true; }
         if (b.d > 0) { this.nbIndent(i, -1); return true; }
         if (i === 0) return false;
         const prev = n.b[i - 1];
-        if (prev.t === 'hr' || prev.t === 'img') { this.nbOp(nn => { nn.b.splice(i - 1, 1); }, i - 1, 0); return true; }
+        if (nbSolid(prev.t)) { this.nbOp(nn => { nn.b.splice(i - 1, 1); }, i - 1, 0); return true; }
         const join = prev.x.length;
         this.nbOp(nn => { prev.x += b.x; nn.b.splice(i, 1); }, i - 1, join);
         return true;
@@ -370,25 +355,40 @@ Object.assign(SuperAnki.prototype, {
     nbMenu(items, anchor) {
         this.nbMenuClose();
         const m = document.createElement('div'); m.className = 'nb-menu';
-        m.innerHTML = items.map((x, k) => `<button data-mn="${k}" ${x.on ? 'class="on"' : ''}>${x.ico ? ic(x.ico) : ''}<span>${x.label}</span></button>`).join('');
+        m.innerHTML = items.map((x, k) => x.head ? `<div class="nb-menu-h">${x.head}</div>` : x.sep ? '<div class="menu-sep"></div>' : `<button data-mn="${k}" class="${x.on ? 'on' : ''} ${x.danger ? 'danger' : ''}">${x.ico ? ic(x.ico) : '<span class="i"></span>'}<span>${x.label}</span></button>`).join('');
         m.addEventListener('pointerdown', e => e.preventDefault());
         m.addEventListener('click', e => { const b = e.target.closest('[data-mn]'); if (!b) return; this.nbMenuClose(); items[Number(b.dataset.mn)].fn(); });
         document.body.appendChild(m); this.nbPlaceBar();
+        if (anchor && anchor.getBoundingClientRect) {   // above (or under) the button that opened it
+            const r = anchor.getBoundingClientRect(), w = m.offsetWidth, h = m.offsetHeight, left = clamp(r.left, 8, innerWidth - w - 8);
+            m.style.left = `${left}px`; m.style.right = 'auto'; m.style.transform = 'none';
+            if (r.top - h - 8 > 8) { m.style.bottom = `${innerHeight - r.top + 8}px`; m.style.top = 'auto'; } else { m.style.top = `${r.bottom + 8}px`; m.style.bottom = 'auto'; }
+        }
     },
     nbCurrent() { const n = this.note(this.ui.note); if (!n) return null; let i = this.nb.active; if (i < 0 || !n.b[i]) i = this.nb.last != null && n.b[this.nb.last] ? this.nb.last : this.nbLastText(n); return { n, i, b: n.b[i] }; },
-    nbBar(act) {
+    nbBar(act, btn) {
+        if (act === 'kbd') { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); this.nbIdle(true); return; }
         const c = this.nbCurrent(); if (!c) return;
         const { n, i, b } = c;
+        const sel = this.nb.active === i ? this.nbCaret($('.nb-t', this.nbEl(i))) : { s: 0, e: 0 }, hasSel = sel.s !== sel.e;
         if (act === 'out') this.nbIndent(i, -1);
         else if (act === 'in') this.nbIndent(i, 1);
         else if (act === 'undo') this.nbUndo();
-        else if (act === 'todo') this.nbOp(() => { if (b.t === 'todo') { b.t = 'p'; delete b.done; } else if (b.t !== 'hr' && b.t !== 'img') b.t = 'todo'; }, i, 'end');
-        else if (act === 'head') this.nbMenu([['p', 'Texte'], ['h1', 'Titre 1'], ['h2', 'Titre 2'], ['h3', 'Titre 3']].map(([t, label]) => ({ label, on: b.t === t, fn: () => this.nbOp(() => { b.t = t; delete b.done; }, i, 'end') })));
+        else if (act === 'todo') this.nbOp(() => { if (b.t === 'todo') { b.t = 'p'; delete b.done; } else if (!nbSolid(b.t)) { b.t = 'todo'; delete b.cd; } }, i, 'end');
+        else if (act === 'card') this.nbMenu([{ head: 'CARTES MÉMOIRE' },
+            ...Object.entries(NB_KIND).map(([k, [label, ico]]) => ({ ico, label, on: b.cd && b.cd.k === k, fn: () => this.nbCardInsert(k) })),
+            ...(hasSel ? [{ sep: true }, { ico: 'brackets', label: 'Mettre la sélection en trou', fn: () => this.nbSelToCloze() }] : []),
+            { sep: true }, { ico: 'sparkle', label: 'Plan → cartes (toute la note)…', fn: () => this.nbPlanToCards() }], btn);
+        else if (act === 'head') this.nbMenu([['p', 'Texte', 'file'], ['h1', 'Titre 1', 'heading'], ['h2', 'Titre 2', 'heading'], ['h3', 'Titre 3', 'heading']].map(([t, label, ico]) => ({ ico, label, on: b.t === t, fn: () => this.nbOp(() => { if (!nbSolid(b.t)) { b.t = t; delete b.done; delete b.cd; } }, i, 'end') })), btn);
+        else if (act === 'fmt') this.nbMenu([{ ico: 'pencil', label: '<b>Gras</b> · Ctrl+B', fn: () => this.nbWrap('**') }, { ico: 'pencil', label: '<i>Italique</i> · Ctrl+I', fn: () => this.nbWrap('*') }, { ico: 'pencil', label: '<mark class="nb-hl">Surligné</mark>', fn: () => this.nbWrap('==') }, { ico: 'file', label: '<code>Code</code>', fn: () => this.nbWrap('`') }, { sep: true }, { ico: 'eraser', label: 'Effacer la mise en forme', fn: () => { if (b.x) this.nbOp(() => { b.x = b.x.replace(/\*\*|==|`/g, '').replace(/(^|\s)\*([^*]+)\*/g, '$1$2'); }, i, 'end'); } }], btn);
+        else if (act === 'table') this.nbTableMenu(btn, i);
         else if (act === 'plus') this.nbMenu([
             { ico: 'link', label: 'Lien [[ ]] vers une note ou une carte', fn: () => { this.nbActivate(i, 'end'); document.execCommand('insertText', false, '[['); const t = $('.nb-t', this.nbEl(i)); this.nbSuggestCheck(t); this.nbPlaceBar(); } },
-            { ico: 'file', label: b.t === 'quote' ? 'Retirer la citation' : 'Citation', fn: () => this.nbOp(() => { b.t = b.t === 'quote' ? 'p' : 'quote'; }, i, 'end') },
-            { ico: 'list', label: 'Séparateur', fn: () => this.nbInsertAfter(i, [{ t: 'hr' }, { t: 'p', x: '' }]) }
-        ]);
+            { ico: 'file', label: b.t === 'quote' ? 'Retirer la citation' : 'Citation', fn: () => this.nbOp(() => { if (!nbSolid(b.t)) { b.t = b.t === 'quote' ? 'p' : 'quote'; delete b.cd; } }, i, 'end') },
+            { ico: 'list', label: 'Séparateur', fn: () => this.nbInsertAfter(i, [{ t: 'hr' }, { t: 'p', x: '' }]) },
+            { sep: true },
+            { ico: 'chevronDown', label: 'Monter la ligne · Alt+↑', fn: () => this.nbMoveStep(i, -1) },
+            { ico: 'chevronDown', label: 'Descendre la ligne · Alt+↓', fn: () => this.nbMoveStep(i, 1) }], btn);
         else if (act === 'img') this.nbPickImage(i);
     },
     nbPickImage(i) {
@@ -421,15 +421,18 @@ Object.assign(SuperAnki.prototype, {
             if (!k && !row) return;
             const i = row ? Number(row.dataset.i) : n.b.length - 1, b = n.b[i], kind = k ? k.dataset.nbk : 'row';
             if (kind === 'chk') { this.nbPush(); b.done = !b.done; this.nbChanged(); row.classList.toggle('done', b.done); k.classList.toggle('on', b.done); k.innerHTML = b.done ? ic('check') : ''; k.setAttribute('aria-pressed', String(b.done)); }
-            else if (kind === 'bul') { if (this.nbHasKids(n.b, i)) { this.nbPush(); b.c = !b.c; this.nbChanged(); this.nbRender(); } else this.nbActivate(i, 'end'); }
+            else if (kind === 'bul') { if (Date.now() - (this._nbDragEnd || 0) < 450) return; if (this.nbHasKids(n.b, i)) { this.nbPush(); b.c = !b.c; this.nbChanged(); this.nbRender(); } else this.nbActivate(i, 'end'); }
+            else if (kind === 'cmenu') this.nbCardMenu(k, i);
+            else if (kind === 'cprev') this.nbCardPreview(k, i);
+            else if (kind === 'ok') { this.nbPush(); const ow = this.nbCardOwners(n)[i], mx = ow >= 0 && n.b[ow].cd.mx; if (!b.ok && !mx) { for (let j = ow + 1; j < this.nbSubEnd(n.b, ow); j++) delete n.b[j].ok; } b.ok = !b.ok; if (ow >= 0) n.b[ow].cd.sg = ''; this.nbChanged(); if (ow >= 0) for (let j = ow + 1; j < this.nbSubEnd(n.b, ow); j++) { const bt = $('.nb-okb', this.nbEl(j)); if (bt) { bt.classList.toggle('on', !!n.b[j].ok); bt.innerHTML = n.b[j].ok ? ic('check') : ''; bt.setAttribute('aria-pressed', String(!!n.b[j].ok)); } } this.nbCardFlushLater(); }
             else if (kind === 'imgx') { this.nbOp(nn => { nn.b.splice(i, 1); if (!nn.b.length) nn.b.push(nbEmpty()); }, null); }
-            else if (kind === 'tail') { const last = n.b[n.b.length - 1]; if (last.t === 'p' && !last.x) this.nbActivate(n.b.length - 1, 'end'); else if (last.t === 'hr' || last.t === 'img' || last.x) this.nbOp(nn => { nn.b.push({ t: 'p', x: '', d: 0 }); }, n.b.length); else this.nbActivate(n.b.length - 1, 'end'); }
-            else if (b && b.t !== 'hr' && b.t !== 'img' && !e.target.closest('.nb-t')) this.nbActivate(i, 'end');
+            else if (kind === 'tail') { const last = n.b[n.b.length - 1]; if (last.t === 'p' && !last.x) this.nbActivate(n.b.length - 1, 'end'); else if (nbSolid(last.t) || last.x) this.nbOp(nn => { nn.b.push({ t: 'p', x: '', d: 0 }); }, n.b.length); else this.nbActivate(n.b.length - 1, 'end'); }
+            else if (b && !nbSolid(b.t) && !e.target.closest('.nb-t, .nbc-ain, button')) this.nbActivate(i, 'end');
         });
         root.addEventListener('beforeinput', e => {
             const t = e.target.closest && e.target.closest('.nb-t'); if (!t) return;
             const i = idx(t);
-            if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') { e.preventDefault(); this.nbSuggestClose(); this.nbSplit(i); }
+            if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') { e.preventDefault(); this.nbSuggestClose(); const bb = this.note(this.ui.note).b[i]; if (bb.cd && bb.cd.k === 'basic') { const v = $('.nbc-ain', this.nbEl(i)); if (v) { v.focus(); return; } } if (!this.nbAutoCard(i)) this.nbSplit(i); }
             else if (e.inputType === 'historyUndo') { e.preventDefault(); this.nbUndo(); }
             else if (e.inputType === 'historyRedo') { e.preventDefault(); this.nbUndo(true); }
             else if (e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop') { e.preventDefault(); const dt = e.dataTransfer; this.nbPaste(i, dt ? dt.getData('text/plain') : ''); }
@@ -443,7 +446,28 @@ Object.assign(SuperAnki.prototype, {
             if (this.nbShortcut(i, t)) return;
             this.nbSuggestCheck(t);
         });
+        root.addEventListener('input', e => {
+            const a = e.target.closest && e.target.closest('.nbc-ain'), c = e.target.closest && e.target.closest('[data-nbt]');
+            if (!a && !c) return; const n = this.note(this.ui.note), i = idx(e.target); if (!n || !n.b[i]) return;
+            if (a) { if (!this.nb.burst || Date.now() - this.nb.burst > 1200) this.nbPush(); this.nb.burst = Date.now(); n.b[i].cd.a = a.value; this.nbChanged(); }
+            else { const [r, cc] = c.dataset.nbt.split(',').map(Number); if (!this.nb.burst || Date.now() - this.nb.burst > 1200) this.nbPush(); this.nb.burst = Date.now(); n.b[i].rows[r][cc] = c.value; this.nbChanged(); }
+        });
         root.addEventListener('keydown', e => {
+            const va = e.target.closest && e.target.closest('.nbc-ain');
+            if (va) {
+                const i = idx(va), n = this.note(this.ui.note);
+                if (e.key === 'Enter') { e.preventDefault(); this.nbInsertAfter(i, [{ t: 'p', x: '' }]); }
+                else if (e.key === 'Backspace' && !va.value) { e.preventDefault(); this.nbActivate(i, 'end'); }
+                else if (e.key === 'ArrowUp' || (e.key === 'ArrowLeft' && va.selectionStart === 0 && va.selectionEnd === 0)) { e.preventDefault(); this.nbActivate(i, 'end'); }
+                return;
+            }
+            const tc = e.target.closest && e.target.closest('[data-nbt]');
+            if (tc) {
+                const i = idx(tc), n = this.note(this.ui.note), [r, cc] = tc.dataset.nbt.split(',').map(Number), rows = n.b[i].rows;
+                if (e.key === 'Enter') { e.preventDefault(); if (r + 1 >= rows.length) { this.nbOp(nn => { nn.b[i].rows.push(rows[0].map(() => '')); }, null); } const nx = $(`.nb[data-i="${i}"] [data-nbt="${Math.min(r + 1, n.b[i].rows.length - 1)},${cc}"]`); if (nx) nx.focus(); }
+                else if (e.key === 'Backspace' && !tc.value && rows.length === 1 && rows[0].length === 1) { e.preventDefault(); this.nbOp(nn => { nn.b.splice(i, 1); if (!nn.b.length) nn.b.push(nbEmpty()); }, null); }
+                return;
+            }
             if (e.target.id === 'nb-title') { if (e.key === 'Enter') { e.preventDefault(); const n = this.note(this.ui.note); if (n) this.nbActivate(0, 'start'); } return; }
             const t = e.target.closest && e.target.closest('.nb-t'); if (!t) return;
             const n = this.note(this.ui.note), i = idx(t), mod = e.ctrlKey || e.metaKey;
@@ -451,6 +475,10 @@ Object.assign(SuperAnki.prototype, {
             if (e.key === 'Escape') { if (this.nb.sug) { this.nbSuggestClose(); e.preventDefault(); } return; }
             if (e.key === 'Enter' && this.nb.sug && !e.shiftKey) { e.preventDefault(); this.nbSuggestPick(0); return; }
             if (e.key === 'Tab') { e.preventDefault(); this.nbIndent(i, e.shiftKey ? -1 : 1); return; }
+            if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); this.nbMoveStep(i, e.key === 'ArrowUp' ? -1 : 1); return; }
+            if (mod && e.key.toLowerCase() === 'b') { e.preventDefault(); this.nbWrap('**'); return; }
+            if (mod && e.key.toLowerCase() === 'i') { e.preventDefault(); this.nbWrap('*'); return; }
+            if (mod && e.key.toLowerCase() === 'f') { e.preventDefault(); this.nbFindToggle(); return; }
             if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); this.nbUndo(e.shiftKey); return; }
             if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); this.nbUndo(true); return; }
             if (e.key === 'Backspace') { const c = this.nbCaret(t); if (c.s === 0 && c.e === 0 && this.nbBackspace(i)) e.preventDefault(); return; }
@@ -460,7 +488,12 @@ Object.assign(SuperAnki.prototype, {
                 else if (e.key === 'ArrowDown' && c.e === t.textContent.length && at >= 0 && at < vis.length - 1) { e.preventDefault(); this.nbActivate(vis[at + 1], 'start'); }
             }
         });
-        root.addEventListener('focusin', e => { const t = e.target.closest && e.target.closest('.nb-t'); if (t) { this.nb.last = idx(t); document.body.classList.add('nb-editing'); this.nbPlaceBar(); } });
+        root.addEventListener('focusin', e => {
+            const t = e.target.closest && e.target.closest('.nb-t, .nbc-ain, .nb-table input'); if (!t) return;
+            this.nb.last = idx(t); if (!t.classList.contains('nb-t')) { this.nbDeactivate(); this.nb.active = -1; }
+            if (t.dataset && t.dataset.nbt) { const [r, c] = t.dataset.nbt.split(',').map(Number); this.nb.cell = { i: idx(t), r, c }; }
+            document.body.classList.add('nb-editing'); this.nbPlaceBar();
+        });
         root.addEventListener('focusout', () => setTimeout(() => this.nbIdle(), 80));
         root.addEventListener('change', e => { if (e.target.id === 'nb-title') { const n = this.note(this.ui.note); if (n) { this.nbPush(); this.noteRename(n, e.target.value); e.target.value = n.title; this.nbRefreshList(); } } });
         root.addEventListener('input', e => {
@@ -468,32 +501,44 @@ Object.assign(SuperAnki.prototype, {
         });
         document.addEventListener('pointerdown', e => { if (e.target.closest('.nb-bar, .nb-suggest, .nb-menu')) e.preventDefault(); });
         document.addEventListener('click', e => {
-            const b = e.target.closest('.nb-bar [data-nb]'); if (b) { this.nbBar(b.dataset.nb); return; }
+            const b = e.target.closest('.nb-bar [data-nb]'); if (b) { this.nbBar(b.dataset.nb, b); return; }
             const s = e.target.closest('.nb-suggest [data-sug]'); if (s) { this.nbSuggestPick(Number(s.dataset.sug)); return; }
             if (!e.target.closest('.nb-menu, [data-action=nb-more]')) this.nbMenuClose();
         });
+        /* title: double-click (or double-tap) to rename */
+        const editTitle = on => { const t = $('#nb-title'); if (!t) return; t.readOnly = !on; if (on) { t.focus(); t.select(); } };
+        root.addEventListener('dblclick', e => { if (e.target.id === 'nb-title') editTitle(true); });
+        root.addEventListener('pointerup', e => { if (e.target.id === 'nb-title' && e.pointerType === 'touch') { const now = Date.now(); if (now - (this._tt || 0) < 380) editTitle(true); this._tt = now; } });
+        root.addEventListener('focusout', e => { if (e.target.id === 'nb-title' && e.target.value.trim()) e.target.readOnly = true; });
+        /* tags and search inside the note */
+        root.addEventListener('keydown', e => {
+            if (e.target.id === 'nb-tag-in' && (e.key === 'Enter' || e.key === ',' || e.key === ' ')) { e.preventDefault(); const v = e.target.value; e.target.value = ''; this.nbTagAdd(v); }
+            else if (e.target.id === 'nb-findin') { if (e.key === 'Enter') { e.preventDefault(); this.nbFindStep(e.shiftKey ? -1 : 1); } else if (e.key === 'Escape') this.nbFindToggle(); }
+        });
+        root.addEventListener('change', e => { if (e.target.id === 'nb-tag-in' && e.target.value.trim()) { const v = e.target.value; e.target.value = ''; this.nbTagAdd(v); } });
+        root.addEventListener('input', e => { if (e.target.id === 'nb-findin') this.nbFindUpdate(); });
+        /* drag and drop (grip of a note, bullet of a line) and a long press to select several notes */
+        root.addEventListener('pointerdown', e => {
+            if (e.button) return;
+            if (e.target.closest('.nb-okb, .nb-chk, .nbc-arrow, .nbc-prev') && document.body.classList.contains('nb-editing')) e.preventDefault();   // keep the keyboard open
+            const g = e.target.closest('.nb-grip');
+            if (g) { const w = g.closest('.nb-wrap'); if (w) { e.preventDefault(); this.nbListDrag(e, w); } return; }
+            const bul = e.target.closest('.nb-bul');
+            if (bul && this.note(this.ui.note)) { const row = bul.closest('.nb'); if (row) this.nbBlockDrag(e, Number(row.dataset.i)); return; }
+            const row = e.target.closest('.nb-row[data-kind=note]');
+            if (row && e.pointerType === 'touch' && !this.ui.noteSelMode && !e.target.closest('button')) {
+                const x0 = e.clientX, y0 = e.clientY; let t = setTimeout(() => {
+                    cancel(); this.ui.noteSelMode = true; this.ui.noteSel = new Set([row.dataset.id]); this._nbDragEnd = Date.now(); if (navigator.vibrate) navigator.vibrate(10); this.nbRefreshList();
+                    const b = $('[data-action=nb-sel-toggle]'); if (b) { b.classList.add('btn-primary'); b.classList.remove('btn-soft'); }
+                }, 500);
+                const mv = ev => { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 8) cancel(); };
+                const cancel = () => { clearTimeout(t); window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', cancel); window.removeEventListener('pointercancel', cancel); };
+                window.addEventListener('pointermove', mv); window.addEventListener('pointerup', cancel); window.addEventListener('pointercancel', cancel);
+            }
+        });
+        document.addEventListener('touchmove', e => { if (this._dragging) e.preventDefault(); }, { passive: false });
         const place = () => this.nbPlaceBar();
         if (window.visualViewport) { visualViewport.addEventListener('resize', place); visualViewport.addEventListener('scroll', place); }
         window.addEventListener('resize', place);
     },
-    noteAction(action, el) {
-        const ds = el.dataset || {};
-        if (action === 'nb-new') { const n = this.noteNew(''); this.noteOpen(n.id, { focus: 'title' }); }
-        else if (action === 'nb-daily') this.noteDaily();
-        else if (action === 'nb-open') this.noteOpen(ds.id);
-        else if (action === 'nb-close') {
-            this.nbIdle(true); const back = this.nb && this.nb.back.pop();
-            if (back && this.note(back)) { this.ui.note = back; this.nb.hist = []; this.nb.redo = []; } else this.ui.note = null;
-            this.renderNotes();
-        }
-        else if (action === 'nb-fav') { const n = this.note(this.ui.note); if (n) { n.fav = !n.fav; this.save(); this.renderNotes(); } }
-        else if (action === 'nb-fav-filter') { this.ui.noteFav = ds.on === '1'; this.renderNotes(); }
-        else if (action === 'nb-more') {
-            const n = this.note(this.ui.note); if (!n) return;
-            this.nbMenu([
-                { ico: 'copy', label: 'Copier le texte', fn: () => { navigator.clipboard && navigator.clipboard.writeText(this.noteAsText(n)).then(() => this.toast('Texte copié', 'success', ic('copy'))).catch(() => this.toast('Copie impossible ici.', 'warning')); } },
-                { ico: 'trash', label: 'Supprimer la note', fn: () => this.noteDelete(n.id) }
-            ]);
-        }
-    }
 });

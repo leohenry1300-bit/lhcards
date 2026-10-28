@@ -382,6 +382,7 @@ function normalizeCard(c) {
         nid: c.nid ? String(c.nid) : '', kind: ['rev', 'cloze', 'occl', 'custom'].includes(c.kind) ? c.kind : 'basic', ord: Math.max(0, num(c.ord, 0)),
         nf: c.nf && typeof c.nf === 'object' ? { front: sanitizeHtml(c.nf.front || ''), back: sanitizeHtml(c.nf.back || ''), text: sanitizeHtml(c.nf.text || ''), extra: sanitizeHtml(c.nf.extra || ''), ...(c.nf.t ? { t: String(c.nf.t), f: Object.fromEntries(Object.entries(c.nf.f && typeof c.nf.f === 'object' ? c.nf.f : {}).map(([k, v]) => [String(k).slice(0, 40), sanitizeHtml(v || '')])) } : {}) } : null,
         fs: c.fs && num(c.fs.s, 0) > 0 ? { s: num(c.fs.s), d: clamp(num(c.fs.d, 5), 1, 10), t: num(c.fs.t, 0) } : null,
+        ls: Array.isArray(c.ls) && c.ls.length ? c.ls.map(x => String(x).slice(0, 300)).slice(0, 30) : null, ta: !!c.ta, src: c.src && typeof c.src === 'object' && c.src.n ? { n: String(c.src.n), b: String(c.src.b || '') } : null,
         mod: num(c.mod, 0)
     };
 }
@@ -433,7 +434,11 @@ function normalizeState(raw) {
     const qcms = toArray(raw.qcms).map(normalizeQcm).filter(q => q && !seenQ.has(q.id) && seenQ.add(q.id));
     const seenN = new Set();
     const notes = toArray(raw.notes).map(normalizeNote).filter(n => n && !seenN.has(n.id) && seenN.add(n.id));
-    notes.forEach(n => { if (n.deckId && !seenDecks.has(n.deckId)) n.deckId = ''; });   // a note whose folder is gone goes back to « sans dossier »
+    notes.forEach(n => { if (n.deckId && !seenDecks.has(n.deckId)) n.deckId = ''; });
+    { const byId = new Map(notes.map(n => [n.id, n]));
+      notes.forEach(n => { if (n.parent && (n.parent === n.id || !byId.has(n.parent))) n.parent = ''; });
+      notes.forEach(n => { let p = n, k = 0; while (p && p.parent && k++ < 30) p = byId.get(p.parent); if (k >= 30) n.parent = ''; });
+      for (let pass = 0; pass < 8; pass++) { let ch = false; notes.forEach(n => { const p = n.parent && byId.get(n.parent); if (p && n.deckId !== p.deckId) { n.deckId = p.deckId; ch = true; } }); if (!ch) break; } }   // a note whose folder is gone goes back to « sans dossier »
     const orphans = [...cards, ...qcms].filter(c => !seenDecks.has(c.deckId));
     if (orphans.length) {
         let misc = decks.find(d => d.id === 'misc');
@@ -472,7 +477,7 @@ function normalizeState(raw) {
 }
 function cardSig(c) {
     return [c.deckId, c.state, c.step, c.due, c.interval, c.ease, c.reps, c.lapses, c.suspended ? 1 : 0, c.flag, c.marked ? 1 : 0, c.buriedUntil, c.errors, c.wrong, c.right,
-        c.front.length, c.back.length, c.hint.length, c.detail.length, c.tags.join(','), c.fs ? c.fs.s.toFixed(3) : '', c.lastReview, c.nid, c.kind, c.ord, c.kind === 'occl' && c.nf ? mediaHash(c.nf.back + c.nf.front) : c.kind === 'custom' && c.nf ? mediaHash(c.nf.t + JSON.stringify(c.nf.f)) : ''].join('|');
+        c.front.length, c.back.length, c.hint.length, c.detail.length, c.tags.join(','), c.fs ? c.fs.s.toFixed(3) : '', c.lastReview, c.nid, c.kind, c.ord, c.ta ? 1 : 0, c.ls ? c.ls.join('') : '', c.src ? c.src.n + c.src.b : '', c.kind === 'occl' && c.nf ? mediaHash(c.nf.back + c.nf.front) : c.kind === 'custom' && c.nf ? mediaHash(c.nf.t + JSON.stringify(c.nf.f)) : ''].join('|');
 }
 const deckSig = d => JSON.stringify([d.name, d.emoji, d.description, d.parent, d.preset, d.limits]);
 const presetSig = p => JSON.stringify([p.name, p.opts]);
@@ -1478,7 +1483,6 @@ class SuperAnki {
         if (view === 'decks' && prevView && prevView !== 'decks' && prevView !== 'session' && prevView !== 'exam') this._deckPrev = prevView;   // where "back" goes when the deck he is looking at is deleted
         if (prevView && prevView !== 'session' && prevView !== 'exam') (this.scrollMem = this.scrollMem || {})[prevView] = window.scrollY;
         this.view = view;
-        if (view === 'settings' && prevView !== 'settings') this.ui.setGroup = null;   // arriving on the profile: the list of sections, not the last one opened
         if (opts.deck !== undefined) { this.ui.deck = opts.deck; this.ui.limit = 60; this.touchDeck(opts.deck); }
         if (opts.filter !== undefined) this.ui.filter = opts.filter;
         const rv = (this._rv || {})[view];
@@ -1492,7 +1496,7 @@ class SuperAnki {
         const restore = mem && prevView !== view && opts.deck === undefined && ['dashboard', 'decks', 'stats', 'settings', 'toeic'].includes(view) && ['dashboard', 'decks', 'stats', 'settings', 'toeic'].includes(prevView);   // coming back to a tab: same place as before
         this.watchSpeed(performance.now(), reuse);
         if (tabbed && restore && mem > 300) this.flushTail($(`#view-${view}`), true);   // coming back to a place far down the page: it must exist already
-        const wantY = restore ? mem : 0;
+        const wantY = restore && view !== 'settings' ? mem : 0;   // the profile always opens at its top
         if (Math.abs(window.scrollY - wantY) > 1) window.scrollTo({ top: wantY, behavior: 'instant' in window ? 'instant' : 'auto' });   // (already there: no forced layout)
         const el = $(`#view-${view}`);
         if (el) {
@@ -2775,7 +2779,7 @@ class SuperAnki {
             if (id) return this.nextCard();
             return this.showSummary();
         }
-        s.current = id; s.revealed = false; s.typed = null; s.cardStart = Date.now();
+        s.current = id; s.revealed = false; s.typed = null; s.lsShown = 0; s.cardStart = Date.now();
         this.renderSession();
         if (s.done > 0) this.animCard('next');
         this.autoPlayAudio('.fc-front');
@@ -2790,7 +2794,7 @@ class SuperAnki {
         const id = s.current, cfg = this.cfgFor(this.card(id));
         const ok = () => this.session === s && s.current === id && !this.modals.length && !this.popover;
         if (!s.revealed) {
-            if (cfg.autoQSecs > 0 && s.answer === 'flip') this.autoTimer = setTimeout(() => { if (ok() && !s.revealed) this.reveal(); }, cfg.autoQSecs * 1000);
+            if (cfg.autoQSecs > 0 && s.answer === 'flip' && !this.card(id).ta && !this.card(id).ls) this.autoTimer = setTimeout(() => { if (ok() && !s.revealed) this.reveal(); }, cfg.autoQSecs * 1000);
         } else if (cfg.autoASecs > 0 && cfg.autoAAction !== 'none') {
             this.autoTimer = setTimeout(() => {
                 if (!ok() || !s.revealed) return;
@@ -2820,7 +2824,8 @@ class SuperAnki {
     renderSession() {
         const s = this.session, card = this.card(s.current), deck = this.deck(card.deckId);
         const set = this.data.settings, now = Date.now(), cfg = this.cfgFor(card);
-        const typeMode = s.answer === 'type';
+        const typeMode = s.answer === 'type' || !!card.ta;   // « Saisir la réponse » can be set on one card (from a note)
+        const lsOn = !typeMode && card.ls && card.ls.length, lsPartial = !!lsOn && s.revealed && (s.lsShown || 0) < card.ls.length;
         let counter, progress;
         if (s.kind === 'srs') {
             const { c, curKey } = this.sessionCounts();
@@ -2866,10 +2871,11 @@ class SuperAnki {
             <div class="pbar"><i style="width:${progress}%"></i></div>
             ${s.kind === 'srs' ? this.tallyHtml(s.startedAt) : ''}
             ${(s.run || 0) >= 3 ? `<div class="run-pill${runPop ? ' pop' : ''}">🔥 ${s.run} d'affilée</div>` : ''}
-            <div class="panel flashcard stack-${Math.min(2, (s.queue || []).length + (s.learning || []).length)}" ${s.revealed || typeMode ? '' : 'data-action="reveal" style="cursor:pointer"'}>
+            <div class="panel flashcard stack-${Math.min(2, (s.queue || []).length + (s.learning || []).length)}" ${(s.revealed && !lsPartial) || typeMode ? '' : 'data-action="reveal" style="cursor:pointer"'}>
                 <div class="fc-top">
                     <span class="tag" title="${esc(deck ? this.deckPath(deck.id) : '')}">${esc(deck ? deck.emoji + ' ' + this.deckPath(deck.id).split(' › ').slice(-2).join(' › ') : '')}</span>
                     <span class="fc-size" role="group" aria-label="Taille du texte"><button class="fc-size-btn" data-action="card-size" data-d="-1" aria-label="Texte plus petit" title="Texte plus petit" ${csIdx === 0 ? 'disabled' : ''}>A<small>−</small></button><button class="fc-size-btn" data-action="card-size" data-d="1" aria-label="Texte plus grand" title="Texte plus grand" ${csIdx >= Object.keys(CARD_SIZES).length - 1 ? 'disabled' : ''}>A<small>+</small></button></span>
+                    ${card.src && this.note(card.src.n) ? `<button class="fc-src" data-action="card-src" data-card="${esc(card.id)}" title="Voir dans le cours" aria-label="Voir dans le cours">${ic('notebook')}<span>Cours</span></button>` : ''}
                     <span class="tiny faint fc-badges">${card.flag ? `<span style="color:${FLAGS[card.flag].color}" title="${FLAGS[card.flag].name}">${ic('flag', 'i-flag')}</span>` : ''}${card.marked ? `<span style="color:#eab308" title="Marquée">${ic('star', 'i-fill')}</span>` : ''}${card.state === 'new' ? 'Nouvelle' : card.errors ? `${ic('target')} ${plural(card.errors, 'erreur')}` : ''}</span>
                 </div>
                 <div class="fc-content fc-front rich">${card.front}</div>
@@ -2877,14 +2883,15 @@ class SuperAnki {
                 ${typedBox}
                 ${s.revealed ? `
                     <hr class="fc-divider">
-                    <div class="fc-content fc-back rich">${card.back || '<span class="faint">(pas de réponse)</span>'}</div>
+                    <div class="fc-content fc-back rich">${lsOn && lsPartial ? `<ol class="ls-steps">${card.ls.map((x, k) => `<li>${k < (s.lsShown || 0) ? esc(x) : '<span class="faint">▢</span>'}</li>`).join('')}</ol>` : card.back || '<span class="faint">(pas de réponse)</span>'}</div>
                     ${card.hint || card.detail ? `<div class="fc-extra">
                         ${card.hint ? `<div class="hint-box rich">${ic('bulb')} ${card.hint}</div>` : ''}
                         ${card.detail ? `<button class="pill-btn" data-action="detail">${ic('plus')}En savoir plus</button><div id="detail-slot"></div>` : ''}
                     </div>` : ''}` : (!typeMode ? `<p class="fc-hint-tap">Touche la carte ou appuie sur Espace</p>` : '')}
             </div>
             <div class="study-actions">
-                ${s.revealed ? grades
+                ${s.revealed && lsPartial ? `<div class="grade-grid two"><button class="btn btn-primary btn-lg" data-action="reveal">${ic('eye')}Élément suivant</button><button class="btn btn-soft btn-lg" data-action="ls-all">Tout afficher</button></div>`
+                    : s.revealed ? grades
                     : typeMode ? `<button class="btn btn-primary btn-lg btn-block" data-action="submit-typed">${ic('check')}Vérifier</button>`
                     : `<button class="btn btn-primary btn-lg btn-block" data-action="reveal">${ic('eye')}Afficher la réponse</button>`}
             </div>
@@ -2896,9 +2903,14 @@ class SuperAnki {
     }
     reveal() {
         const s = this.session;
-        if (!s || s.revealed) return;
-        if (s.answer === 'type') return this.submitTyped();
-        s.revealed = true;
+        if (!s) return;
+        const card0 = s.current && this.card(s.current);
+        if (s.revealed) {   // a list asked « un élément à la fois » : each tap shows the next item
+            if (card0 && card0.ls && !card0.ta && s.answer !== 'type' && (s.lsShown || 0) < card0.ls.length) { s.lsShown = (s.lsShown || 0) + 1; this.renderSession(); }
+            return;
+        }
+        if (s.answer === 'type' || (card0 && card0.ta)) return this.submitTyped();
+        s.revealed = true; if (card0 && card0.ls && card0.ls.length) s.lsShown = 1;
         this.renderSession();
         this.animCard('flip');
         this.autoPlayAudio('.fc-back');
@@ -3031,7 +3043,7 @@ class SuperAnki {
             const op = { ...(this.data.settings.ordPos || {}) }; op[s.ordKey] = { i: s.ordMax + 1, n: s.ordAll.length, t: Date.now() };
             this.data.settings.ordPos = op;
         }
-        s.current = h.current; s.revealed = false; s.typed = null; s.cardStart = Date.now();
+        s.current = h.current; s.revealed = false; s.typed = null; s.lsShown = 0; s.cardStart = Date.now();
         this.save();
         this.renderSession(); this.saveResume();
         this.renderStreak();
@@ -3389,7 +3401,8 @@ class SuperAnki {
             this.data.decks = this.data.decks.filter(d => !set.has(d.id));
             this.data.cards = this.data.cards.filter(c => !set.has(c.deckId));
             this.data.qcms = this.data.qcms.filter(q => !set.has(q.deckId));
-        }, { decks: true, qcms: true });
+            this.data.notes.forEach(n => { if (set.has(n.deckId)) n.deckId = ''; });   // the notes stay, without a folder
+        }, { decks: true, qcms: true, notes: true });
         /* after deleting the deck he was looking at: back to its parent deck, else to the page he came from (never to the pile of all the cards) */
         if (this.view === 'decks' && (this.ui.deck === deckId || set.has(this.ui.deck))) {
             const parent = deck.parent && this.deck(deck.parent) ? deck.parent : null, from = this._deckPrev;
@@ -4097,6 +4110,7 @@ class SuperAnki {
             if (k === ' ' || k === 'enter') { e.preventDefault(); this.reveal(); }
             return;
         }
+        { const cc = this.card(s.current); if (cc && cc.ls && !cc.ta && s.answer !== 'type' && (s.lsShown || 0) < cc.ls.length) { if (k === ' ' || k === 'enter') { e.preventDefault(); this.reveal(); } return; } }
         if (s.kind === 'srs') {
             if (['1', '2', '3', '4'].includes(k)) { e.preventDefault(); this.grade(Number(k)); }
             else if (k === ' ' || k === 'enter') { e.preventDefault(); this.grade(s.typed ? s.typed.suggest : 3); }
@@ -4320,7 +4334,7 @@ class SuperAnki {
             case 'toggle-deck': this.toggleOpen('side', ds.deck); this.renderDeckSidebar(); break;
             case 'dash-toggle': this.toggleOpen('dash', ds.deck); this.refreshDeckList(`#dash-decks [data-action="dash-toggle"][data-deck="${CSS.escape(ds.deck)}"]`); break;
             case 'tree-all': this.setAllOpen(ds.key, ds.open === '1'); this.renderDeckSidebar(); break;
-            case 'goals-manage': this.go('settings'); this.ui.setGroup = 'grp-rev'; this.renderSettings(); this.flushTail($('#view-settings'), true); setTimeout(() => { const g = $('#goals-panel'); if (g) { const sp = g.closest('details'); if (sp) sp.open = true; g.scrollIntoView({ block: 'start' }); window.scrollBy(0, -120); } }, 80); break;
+            case 'goals-manage': this.go('settings'); this.flushTail($('#view-settings'), true); setTimeout(() => { const g = $('#goals-panel'); if (g) { const sp = g.closest('details'); if (sp) sp.open = true; g.scrollIntoView({ block: 'start' }); window.scrollBy(0, -120); } }, 80); break;
             case 'goal-add': {
                 const f = this.goalFormSync();
                 if (!/^\d{4}-\d{2}-\d{2}$/.test(f.date)) { this.toast('Choisis une date pour ton objectif.', 'warning'); break; }
@@ -4450,6 +4464,8 @@ class SuperAnki {
             case 'go-stats': this.go('stats'); break;
             case 'go-settings': this.go('settings'); break;
             case 'quiz-next': this.nextQuestion(); break;
+            case 'card-src': this.openCardSource(ds.card); break;
+            case 'ls-all': { const s = this.session, c = s && this.card(s.current); if (c && c.ls) { s.lsShown = c.ls.length; this.renderSession(); } break; }
             case 'filter-edit': this.openFilterModal(ds.id || ''); break;
             case 'filter-start': this.startFilter(ds.id); break;
             case 'tool-filter': this.openFilterModal(''); break;

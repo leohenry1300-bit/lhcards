@@ -737,9 +737,9 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
             tabs['pc' + w] = await page.evaluate(() => { const t = document.querySelector('.topbar-inner'); return { over: t.scrollWidth > t.clientWidth + 1, nav: !!document.querySelector('.nav [data-nav=notes]') }; });
         }
         await page.setViewportSize({ width: 390, height: 800 });
-        ok('Notes: the 4 tabs (Accueil, Paquets, Notes, Stats) fit the bottom bar at 360, 390 and 430 px and the top bar on a computer', [360, 390, 430].every(w => tabs[w].n === 4 && !tabs[w].over && !tabs[w].cut && tabs[w].notes) && ['pc1280', 'pc1100', 'pc1000'].every(k => !tabs[k].over && tabs[k].nav), JSON.stringify(tabs));
+        ok('Notes: the 4 tabs + Profil (Accueil, Paquets, Notes, Stats, Profil) fit the bottom bar at 360, 390 and 430 px and the top bar on a computer', [360, 390, 430].every(w => tabs[w].n === 5 && !tabs[w].over && !tabs[w].cut && tabs[w].notes) && ['pc1280', 'pc1100', 'pc1000'].every(k => !tabs[k].over && tabs[k].nav), JSON.stringify(tabs));
         await page.evaluate(() => { app.go('notes'); }); await wait(300);
-        await page.click('[data-action=nb-new]'); await wait(300);
+        await page.evaluate(() => app.noteNewFrom(null, {})); await wait(300);
         await page.keyboard.type('Cours de marketing'); await page.keyboard.press('Enter'); await wait(80);
         await page.keyboard.type('Les 4 P'); await page.keyboard.press('Enter');
         await page.keyboard.type('Produit'); await page.keyboard.press('Tab'); await page.keyboard.press('Enter');
@@ -795,28 +795,296 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         ok('Notes: saved, merged between devices, images kept, deletion goes to the trash and can be restored', sv.saved && sv.merged && sv.media && sv.trash && sv.restored, JSON.stringify(sv));
     }
 
+    /* Notes v2: tree (folders = decks, sub-notes, pinned), sort, swipe, drag and drop, multi-select, menu, tags, emoji, find, formatting, move lines */
+    {
+        await page.setViewportSize({ width: 390, height: 800 });
+        const t1 = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {}, d = a.data;
+            d.notes = []; a.ui.note = null; a.ui.noteQ = ''; a.ui.noteFav = false; a.ui.noteTag = ''; a.nbPrefs().sort = 'recent'; a.nbPrefs().closed = {};
+            const dk = d.decks.find(x => !x.parent).id;
+            const A = a.noteNew('Cours 1', { deckId: dk, emoji: '📘' }), P4 = a.noteNew('Les 4 P', { parent: A.id }), SEG = a.noteNew('Segmentation', { parent: A.id }), REV = a.noteNew('Révisions', { deckId: dk }), Z = a.noteNew('Idées');
+            Z.pin = true; A.tags = ['marketing']; Z.tags = ['idee']; a.save(); a.go('notes'); await w(400);
+            const rows = [...document.querySelectorAll('#nb-list .nb-wrap, #nb-list .nb-headrow')].map(r => r.dataset.kind ? r.dataset.kind + ':' + (r.dataset.id) : 'head');
+            out.tree = rows[0] === 'head' && rows[1] === 'note:' + Z.id && rows[2].startsWith('folder:') && rows.includes('note:' + A.id) && rows.indexOf('note:' + P4.id) > rows.indexOf('note:' + A.id) && !!document.querySelector('#nb-list .nb-row[data-id="' + P4.id + '"]').style.cssText.match(/--d:\s*2/);
+            out.foldBtn = !!document.querySelector(`[data-action=nb-fold][data-id="${A.id}"]`);
+            document.querySelector(`[data-action=nb-fold][data-id="${A.id}"]`).click(); await w(100);
+            out.folded = !document.querySelector(`#nb-list [data-id="${P4.id}"]`); document.querySelector(`[data-action=nb-fold][data-id="${A.id}"]`).click(); await w(100);
+            out.unfolded = !!document.querySelector(`#nb-list [data-id="${P4.id}"]`);
+            /* sort */
+            a.nbPrefs().sort = 'created'; const rc = a.nbRows().filter(r => r.kind === 'note').map(r => r.n.title);
+            A.created = 1; REV.created = 3; a.nbPrefs().sort = 'created'; out.sortCreated = a.nbSortList([A, REV])[0].id === REV.id;
+            a.nbPrefs().sort = 'manual'; A.order = 5; REV.order = 1; const top = a.nbSortList([A, REV]).map(x => x.title); out.sortManual = top[0] === 'Révisions';
+            a.nbPrefs().sort = 'recent';
+            /* filters: favourites and tags, search */
+            A.fav = true; a.ui.noteFav = true; a.nbRefreshList(); out.fav = document.querySelectorAll('#nb-list .nb-row').length === 1; a.ui.noteFav = false;
+            a.ui.noteTag = 'idee'; a.nbRefreshList(); out.tag = document.querySelectorAll('#nb-list .nb-row').length === 1 && /Idées/.test(document.getElementById('nb-list').textContent); a.ui.noteTag = '';
+            a.ui.noteQ = 'segm'; a.nbRefreshList(); out.search = document.querySelectorAll('#nb-list .nb-row').length === 1; a.ui.noteQ = ''; a.nbRefreshList();
+            out.ids = { A: A.id, P4: P4.id, SEG: SEG.id, REV: REV.id, Z: Z.id, dk };
+            return out;
+        });
+        ok('Notes v2: tree (pinned on top, folders = decks, sub-notes indented), fold, sorts, filters (favourites, tag, search)', t1.tree && t1.foldBtn && t1.folded && t1.unfolded && t1.sortCreated && t1.sortManual && t1.fav && t1.tag && t1.search, JSON.stringify(t1));
+        const ids = t1.ids;
+        /* swipe a row to the left with the mouse: pin / favourite / delete, then undo */
+        await wait(900); const row = await page.$(`#nb-list .nb-row[data-id="${ids.REV}"]`); await row.scrollIntoViewIfNeeded(); await wait(200); const bb = await row.boundingBox();
+        await page.evaluate(() => document.querySelectorAll('.toast').forEach(t => t.remove()));
+        const diag = await page.evaluate(([x, y]) => ({ sel: app.ui.selMode, nsel: app.ui.noteSelMode, drag: app._dragging, theme: app.data.settings.theme, mods: app.modals.length, pop: !!app.popover, hit: (document.elementFromPoint(x, y) || {}).className, vp: innerWidth + 'x' + innerHeight, lite: document.documentElement.dataset.lite || '' }), [bb.x + 200, bb.y + bb.height / 2]);
+        await page.mouse.move(bb.x + 200, bb.y + bb.height / 2); await page.mouse.down(); await page.mouse.move(bb.x + 120, bb.y + bb.height / 2, { steps: 8 }); await page.mouse.move(bb.x + 40, bb.y + bb.height / 2, { steps: 8 }); await page.mouse.up(); await wait(350);
+        const sw1 = await page.evaluate(id => { const r = document.querySelector(`#nb-list .nb-row[data-id="${id}"]`); return { open: r.classList.contains('sw-open'), btns: [...r.querySelectorAll('.row-actions button')].map(b => b.dataset.act) }; }, ids.REV);
+        await page.evaluate(id => { const b = document.querySelector(`#nb-list .nb-row[data-id="${id}"] [data-act=del]`); if (b) b.click(); }, ids.REV); await wait(300);
+        const sw2 = await page.evaluate(id => ({ gone: !app.note(id), trash: app.data.trash.some(x => x.k === 'note' && x.c.id === id) }), ids.REV);
+        await page.evaluate(() => { const b = document.querySelector('.toast button'); if (b) b.click(); }); await wait(300);
+        const sw3 = await page.evaluate(id => !!app.note(id), ids.REV);
+        ok('Notes v2: swipe a note to the left shows Épingler / Favori / Supprimer; delete goes to the trash and "Annuler" brings it back', sw1.open && sw1.btns.join() === 'pin,fav,del' && sw2.gone && sw2.trash && sw3, JSON.stringify({ sw1, sw2, sw3, diag, bb }));
+        /* drag and drop with the grip: onto a note = sub-note, onto a folder = into the folder, between = order */
+        const drag = async (fromId, toSel, fy) => {
+            await page.evaluate(() => document.querySelectorAll('.toast').forEach(t => t.remove()));
+            const g = await page.$(`#nb-list .nb-wrap[data-id="${fromId}"] .nb-grip`); await g.scrollIntoViewIfNeeded(); const gb = await g.boundingBox(), tg = await page.$(toSel), tb = await tg.boundingBox();
+            await page.mouse.move(gb.x + gb.width / 2, gb.y + gb.height / 2); await page.mouse.down(); await page.mouse.move(gb.x + 10, gb.y + 30, { steps: 4 });
+            await page.mouse.move(tb.x + tb.width / 2, tb.y + tb.height * fy, { steps: 10 }); await wait(80); await page.mouse.up(); await wait(300);
+        };
+        await drag(ids.Z, `#nb-list .nb-wrap[data-id="${ids.REV}"]`, 0.5);
+        const dd1 = await page.evaluate(i => ({ parent: app.note(i.Z).parent === i.REV, deck: app.note(i.Z).deckId === app.note(i.REV).deckId }), ids);
+        await drag(ids.Z, `#nb-list .nb-wrap[data-id="${ids.SEG}"]`, 0.1);
+        const dd2 = await page.evaluate(i => ({ parent: app.note(i.Z).parent === app.note(i.SEG).parent && app.note(i.Z).parent === i.A, manual: app.nbPrefs().sort === 'manual', before: app.note(i.Z).order < app.note(i.SEG).order }), ids);
+        await page.evaluate(i => { app.note(i.Z).parent = ''; app.note(i.Z).deckId = ''; app.save(); app.nbRefreshList(); }, ids); await wait(100);
+        await drag(ids.Z, `#nb-list .nb-wrap[data-kind=folder]`, 0.5);
+        const dd3 = await page.evaluate(i => ({ deck: app.note(i.Z).deckId === i.dk && !app.note(i.Z).parent }), ids);
+        const cyc = await page.evaluate(i => app.noteMoveTo([i.A], { parent: i.P4 }), ids);
+        ok('Notes v2: drag and drop by the grip (into a note, before a note, into a folder); never into its own sub-note', dd1.parent && dd1.deck && dd2.parent && dd2.manual && dd2.before && dd3.deck && cyc === 0, JSON.stringify({ dd1, dd2, dd3, cyc }));
+        await wait(700);
+        const t2 = await page.evaluate(async ids => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {};
+            /* multi-select */
+            document.querySelector('[data-action=nb-sel-toggle]').click(); await w(100);
+            [ids.A, ids.SEG].forEach(id => document.querySelector(`#nb-list .nb-row[data-id="${id}"]`).click()); await w(100);
+            out.sel = a.ui.noteSel.size === 2 && /2 sélectionnée/.test(document.getElementById('nb-bulk').textContent);
+            document.querySelector('[data-action=nb-bulk][data-act=pin]').click(); await w(100); out.pinned = a.note(ids.A).pin && a.note(ids.SEG).pin;
+            document.querySelector('[data-action=nb-bulk][data-act=pin]').click(); await w(100); out.unpinned = !a.note(ids.A).pin;
+            document.querySelector('[data-action=nb-sel-exit]').click(); await w(100); out.exit = !a.ui.noteSelMode;
+            /* menu items, duplicate, tags, emoji, rename */
+            a.noteOpen(ids.A); await w(300);
+            a.nbNoteMenu(document.querySelector('[data-action=nb-more]'), ids.A); await w(100);
+            const items = [...document.querySelectorAll('.popover.menu .menu-item')].map(x => x.textContent.trim());
+            out.menu = ['Épingler en haut', 'Ajouter aux favoris', 'Ajouter une sous-note', 'Dupliquer', 'Déplacer…', 'Exporter en Markdown (.md)', 'Partager…', 'Copier le texte', 'Informations', 'Supprimer'].every(l => items.some(i => i.includes(l.replace(' aux favoris', '').replace('Ajouter aux', 'Ajouter')) || i === l) || items.includes(l)) || items.length >= 10;
+            a.closePopover();
+            const before = a.data.notes.length; a.noteDuplicate(ids.A); await w(200); out.dup = a.data.notes.length === before + 1 && /copie/.test(a.note(a.ui.note).title);
+            a.noteOpen(ids.A); await w(200);
+            document.getElementById('nb-tag-in').value = 'examen, cours'; document.getElementById('nb-tag-in').dispatchEvent(new Event('change', { bubbles: true })); await w(100);
+            out.tags = a.note(ids.A).tags.includes('examen') && a.note(ids.A).tags.includes('cours') && !!document.querySelector('.nb-tag');
+            document.querySelector('[data-action=nb-tag-del][data-tag="cours"]').click(); await w(100); out.tagDel = !a.note(ids.A).tags.includes('cours');
+            a.openNoteEmoji(); await w(100); document.querySelector('.emoji-grid [data-e="🧠"]').click(); await w(200); out.emoji = a.note(ids.A).emoji === '🧠' && /🧠/.test(document.querySelector('.nb-emoji').textContent);
+            const ti = document.getElementById('nb-title'); out.ro = ti.readOnly; ti.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); out.edit = !ti.readOnly;
+            ti.value = 'Cours de marketing'; ti.dispatchEvent(new Event('change', { bubbles: true })); ti.blur(); await w(100); out.renamed = a.note(ids.A).title === 'Cours de marketing' && ti.readOnly;
+            out.info = (a.noteInfo(a.note(ids.A)), /Rétroliens/.test(document.querySelector('.modal-body').textContent)); a.closeModal(a.modals[a.modals.length - 1]);
+            /* move modal */
+            a.openNoteMove([ids.SEG]); await w(100); out.mv = document.querySelectorAll('#nm-list .pick-item').length > 3; document.querySelector('#nm-list [data-k=deck][data-id=""]').click(); await w(200);
+            out.moved = a.note(ids.SEG).deckId === '' && a.note(ids.SEG).parent === '';
+            return out;
+        }, ids);
+        ok('Notes v2: multi-select (pin, exit), menu, duplicate, tags add/remove, emoji, double-click rename, info, move picker', t2.sel && t2.pinned && t2.unpinned && t2.exit && t2.menu && t2.dup && t2.tags && t2.tagDel && t2.emoji && t2.ro && t2.edit && t2.renamed && t2.info && t2.mv && t2.moved, JSON.stringify(t2));
+        /* editor: formatting, move lines (Alt+arrows and bullet drag), find in note */
+        await page.evaluate(i => { app.noteOpen(i); }, ids.A); await wait(300);
+        await page.evaluate(() => { const n = app.note(app.ui.note); n.b = [{ t: 'p', x: 'Un', d: 0 }, { t: 'p', x: 'Deux', d: 0 }, { t: 'p', x: 'Deux-a', d: 1 }, { t: 'p', x: 'Trois', d: 0 }]; app.save(); app.renderNotes(); });
+        await wait(200);
+        await page.evaluate(() => app.nbActivate(0, 'start')); await page.keyboard.press('Shift+End'); await page.keyboard.press('Control+b'); await wait(100);
+        const f1 = await page.evaluate(() => app.note(app.ui.note).b[0].x);
+        await page.evaluate(() => app.nbActivate(0, 'end')); await page.keyboard.press('Alt+ArrowDown'); await wait(200);
+        const f2 = await page.evaluate(() => app.note(app.ui.note).b.map(b => b.x).join('|'));
+        await page.evaluate(() => app.nbMoveStep(2, -1)); await wait(150);
+        const f3 = await page.evaluate(() => app.note(app.ui.note).b.map(b => b.x).join('|'));
+        const bul = await page.$('#nb-blocks .nb[data-i="0"] .nb-bul'), lb = await page.$('#nb-blocks .nb[data-i="3"]'), bb2 = await bul.boundingBox(), lb2 = await lb.boundingBox();
+        await page.mouse.move(bb2.x + 8, bb2.y + 12); await page.mouse.down(); await page.mouse.move(bb2.x + 14, bb2.y + 30, { steps: 4 }); await page.mouse.move(lb2.x + 60, lb2.y + lb2.height * 0.9, { steps: 8 }); await wait(60); await page.mouse.up(); await wait(300);
+        const f4 = await page.evaluate(() => app.note(app.ui.note).b.map(b => b.x.replace(/\*/g, '')).join('|'));
+        await page.evaluate(() => { app.nbFindToggle(); }); await page.fill('#nb-findin', 'deux'); await wait(200);
+        const f5 = await page.evaluate(() => ({ marks: document.querySelectorAll('#nb-blocks mark.nb-find').length, count: document.getElementById('nb-findcount').textContent, render: /<b>/.test(app.inlineHtml('**x**')) && /<mark class="nb-hl">/.test(app.inlineHtml('==y==')) && /<code>/.test(app.inlineHtml('`z`')) && /<i>/.test(app.inlineHtml('un *mot* ici')) }));
+        await page.evaluate(() => app.nbFindToggle());
+        ok('Notes v2: Ctrl+B bold, Alt+↓ and the ↑ move a line with its sub-lines, bullet drag, find in the note with highlights, **/*/==/` rendering', f1 === '**Un**' && f2 === 'Deux|Deux-a|**Un**|Trois' && f3 === '**Un**|Deux|Deux-a|Trois' && f4 === 'Deux|Deux-a|Trois|Un' && f5.marks === 2 && f5.count === '1/2' && f5.render, JSON.stringify({ f1, f2, f3, f4, f5 }));
+        const t3 = await page.evaluate(async ids => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {}, d = a.data;
+            /* delete a note with sub-notes (asks), then undo brings the whole branch back */
+            const P = a.noteNew('Parent', { deckId: ids.dk }), K1 = a.noteNew('Fille 1', { parent: P.id }), K2 = a.noteNew('Fille 2', { parent: K1.id });
+            const n0 = d.notes.length; let asked = null; const confirm0 = a.confirm; a.confirm = async o => { asked = o; return true; };
+            await a.noteDeleteMany([P.id]); a.confirm = confirm0; await w(150);
+            out.asks = !!asked && /2 sous-notes/.test(asked.message);
+            out.deleted = d.notes.length === n0 - 3;
+            document.querySelector('.toast button').click(); await w(300);
+            out.restored = d.notes.length === n0 && a.note(K2.id).parent === K1.id && a.note(K1.id).parent === P.id;
+            /* deleting a deck: its notes stay (no folder); undo puts them back in it */
+            const dd = d.decks.find(x => x.id === ids.dk); const inDeck = d.notes.filter(x => x.deckId === ids.dk).length;
+            await a.deleteDeck.call(Object.assign(Object.create(a), { confirm: async () => true }), ids.dk); await w(200);
+            out.stay = d.notes.length === n0 && d.notes.every(x => x.deckId !== ids.dk) && inDeck > 0;
+            a.undoGlobal(); await w(200); out.back = d.notes.filter(x => x.deckId === ids.dk).length === inDeck && !!a.deck(ids.dk);
+            /* sanity: a parent loop or a missing parent is repaired when loading */
+            const raw = JSON.parse(a.serialize()); const x1 = raw.notes[0], x2 = raw.notes[1]; x1.parent = x2.id; x2.parent = x1.id; raw.notes[2].parent = 'zzz'; const nn = normalizeState(JSON.stringify(raw));
+            out.loop = nn.notes.every(q => { let p = q, k = 0; while (p && p.parent && k++ < 40) p = nn.notes.find(z => z.id === p.parent); return k < 40; }) && nn.notes[2].parent === '';
+            const L = normalizeState(a.serialize()), R = normalizeState(a.serialize()); R.notes[0].pin = true; R.notes[0].emoji = '🎯'; R.notes[0].mod = Date.now() + 9000; const mm = mergeStates(L, R).data; out.merge = mm.notes[0].pin === true && mm.notes[0].emoji === '🎯';
+            /* templates */
+            const tn = a.noteNewFrom(NB_TEMPLATES[0], {}); out.tpl = tn.b.length >= 6 && tn.emoji === '📘' && /Cours du/.test(tn.title);
+            d.notes = []; a.ui.note = null; a.nbBarEnsure(false); a.go('dashboard');
+            return out;
+        }, ids);
+        ok('Notes v2: deleting a note with sub-notes asks and can be undone as a whole branch; deleting a deck keeps the notes (undo puts them back); loops repaired, merge keeps pin/emoji, templates', t3.asks && t3.deleted && t3.restored && t3.stay && t3.back && t3.loop && t3.merge && t3.tpl, JSON.stringify(t3));
+    }
+
+    /* Notes 2B: memory cards inside a note (like RemNote), review of lists, "see in the course", tables, folder page, train button, exam */
+    {
+        await page.setViewportSize({ width: 390, height: 800 });
+        await page.evaluate(() => { app.data.notes = []; app.ui.note = null; app.ui.nbFolder = null; app.ui.nbMem = false; app.noteNewFrom(null, {}); });
+        await wait(400);
+        await page.keyboard.type('Marketing'); await page.keyboard.press('Enter');
+        await page.keyboard.type('Capitale de la France >> Paris'); await page.keyboard.press('Enter'); await wait(300);
+        const k1 = await page.evaluate(() => { const n = app.data.notes[0], c = app.data.cards.find(x => x.src); return { cd: n.b[0].cd && n.b[0].cd.k + ':' + n.b[0].cd.a, x: n.b[0].x, next: n.b.length === 2 && n.b[1].x === '', card: !!c && c.front === 'Capitale de la France' && c.back === 'Paris' && c.deckId === 'notes_auto' && c.src.n === n.id && c.src.b === n.b[0].cd.id, deck: !!app.deck('notes_auto') }; });
+        const bar = await page.evaluate(() => [...document.querySelectorAll('#nb-bar button')].map(b => b.textContent.trim()));
+        await page.click('[data-nb=card]'); await wait(150);
+        const menu = await page.evaluate(() => ({ head: (document.querySelector('.nb-menu-h') || {}).textContent, items: [...document.querySelectorAll('.nb-menu button')].map(b => b.textContent.trim()) }));
+        await page.click('.nb-menu button:has-text("Liste")'); await wait(250);
+        await page.keyboard.type('Les 4 P'); await page.keyboard.press('Enter');
+        for (const w of ['Produit', 'Prix', 'Place', 'Promotion']) { await page.keyboard.type(w); if (w !== 'Promotion') await page.keyboard.press('Enter'); }
+        await wait(900);
+        const k2 = await page.evaluate(() => { const n = app.data.notes[0], b = n.b[1], c = b.cd && app.card(b.cd.cid[0]); return { kind: b.cd && b.cd.k, kids: n.b.slice(2).map(z => z.x).join(','), back: c && c.back, own: app.nbCardOwners(n).slice(2).every(v => v === 1) }; });
+        /* settings round button: type, direction, order, type the answer, switch off */
+        await page.evaluate(() => { app.nbCardToggle(1, 'ord'); }); await wait(500);
+        const k3 = await page.evaluate(() => { const c = app.card(app.data.notes[0].b[1].cd.cid[0]); return { ls: c.ls && c.ls.join(','), ol: /<ol>/.test(c.back) }; });
+        await page.click('.nb[data-i="1"] [data-nbk=cmenu]'); await wait(200);
+        const cm = await page.evaluate(() => [...document.querySelectorAll('.nbcm .menu-item')].map(b => b.textContent.replace(/\s+/g, ' ').trim()));
+        await page.evaluate(() => app.closePopover());
+        await page.evaluate(() => { app.nbCardToggle(0, 'ta'); app.nbCardSetDir(0, 'both'); }); await wait(600);
+        const k4 = await page.evaluate(() => { const n = app.data.notes[0], cs = app.data.cards.filter(c => c.src && c.src.b === n.b[0].cd.id); return { n: cs.length, kinds: cs.map(c => c.kind).join(), ta: cs.every(c => c.ta), rev: cs.map(c => c.front).join('|') }; });
+        await page.evaluate(() => { app.nbCardToggle(0, 'on'); }); await wait(500);
+        const k5 = await page.evaluate(() => { const n = app.data.notes[0], cs = app.data.cards.filter(c => c.src && c.src.b === n.b[0].cd.id); const off = cs.every(c => c.suspended); app.nbCardToggle(0, 'on'); return { off }; }); await wait(500);
+        const k6 = await page.evaluate(() => { const n = app.data.notes[0], cs = app.data.cards.filter(c => c.src && c.src.b === n.b[0].cd.id); return cs.every(c => !c.suspended); });
+        /* incomplete line: the preview says what is missing */
+        await page.evaluate(() => { app.nbActivate(app.data.notes[0].b.length - 1, 'end'); }); await page.click('[data-nb=card]'); await page.click('.nb-menu button:has-text("Multi-lignes")'); await wait(250);
+        const li = await page.evaluate(() => app.data.notes[0].b.length - 1); const prevBtn = await page.$(`.nb[data-i="${li - 1}"] [data-nbk=cprev], .nb[data-i="${li}"] [data-nbk=cprev]`); await prevBtn.click(); await wait(150);
+        const pv = await page.evaluate(() => (document.querySelector('.nbprev') || {}).textContent || ''); await page.evaluate(() => app.closePopover());
+        ok('Notes 2B: "question >> réponse" + Enter makes a card line (Recto → Verso) and its card; toolbar with Carte / Titre / À faire / Image / Tableau / Texte / Plus / Annuler / Clavier; menu "Cartes mémoire" (5 types)', k1.cd === 'basic:Paris' && k1.x === 'Capitale de la France' && k1.next && k1.card && k1.deck && ['Carte ▾', 'Titre ▾', 'À faire', 'Image', 'Tableau ▾', 'Plus', 'Annuler', 'Clavier'].every(l => bar.some(b => b.includes(l))) && /CARTES MÉMOIRE/.test(menu.head) && ['Ligne unique', 'Multi-lignes', 'Liste', 'Choix multiples', 'À trous'].every(l => menu.items.some(i => i.includes(l))), JSON.stringify({ k1, bar, menu }));
+        ok('Notes 2B: list card = line + sub-lines; "ordre important" gives an ordered list and keeps the items one by one; round button menu (type, direction, activate, type the answer, order, delete)', k2.kind === 'list' && k2.kids === 'Produit,Prix,Place,Promotion' && /<ul>/.test(k2.back) && k2.own && k3.ls === 'Produit,Prix,Place,Promotion' && k3.ol && ['Type de carte', 'Activer les cartes', 'Saisir la réponse', 'Ordre important', 'Supprimer la carte'].every(l => cm.some(i => i.includes(l))), JSON.stringify({ k2, k3, cm }));
+        ok('Notes 2B: direction "Les deux" gives two cards, "Saisir la réponse" is kept on the cards, switching cards off suspends them and back on re-activates them; an incomplete line says what is missing', k4.n === 2 && k4.kinds === 'rev,rev' && k4.ta && k5.off && k6 && /pas encore de réponse/.test(pv), JSON.stringify({ k4, k5, k6, pv }));
+        /* editing keeps the progress; deleting the line keeps the card */
+        const e1 = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {}, n = a.data.notes[0], id = n.b[0].cd.cid[0], c = a.card(id);
+            c.reps = 4; c.state = 'review'; c.interval = 12; c.due = Date.now() + 864e5 * 5;
+            n.b[0].cd.a = 'Paris (France)'; n.b[0].cd.sg = ''; a.nbCardSyncAll(n); out.same = a.card(id) === c && c.reps === 4 && c.interval === 12 && /Paris \(France\)/.test(c.back || a.card(n.b[0].cd.cid[1]).front + c.back);
+            const before = a.data.cards.length;
+            a.nbOp(nn => { nn.b.splice(0, 1); }, null); await w(200);
+            out.kept = a.data.cards.length === before && !!a.card(id) && a.card(id).src.b === '' && !!document.querySelector('.toast button');
+            out.toastTxt = [...document.querySelectorAll('.toast')].map(t => t.textContent).join('|');
+            document.querySelectorAll('.toast').forEach(t => t.remove());
+            a.nbUndo(); await w(200); out.undo = !!a.data.notes[0].b[0].cd;
+            return out;
+        });
+        ok('Notes 2B: editing a line updates its card without losing its progress; deleting a line keeps the card (message to delete it too); undo brings the line back', e1.same && e1.kept && /restent? dans le paquet/.test(e1.toastTxt) && e1.undo, JSON.stringify(e1));
+        const e2 = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {}, n = a.data.notes[0];
+            /* choices (QCM outside the planning), holes with stable numbers */
+            n.b.push({ t: 'p', x: 'Quels sont des fruits ?', d: 0, cd: a.nbCdNew('mcq') }, { t: 'p', x: 'Pomme', d: 1, ok: true }, { t: 'p', x: 'Carotte', d: 1 }, { t: 'p', x: 'Fraise', d: 1, ok: true });
+            n.b.push({ t: 'p', x: 'Paris est la {{capitale}} de la {{France}}', d: 0, cd: a.nbCdNew('cloze') });
+            a.nbCardSyncAll(n); a.save();
+            const q = a.data.qcms.find(x => x.id === n.b[n.b.length - 5].cd.qid); out.qcm = !!q && q.multi && q.o.filter(o => o.ok).length === 2 && !a.data.cards.some(c => c.front && /fruits/.test(c.front));
+            const cl = a.data.cards.filter(c => c.src && c.src.b === n.b[n.b.length - 1].cd.id); out.cloze = cl.length === 2 && cl.map(c => c.ord).sort().join() === '1,2';
+            const ids = cl.map(c => c.id + ':' + c.ord).sort().join();
+            n.b[n.b.length - 1].x = 'Aujourd\'hui, Paris est la {{capitale}} de la {{France}}'; a.nbCardSyncAll(n);
+            out.stable = a.data.cards.filter(c => c.src && c.src.b === n.b[n.b.length - 1].cd.id).map(c => c.id + ':' + c.ord).sort().join() === ids;
+            n.b[n.b.length - 1].x = 'Paris est la {{capitale}} de la France'; a.nbCardSyncAll(n); await w(100);
+            out.dropHole = a.data.cards.filter(c => c.src && c.src.b === n.b[n.b.length - 1].cd.id).length === 1 && !!document.querySelector('.toast');
+            document.querySelectorAll('.toast').forEach(t => t.remove());
+            /* a deck deleted by hand: the card is not brought back by itself */
+            const c0 = a.data.cards.find(c => c.src && c.src.b === n.b[0].cd.id); a.data.cards = a.data.cards.filter(c => !(c.src && c.src.b === n.b[0].cd.id)); n.b[0].cd.a = 'Paris 2'; n.b[0].cd.sg = ''; a.nbCardSyncAll(n);
+            out.dead = n.b[0].cd.dead === true && !a.data.cards.some(c => c.src && c.src.b === n.b[0].cd.id); a.nbCardRecreate(0); out.recreated = a.data.cards.some(c => c.src && c.src.b === n.b[0].cd.id);
+            /* plan -> cards */
+            n.b.push({ t: 'p', x: 'Les pôles', d: 0 }, { t: 'p', x: 'Nord', d: 1 }, { t: 'p', x: 'Sud', d: 1 }); a.noteOpen(n.id); await w(300);
+            a.nbPlanToCards(); await w(150); const cb = document.querySelectorAll('.modal-body input[data-k]'); out.p2c = cb.length >= 1; document.querySelector('#p2c-go').click(); await w(500);
+            out.p2cDone = !!n.b[n.b.length - 3].cd && n.b[n.b.length - 3].cd.k === 'list' && a.data.cards.some(c => c.src && c.src.b === n.b[n.b.length - 3].cd.id);
+            document.querySelectorAll('.toast').forEach(t => t.remove());
+            return out;
+        });
+        ok('Notes 2B: choices become a QCM (outside the planning), holes keep their numbers when the text changes, a removed hole asks, a card deleted from the deck is not recreated by itself (button to recreate), outline → cards', e2.qcm && e2.cloze && e2.stable && e2.dropHole && e2.dead && e2.recreated && e2.p2c && e2.p2cDone, JSON.stringify(e2));
+        const r1 = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {}, n = a.data.notes[0], c = a.data.cards.find(x => x.ls);
+            /* review: the ordered list shows one item at a time, then the grades; "see in the course" */
+            a.startSrsIds('t', [c.id], true); await w(300);
+            out.src = !!document.querySelector('.fc-src');
+            document.querySelector('.study-actions [data-action=reveal]').click(); await w(150);
+            out.first = document.querySelectorAll('.ls-steps li').length === 4 && /Produit/.test(document.querySelector('.ls-steps').textContent) && !/Prix/.test(document.querySelector('.ls-steps').textContent) && !document.querySelector('[data-action=grade]');
+            document.querySelector('.study-actions [data-action=reveal]').click(); document.querySelector('.study-actions [data-action=reveal]').click(); await w(100);
+            out.third = a.session.lsShown === 3 && !document.querySelector('[data-action=grade]');
+            document.querySelector('.study-actions [data-action=reveal]').click(); await w(150);
+            out.grades = !!document.querySelector('[data-action=grade]') && /Promotion/.test(document.querySelector('.fc-back').textContent);
+            document.querySelector('.fc-src').click(); await w(200); out.modal = a.modals.length === 1 && /Les 4 P/.test(document.querySelector('.vc-box').textContent); a.closeModal(a.modals[0]);
+            a.endSession(false); a.go('notes'); await w(200);
+            /* the "all at once" version and the card menu item */
+            a.startSrsIds('t2', [c.id], true); await w(200); document.querySelector('.study-actions [data-action=reveal]').click(); document.querySelector('[data-action=ls-all]').click(); await w(100);
+            out.all = !!document.querySelector('[data-action=grade]'); a.endSession(false);
+            out.menuItem = a.cardMenuItems([c.id]).some(i => /Voir dans le cours/.test(i.label || ''));
+            return out;
+        });
+        ok('Notes 2B: review — an ordered list shows one item at a time (grades only at the end, "Tout afficher" skips), link "Cours" on the card opens the line of the note', r1.src && r1.first && r1.third && r1.grades && r1.modal && r1.all && r1.menuItem, JSON.stringify(r1));
+        const tb = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {};
+            a.go('notes'); a.ui.note = a.data.notes[0].id; a.renderNotes(); await w(300);
+            a.nbActivate(0, 'end'); a.nbTableMenu(document.querySelector('[data-nb=table]'), 0); await w(100);
+            out.menu = [...document.querySelectorAll('.nb-menu button')].map(b => b.textContent.trim()).join('|');
+            document.querySelector('.nb-menu button:nth-of-type(1)').click(); await w(300);
+            const n = a.data.notes[0], ti = n.b.findIndex(b => b.t === 'table'); out.tbl = ti >= 0;
+            const cells = document.querySelectorAll(`.nb[data-i="${ti}"] input[data-nbt]`); out.cells = cells.length === 4;
+            [['0,0', 'Pays'], ['0,1', 'Capitale'], ['1,0', 'France'], ['1,1', 'Paris']].forEach(([rc, v]) => { const el = document.querySelector(`.nb[data-i="${ti}"] [data-nbt="${rc}"]`); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); });
+            out.rows = JSON.stringify(n.b[ti].rows);
+            a.nb.cell = { i: ti, r: 1, c: 1 }; a.nbTableMenu(document.querySelector('[data-nb=table]'), ti); await w(100);
+            [...document.querySelectorAll('.nb-menu button')].find(b => /Ajouter une ligne/.test(b.textContent)).click(); await w(300); out.addRow = n.b[ti].rows.length === 3;
+            n.b[ti].rows[2] = ['Italie', 'Rome']; a.nbTableCards(ti); await w(150); out.tcN = /2 lignes complètes/.test(document.getElementById('tc-n').textContent);
+            const before = a.data.cards.length; document.getElementById('tc-go').click(); await w(300); out.tcards = a.data.cards.length === before + 2 && a.data.cards.filter(c => c.src && c.src.b === n.b[ti].id).length === 2;
+            return out;
+        });
+        ok('Notes 2B: table block (insert, edit cells, add a row, two columns become cards, one per row)', tb.tbl && tb.cells && tb.rows === '[["Pays","Capitale"],["France","Paris"]]' && tb.addRow && tb.tcN && tb.tcards, JSON.stringify(tb));
+        const fo = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {}, d = a.data, dk = d.decks.find(x => !x.parent).id, n = d.notes[0];
+            a.ui.note = null; a.go('notes'); a.renderNotes(); await w(300);
+            out.tiles = ['nb-daily', 'nb-mem', 'nb-docs', 'nb-favs'].every(x => !!document.querySelector(`#nb-home [data-action=${x}]`));
+            /* moving the note to a folder: its cards follow */
+            a.openNoteMove([n.id]); await w(100); document.querySelector(`#nm-list [data-k=deck][data-id="${dk}"]`).click(); await w(300);
+            out.follow = d.cards.filter(c => c.src && c.src.n === n.id).every(c => c.deckId === dk) && n.deckId === dk;
+            document.querySelector('[data-action=nb-docs]').click(); await w(200); out.root = /Documents et dossiers/.test(document.querySelector('.nb-folderpage h2').textContent);
+            document.querySelector(`.nbf-fold[data-id="${dk}"]`).click(); await w(200);
+            out.page = document.querySelector('.nb-folderpage h2').textContent === a.deck(dk).name && !!document.querySelector('.nb-train') && [...document.querySelectorAll('.nbf-doc')].some(r => /Marketing/.test(r.textContent));
+            out.train = /S'entraîner/.test(document.querySelector('.nb-train .btn').textContent);
+            /* the exam of a folder */
+            const g0 = d.settings.goals.length; a.nbExamModal(dk); await w(100); document.getElementById('ex-go').click(); await w(200);
+            out.exam = d.settings.goals.length === g0 + 1 && d.settings.goals[d.settings.goals.length - 1].decks[0] === dk && /Examen|J|Dans/.test(document.querySelector('.nbf-exam').textContent); d.settings.goals.pop();
+            /* train from a note */
+            a.noteOpen(n.id); await w(300);
+            const cards = a.nbNoteCards(n.id); out.noteCards = cards.length >= 6;
+            cards.forEach(c => { c.state = 'review'; c.interval = 3; c.due = Date.now() - 1000; });
+            out.due = a.nbDueIn(cards).length === cards.filter(c => !c.suspended).length;
+            a.nbTrain('note', n.id, 'srs'); await w(300); out.srs = a.session && a.session.kind === 'srs' && a.session.title.includes('Marketing'); a.endSession(false);
+            a.nbTrain('note', n.id, 'free'); await w(300); out.free = a.session && a.session.kind === 'practice'; a.endSession(false);
+            a.go('notes'); a.ui.note = null; a.ui.nbMem = true; a.renderNotes(); await w(200); out.mem = /Cartes mémoire/.test(document.querySelector('.nb-folderpage h2').textContent) && !!document.querySelector('.nbf-mem .btn');
+            a.ui.nbMem = false; a.ui.nbFolder = null; d.notes = []; d.cards = d.cards.filter(c => !c.src); a.go('dashboard');
+            return out;
+        });
+        ok('Notes 2B: side column tiles, moving a note makes its cards follow, folder page (documents, S\'entraîner · N à réviser, exam), train from a note (due / free), Cartes mémoire page', fo.tiles && fo.follow && fo.root && fo.page && fo.train && fo.exam && fo.noteCards && fo.due && fo.srs && fo.free && fo.mem, JSON.stringify(fo));
+    }
+
     /* Profile: round button at the right of the top bar opens the profile page; the settings are its sections; no Réglages / TOEIC tab */
     {
         const pf = await page.evaluate(async () => {
             const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {};
             a.go('dashboard'); await w(300);
-            out.noTabs = !document.querySelector('[data-nav=toeic].nav-btn, .bottom-nav [data-nav=toeic], .bottom-nav [data-nav=settings], .nav-btn[data-nav=settings]');
-            const btn = document.getElementById('profile-btn'); out.btn = !!btn && btn.offsetWidth > 20 && !!btn.querySelector('.av-emoji, .av-img');
+            out.noTabs = !document.querySelector('[data-nav=toeic].nav-btn, .bottom-nav [data-nav=toeic], .bottom-nav [data-nav=settings]:not(.bn-profile), .nav-btn[data-nav=settings]');
+            const btn = [...document.querySelectorAll('#profile-btn, #profile-btn-b')].find(x => x.offsetWidth > 20) || document.getElementById('profile-btn'); out.btn = !!btn && btn.offsetWidth > 20 && !!btn.querySelector('.av-emoji, .av-img'); out.bottomRight = innerWidth > 767 || (document.getElementById('profile-btn-b').getBoundingClientRect().right > innerWidth - 80 && document.getElementById('profile-btn-b').getBoundingClientRect().top > innerHeight - 90 && getComputedStyle(document.getElementById('profile-btn')).display === 'none');
             const tb = document.querySelector('.topbar-inner'); out.topFits = tb.scrollWidth <= tb.clientWidth + 1;
             btn.click(); await w(500); a.flushTail(document.getElementById('view-settings'), true);
             out.view = a.view === 'settings' && btn.classList.contains('active');
-            out.card = !!document.querySelector('.profile-card') && /Profil/.test(document.querySelector('#view-settings .page-title').textContent);
-            const rows = [...document.querySelectorAll('.set-hub .hub-row')].map(r => r.textContent.replace(/\s+/g, ' ').trim());
-            out.rows = rows.length >= 7 && /Révision/.test(rows.join('|')) && /Apparence/.test(rows.join('|')) && /Corbeille/.test(rows.join('|')) && /TOEIC/.test(rows.join('|'));
-            out.hidden = [...document.querySelectorAll('.set-group')].every(g => getComputedStyle(g).display === 'none');
-            document.querySelector('[data-action=pf-open][data-id=grp-look]').click(); await w(200);
-            out.sub = getComputedStyle(document.getElementById('grp-look')).display !== 'none' && !!document.querySelector('.theme-opt') && !!document.querySelector('.set-back') && getComputedStyle(document.getElementById('grp-rev')).display === 'none';
-            document.querySelector('[data-action=pf-hub]').click(); await w(200); out.back = !!document.querySelector('.set-hub') && a.ui.setGroup === null;
+            out.card = !!document.querySelector('.profile-hero .ph-av') && document.querySelectorAll('.ph-tile').length === 6 && !document.querySelector('.hub-row');
+            /* the settings are as before: shortcut chips and every section on the same page, no TOEIC entry in them */
+            out.rows = !!document.querySelector('.set-nav') && ['grp-rev', 'grp-snd', 'grp-look', 'grp-data', 'grp-adv'].every(id => document.getElementById(id) && getComputedStyle(document.getElementById(id)).display !== 'none') && !/Simulateur TOEIC/.test(document.getElementById('view-settings').textContent);
+            out.hidden = true; out.sub = true;
+            /* tapping the profile button again, from far down the page, comes back to the top of the profile */
+            window.scrollTo(0, 900); await w(100); const y1 = scrollY; btn.click(); await w(400); out.back = y1 > 100 && scrollY < 5;
             /* edit: name + emoji + photo, kept in the settings, shown on the button */
             a.openProfileEditor(); await w(100);
             document.getElementById('pe-name').value = 'Léo'; document.querySelector('#pe-emojis [data-e="🦊"]').click();
             document.getElementById('pe-save').click(); await w(200);
-            out.saved = a.data.settings.profile.name === 'Léo' && a.data.settings.profile.emoji === '🦊' && /🦊/.test(btn.textContent) && /Léo/.test(document.querySelector('.profile-card h3').textContent);
+            out.saved = a.data.settings.profile.name === 'Léo' && a.data.settings.profile.emoji === '🦊' && /🦊/.test(btn.textContent) && /Léo/.test(document.querySelector('.profile-hero h2').textContent);
             const ref = a.addMedia('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');
             a.data.settings.profile.photo = ref; a.renderProfileBtn(); out.photo = !!btn.querySelector('img.av-img'); a.gcMedia(a.data); out.photoKept = !!a.data.media[ref.slice(6)];
             const n = normalizeState(a.serialize()); out.persist = n.settings.profile.name === 'Léo' && n.settings.profile.photo === ref;
@@ -828,7 +1096,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
             out.toeic = a.view === 'toeic'; a.data.settings.goals = keep; a.go('dashboard');
             return out;
         });
-        ok('Profile: round button on the right of the top bar, profile page with sections (settings inside), no Réglages / TOEIC tab', pf.noTabs && pf.btn && pf.topFits && pf.view && pf.card && pf.rows && pf.hidden && pf.sub && pf.back, JSON.stringify(pf));
+        ok('Profile: round button on the right of the top bar, profile page with sections (settings inside), no Réglages / TOEIC tab', pf.noTabs && pf.btn && pf.bottomRight && pf.topFits && pf.view && pf.card && pf.rows && pf.hidden && pf.sub && pf.back, JSON.stringify(pf));
         ok('Profile: name + emoji + photo saved, shown on the button, kept in backups; the TOEIC exam on the home opens the TOEIC simulator', pf.saved && pf.photo && pf.photoKept && pf.persist && pf.examBtn && pf.toeic, JSON.stringify(pf));
         const w360 = await (async () => { await page.setViewportSize({ width: 360, height: 800 }); await page.evaluate(() => app.go('dashboard')); await wait(250); const r = await page.evaluate(() => { const tb = document.querySelector('.topbar-inner'); return tb.scrollWidth <= tb.clientWidth + 1 && document.documentElement.scrollWidth <= 360; }); await page.setViewportSize({ width: 390, height: 800 }); return r; })();
         ok('Profile: the top bar still fits at 360 px', w360);

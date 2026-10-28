@@ -267,12 +267,12 @@ Object.assign(SuperAnki.prototype, {
         let x0 = -1, y0 = 0, t0 = 0, onRow = false;
         const sideScroll = el => { for (let n = el; n && n !== document.body; n = n.parentElement) { const cs = getComputedStyle(n); if (/(auto|scroll)/.test(cs.overflowX) && n.scrollWidth > n.clientWidth + 2) return true; } return false; };
         const allowed = el => !this.session && !this.modals.length && !this.popover && !this.ui.selMode && ORDER.includes(this.view) && !(this.view === 'notes' && this.ui.note) && el && el.closest
-            && !el.closest('input, textarea, select, [contenteditable], .chart, .range, [data-chart-box], .leo-bubble') && !sideScroll(el);
+            && !el.closest('textarea, select, input[type=range], [contenteditable], .chart, .range, [data-chart-box], .leo-bubble') && !(el.closest('input') && el.closest('input') === document.activeElement) && !sideScroll(el);   // (a search field that is not being typed in does not stop a slide)
         const go = dx => { const i = ORDER.indexOf(this.view), j = i + (dx < 0 ? 1 : -1); if (j >= 0 && j < ORDER.length) this.tabGo(ORDER[j]); };
         dragBind(document, {
             start: (x, y, e, mouse) => {
-                const el = e.target, ok = allowed(el) && (mouse ? !el.closest('[data-action], label, summary, .card-row, .panel-click') : x > 26 && x < innerWidth - 26);
-                x0 = ok ? x : -1; y0 = y; t0 = Date.now(); onRow = ok && !!el.closest('.card-row');
+                const el = e.target, ok = allowed(el) && (mouse ? !el.closest('[data-action], label, summary, .card-row, .nb-row, .panel-click') : x > 26 && x < innerWidth - 26);
+                x0 = ok ? x : -1; y0 = y; t0 = Date.now(); onRow = ok && !!el.closest('.card-row, .nb-row');
                 return ok ? true : false;
             },
             move: () => {},
@@ -287,7 +287,7 @@ Object.assign(SuperAnki.prototype, {
            gliding only if it is a real new push (the speed fell, then clearly rises again) and some time has passed, so tabs can still be chained quickly */
         let sum = 0, lastT = 0, prev = 0, locked = false, fell = false, lockT = 0, low = 0;
         document.addEventListener('wheel', e => {
-            if (e.ctrlKey || Math.abs(e.deltaX) <= Math.abs(e.deltaY) * 1.5 || !allowed(e.target) || e.target.closest('.card-row')) return;
+            if (e.ctrlKey || Math.abs(e.deltaX) <= Math.abs(e.deltaY) * 1.5 || !allowed(e.target) || e.target.closest('.card-row, .nb-row')) return;
             e.preventDefault();
             const now = e.timeStamp, v = Math.abs(e.deltaX);   // (the time the event was made, not the time it was handled: a tab that takes long to draw must not look like a pause)
             if (now - lastT > 110) { locked = false; fell = false; sum = 0; prev = 0; }   // a pause: a new slide
@@ -304,45 +304,53 @@ Object.assign(SuperAnki.prototype, {
     /* the card list: slide a row to the left to show two buttons (⭐ mark, 🙈 put away until tomorrow), like in iOS Messages; nothing happens until a button is tapped.
        Works with a finger, a mouse drag, or two fingers on a trackpad. */
     initRowSwipe() {
-        const W = 168;
+        const SEL = '#card-list .card-row, #nb-list .nb-row[data-kind=note]';
+        const Wof = r => (r && r.classList.contains('nb-row') ? 216 : 168);
         let row = null, x0 = 0, y0 = 0, dx = 0, on = false, base = 0;
         const close = (r = this._openRow) => { if (!r) return; r.style.transition = 'transform .2s'; r.style.transform = ''; r.classList.remove('sw-open'); if (this._openRow === r) this._openRow = null; };
         this._closeRow = close;
         const actions = r => {
             if (r.querySelector('.row-actions')) return;
-            const c = this.card(r.dataset.card), buried = c && c.buriedUntil > Date.now(), box = document.createElement('span'); box.className = 'row-actions';
+            const box = document.createElement('span'); box.className = 'row-actions';
+            if (r.classList.contains('nb-row')) {
+                const n = this.note(r.dataset.id), id = esc(r.dataset.id);
+                box.style.width = `${Wof(r)}px`;
+                box.innerHTML = `<button data-action="nb-swipe" data-act="pin" data-id="${id}" aria-label="Épingler">${ic('pin')}<small>${n && n.pin ? 'Désépingler' : 'Épingler'}</small></button><button data-action="nb-swipe" data-act="fav" data-id="${id}" aria-label="Favori">${ic('star')}<small>${n && n.fav ? 'Retirer' : 'Favori'}</small></button><button data-action="nb-swipe" data-act="del" data-id="${id}" class="danger" aria-label="Supprimer">${ic('trash')}<small>Supprimer</small></button>`;
+                r.appendChild(box); return;
+            }
+            const c = this.card(r.dataset.card), buried = c && c.buriedUntil > Date.now();
             box.innerHTML = `<button data-action="row-act" data-act="mark" data-card="${esc(r.dataset.card)}" aria-label="Marquer">${ic('star')}<small>${c && c.marked ? 'Retirer' : 'Marquer'}</small></button><button data-action="row-act" data-act="bury" data-card="${esc(r.dataset.card)}" aria-label="Enfouir">${ic('eyeOff')}<small>${buried ? 'Déterrer' : 'Enfouir'}</small></button>`;
             r.appendChild(box);
         };
-        const open = r => { actions(r); r.style.transition = 'transform .2s'; r.style.transform = `translateX(${-W}px)`; r.classList.add('sw-open'); this._openRow = r; };
+        const open = r => { actions(r); r.style.transition = 'transform .2s'; r.style.transform = `translateX(${-Wof(r)}px)`; r.classList.add('sw-open'); this._openRow = r; };
         dragBind(document, {
             start: (x, y, e) => {
-                const r = !this.ui.selMode && e.target.closest ? e.target.closest('#card-list .card-row') : null;
+                const t = e.target.closest ? e.target.closest(SEL) : null, r = t && !this._dragging && !e.target.closest('.nb-grip, .nb-fold') && (t.classList.contains('nb-row') ? !this.ui.noteSelMode : !this.ui.selMode) ? t : null;
                 if (this._openRow && this._openRow !== r && !e.target.closest('.row-actions')) close();
                 row = r && !e.target.closest('.row-actions') ? r : null;
                 if (!row) return false;
-                x0 = x; y0 = y; dx = 0; on = false; base = row.classList.contains('sw-open') ? -W : 0; row.style.transition = 'none';
+                x0 = x; y0 = y; dx = 0; on = false; base = row.classList.contains('sw-open') ? -Wof(row) : 0; row.style.transition = 'none';
             },
             move: (x, y) => {
                 if (!row) return;
                 const mx = x - x0, my = y - y0;
                 if (!on && Math.abs(mx) > 14 && Math.abs(mx) > Math.abs(my) * 2) { on = true; actions(row); }
                 if (!on) return;
-                dx = Math.max(-W - 24, Math.min(0, base + mx)); row.style.transform = `translateX(${dx}px)`;
+                dx = Math.max(-Wof(row) - 24, Math.min(0, base + mx)); row.style.transform = `translateX(${dx}px)`;
             },
             end: () => {
                 if (!row) return;
                 const r = row, was = on, d = dx; row = null; on = false;
                 if (!was) return;
                 this._rowSwiped = Date.now();
-                if (d < -W / 2) open(r); else close(r);
+                if (d < -Wof(r) / 2) open(r); else close(r);
             },
             cancel: () => { if (row) { close(row); row = null; on = false; } }
         });
         /* trackpad: two fingers to the left on a row shows its buttons, to the right hides them */
         let rest = 0;
         document.addEventListener('wheel', e => {
-            const r = e.target.closest && !this.ui.selMode ? e.target.closest('#card-list .card-row') : null;
+            const r0 = e.target.closest ? e.target.closest(SEL) : null, r = r0 && (r0.classList.contains('nb-row') ? !this.ui.noteSelMode : !this.ui.selMode) ? r0 : null;
             if (!r || e.ctrlKey || Math.abs(e.deltaX) <= Math.abs(e.deltaY) * 1.5) return;
             e.preventDefault();
             const now = Date.now(); if (now - rest < 500) { rest = now - 400; return; }
