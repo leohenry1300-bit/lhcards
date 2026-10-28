@@ -1315,6 +1315,23 @@ body.in-session .focus-w:not(.collapsed) { width: min(300px, calc(100vw - 24px))
 .im-badge.ok { color: var(--primary); }
 .im-tr { display: grid; gap: 6px; margin-top: 8px; justify-items: start; }
 
+/* ===== custom QCM (Vague 1) ===== */
+.qcm-box { margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
+.qcm-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.qcm-title { display: inline-flex; gap: 6px; align-items: center; }
+.qcm-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.qcm-list summary { cursor: pointer; margin-top: 8px; font-size: .85rem; font-weight: 700; color: var(--text-muted); }
+.qcm-row { display: grid; gap: 2px; width: 100%; text-align: left; padding: 8px 6px; border-top: 1px solid var(--border); }
+.qcm-row:first-of-type { margin-top: 6px; }
+.qcm-q { font-weight: 700; font-size: .9rem; overflow-wrap: anywhere; }
+.qcm-meta { font-size: .75rem; color: var(--text-faint); }
+.qe-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.qe-row .input { flex: 1; min-width: 0; }
+.qe-ok { flex: none; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; border: var(--border-w) solid var(--border); background: var(--surface); color: var(--text-faint); }
+.qe-row.ok .qe-ok { background: var(--mature); border-color: var(--mature); color: #fff; }
+.quiz-opt.sel { border-color: var(--primary); background: var(--primary-soft); }
+.quiz-opt.sel .k { background: var(--primary); color: #fff; }
+
 .audio-bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 4px; }
 .audio-bar .chip { padding: 6px 10px; font-size: .74rem; gap: 4px; }
 .audio-bar .chip .i { width: 15px; height: 15px; }
@@ -2509,3 +2526,14 @@ body.zen .tally { display: none; }
 html { overscroll-behavior-x: none; }   /* (a sideways slide on a trackpad changes the tab of the app, it does not go back in the browser) */
 body.dragging, body.dragging * { user-select: none !important; cursor: grabbing !important; }
 .flashcard.swiping { cursor: grabbing; }
+
+/* ===== Association game (Vague 1) ===== */
+.mg-board { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.mg-col { display: grid; gap: 10px; align-content: start; }
+.mg-tile { min-height: 56px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--surface); border: var(--border-w) solid var(--border); box-shadow: var(--shadow); font-weight: 650; font-size: .92rem; text-align: center; overflow-wrap: anywhere; transition: border-color .15s, background .15s, opacity .25s; }
+.mg-tile.sel { border-color: var(--primary); background: var(--primary-soft); }
+.mg-tile.done { border-color: var(--mature); background: color-mix(in srgb, var(--mature) 14%, var(--surface)); opacity: .55; }
+.mg-tile.bad { border-color: var(--due); background: color-mix(in srgb, var(--due) 12%, var(--surface)); }
+@media (prefers-reduced-motion: no-preference) { .mg-tile.bad { animation: mgshake .35s; } }
+@keyframes mgshake { 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
+.mg-result { margin-top: 16px; text-align: center; }

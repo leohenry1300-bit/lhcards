@@ -89,12 +89,12 @@ Object.assign(SuperAnki.prototype, {
         return m;
     },
     /* Runs fn (which edits cards) and records it so it can be undone. fn may return the ids of cards it created. */
-    change(label, ids, fn, { decks = false } = {}) {
-        const before = this.snapCards(ids), decksBefore = decks ? structuredClone(this.data.decks) : null;
+    change(label, ids, fn, { decks = false, qcms = false } = {}) {
+        const before = this.snapCards(ids), decksBefore = decks ? structuredClone(this.data.decks) : null, qcmsBefore = qcms ? structuredClone(this.data.qcms) : null;
         const created = fn() || [];
         created.forEach(id => { if (!before.has(id)) before.set(id, null); });
         const after = this.snapCards([...before.keys()]);
-        this.undoStack.push({ label, before, after, decksBefore, decksAfter: decks ? structuredClone(this.data.decks) : null });
+        this.undoStack.push({ label, before, after, decksBefore, decksAfter: decks ? structuredClone(this.data.decks) : null, qcmsBefore, qcmsAfter: qcms ? structuredClone(this.data.qcms) : null });
         if (this.undoStack.length > 40) this.undoStack.shift();
         this.redoStack = [];
         this.searchCache.clear();
@@ -112,6 +112,8 @@ Object.assign(SuperAnki.prototype, {
         if (entry.aside) this.countNewAside(entry.aside.ids, dir === 'undo' ? !entry.aside.on : entry.aside.on);
         const decks = dir === 'undo' ? entry.decksBefore : entry.decksAfter;
         if (decks) this.data.decks = structuredClone(decks);
+        const qcms = dir === 'undo' ? entry.qcmsBefore : entry.qcmsAfter;
+        if (qcms) this.data.qcms = structuredClone(qcms);
         this.searchCache.clear();
         this.save();
         const s = this.session;

@@ -613,6 +613,118 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         ok('import: typed syntax (>> <> {{hole}}), duplicates flagged and unticked, one card per hole', im.rows === 6 && im.dup === 2 && /^Importer 6 cartes$/.test(im.label) && im.skipped && im.made === 6 && im.holes === 2 && im.noChienTwice && im.kinds === 'basic,basic,cloze,cloze,rev,rev', JSON.stringify(im));
     }
 
+    /* custom QCM: written in a deck, mixed into the Quiz; never a card (no planning, no review history), saved/synced/trashed/undone like cards */
+    {
+        const q = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {}, d = a.data;
+            d.decks.push({ id: 'dqcm', name: 'QCMTest', emoji: '❓', description: '', created: Date.now(), parent: null, opts: null, mod: 0 });
+            a.ui.deck = 'dqcm'; a.go('decks'); await w(300);
+            out.block = !!document.querySelector('.qcm-box [data-action=qcm-new]') && !!document.querySelector('.qcm-box [data-action=qcm-bulk]');
+            const cards0 = d.cards.length, rev0 = d.revlog.length, hist0 = JSON.stringify(d.stats.history), qb0 = d.stats.quizBest || 0, cb0 = JSON.stringify(d.stats.chronoBest);
+            const due0 = a.studyPlan(null).reviews.length + a.studyPlan(null).news.length;
+            /* bulk paste with preview */
+            a.openQcmBulk('dqcm'); await w(100);
+            const ta = document.getElementById('qb-text'); ta.value = "Capitale de l'Italie ?\na) Rome *\nb) Milan\nc) Naples\n\nQuels sont des fruits ?\na) Pomme *\nb) Carotte\nc) Fraise *\n=> La carotte est un légume.\n\nSans bonne\na) x\nb) y\n\nContinents ?\nA) 5\nB) 7\nC) 9\nRéponse : B";
+            ta.dispatchEvent(new Event('input')); await w(100);
+            out.preview = document.querySelectorAll('#qb-preview .im-row').length; out.skipMsg = /1 bloc ignoré/.test(document.getElementById('qb-preview').textContent);
+            document.getElementById('qb-go').click(); await w(300);
+            out.n = d.qcms.length; out.multi = d.qcms.filter(x => x.multi).length; out.letterKey = (d.qcms.find(x => x.q === 'Continents ?') || { o: [] }).o.map(o => o.ok ? 1 : 0).join('');
+            /* editor: one more QCM through the form */
+            a.openQcmEditor(null, 'dqcm'); await w(100);
+            document.getElementById('qe-q').value = 'Combien font 2+2 ?';
+            const rows = [...document.querySelectorAll('.qe-row')]; ['3', '4', '5', ''].forEach((t, i) => { rows[i].querySelector('input').value = t; });
+            rows[1].querySelector('[data-qe=ok]').click(); rows[0].querySelector('[data-qe=ok]').click(); rows[1].querySelector('[data-qe=ok]').click();   // one single right answer: the last tick wins
+            out.oneOk = document.querySelectorAll('.qe-row.ok').length === 1 && rows[1].classList.contains('ok');
+            document.getElementById('qe-save').click(); await w(300);
+            out.n2 = d.qcms.length;
+            /* in the Quiz : only the QCM of this deck here → 5 questions, single and multiple answers */
+            a.startQuiz(['dqcm'], 9999, 0); await w(300);
+            out.total = a.session.total; out.kind = a.session.kind;
+            let guard = 0, seenMulti = false, wrongOnce = false;
+            while (a.session && a.session.kind === 'quiz' && guard++ < 12) {
+                const s = a.session, qq = s.qcm; if (!qq) break;
+                const btns = [...document.querySelectorAll('.quiz-opt')];
+                const okIdx = s.options.map((o, i) => o.ok ? i : -1).filter(i => i >= 0), badIdx = s.options.map((o, i) => o.ok ? -1 : i).filter(i => i >= 0);
+                if (qq.multi) {
+                    seenMulti = true;
+                    out.checkDisabled = document.getElementById('qcm-check').disabled;
+                    if (!wrongOnce) { wrongOnce = true; btns[okIdx[0]].click(); document.getElementById('qcm-check').click(); }   // only one of two: wrong
+                    else { okIdx.forEach(i => btns[i].click()); document.getElementById('qcm-check').click(); }
+                } else btns[(qq.q === 'Continents ?' ? badIdx[0] : okIdx[0])].click();   // the continents one is answered wrong on purpose
+                await w(60);
+                if (document.querySelector('[data-action=quiz-next]')) document.querySelector('[data-action=quiz-next]').click(); else break;
+                await w(80);
+            }
+            await w(300);
+            out.multiSeen = seenMulti; out.summary = /Quiz terminé/.test(document.getElementById('view-session').textContent);
+            out.line = (document.getElementById('view-session').textContent.match(/Dont \d+ QCM : \d+ réussi/) || [''])[0];
+            out.right = d.qcms.reduce((n, x) => n + x.right, 0); out.wrong = d.qcms.reduce((n, x) => n + x.wrong, 0);
+            out.untouched = d.cards.length === cards0 && d.revlog.length === rev0 && JSON.stringify(d.stats.history) === hist0 && (d.stats.quizBest || 0) === qb0 && JSON.stringify(d.stats.chronoBest) === cb0 && (a.studyPlan(null).reviews.length + a.studyPlan(null).news.length) === due0;
+            a.go('dashboard'); await w(100);
+            /* Chrono never uses QCM */
+            a.startQuiz(['dqcm'], 0, 30); await w(200); out.chronoNone = !a.session; if (a.session) a.endSession(true);
+            a.ui.deck = 'dqcm';
+            /* saved, restored, merged */
+            const ser = JSON.parse(a.serialize()), back = normalizeState(JSON.stringify(ser));
+            out.saved = ser.qcms.length === 4 && back.qcms.length === 4 && back.qcms.every(x => x.deckId === 'dqcm');
+            const L = normalizeState(a.serialize()), R = normalizeState(a.serialize());
+            R.qcms[0].q = 'Modifiée à distance'; R.qcms[0].mod = Date.now() + 5000; R.qcms.push(normalizeQcm({ id: 'q_remote', deckId: 'dqcm', q: 'Venue de l\'autre appareil', o: [{ t: 'a', ok: true }, { t: 'b' }], mod: Date.now() }));
+            const mrg = mergeStates(L, R).data; out.merged = mrg.qcms.length === 5 && mrg.qcms.some(x => x.q === 'Modifiée à distance') && mrg.qcms.some(x => x.id === 'q_remote');
+            const L2 = normalizeState(a.serialize()), R2 = normalizeState(a.serialize()); const gone = R2.qcms.pop(); R2.deleted[gone.id] = Date.now() + 5000;
+            out.tomb = mergeStates(L2, R2).data.qcms.every(x => x.id !== gone.id) && mergeStates(L2, R2).data.qcms.length === 3;
+            /* deleting the deck takes its QCM away; undo brings them back; the trash knows them */
+            await a.deleteDeck.call(Object.assign(Object.create(a), { confirm: async () => true }), 'dqcm'); await w(200);
+            out.deckGone = d.qcms.length === 0 && d.trash.filter(x => x.k === 'qcm').length === 4;
+            a.undoGlobal(); await w(200);
+            out.undone = d.qcms.length === 4 && !!a.deck('dqcm');
+            /* one QCM deleted from the editor, then restored from the trash */
+            const one = d.qcms[0].id; a.change('x', [], () => { a.data.qcms = a.data.qcms.filter(x => x.id !== one); }, { qcms: true });
+            out.trashed = d.trash.some(x => x.k === 'qcm' && x.c.id === one);
+            a.trashRestore('qcm', one); out.restored = d.qcms.some(x => x.id === one) && !d.trash.some(x => x.k === 'qcm' && x.c.id === one);
+            d.qcms = []; d.decks = d.decks.filter(x => x.id !== 'dqcm'); a.ui.deck = 'all'; a.go('dashboard');
+            return out;
+        });
+        ok('QCM: block in the deck page, bulk paste with preview (bad block ignored, letter answer key, several answers)', q.block && q.preview === 3 && q.skipMsg && q.n === 3 && q.multi === 1 && q.letterKey === '010', JSON.stringify(q));
+        ok('QCM: editor makes a single-answer QCM; Quiz mixes single and multiple answers and scores them apart', q.oneOk && q.n2 === 4 && q.total === 4 && q.kind === 'quiz' && q.multiSeen && q.checkDisabled === true && q.summary && /Dont 4 QCM : 2 réussi/.test(q.line) && q.right === 2 && q.wrong === 2, JSON.stringify(q));
+        ok('QCM: no effect on cards, review history, due count, records; never in Chrono', q.untouched && q.chronoNone, JSON.stringify(q));
+        ok('QCM: saved, merged between devices (edit + new + deletion), deck deletion + undo + trash', q.saved && q.merged && q.tomb && q.deckGone && q.undone && q.trashed && q.restored, JSON.stringify(q));
+    }
+
+    /* Association game: 6 short pairs per round, +2 s per mistake, best time per deck, "next round"; only short cards; touches no card */
+    {
+        const g = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {}, d = a.data;
+            d.decks.push({ id: 'dmg', name: 'MotsCourts', emoji: '🔤', description: '', created: Date.now(), parent: null, opts: null, mod: 0 });
+            const mk = (id, f, b) => d.cards.push({ id, ...freshCard(), deckId: 'dmg', front: f, back: b, hint: '', detail: '', tags: [], created: 1, nid: '', kind: 'basic', ord: 0, nf: null });
+            [['chat', 'cat'], ['chien', 'dog'], ['maison', 'house'], ['eau', 'water']].forEach(([f, b], i) => mk('mg' + i, f, b));
+            mk('mglong', 'Une très très longue question qui dépasse largement quarante caractères', 'x');
+            a.startMatch(['dmg']); await w(100); out.refused = !a.session;     // 4 short cards only: not enough, with a message
+            [['pain', 'bread'], ['livre', 'book'], ['arbre', 'tree'], ['lune', 'moon'], ['feu', 'fire']].forEach(([f, b], i) => mk('mh' + i, f, b));
+            out.pool = a.matchPool(['dmg']).length;
+            const snap = () => JSON.stringify(d.cards.filter(c => c.deckId === 'dmg').map(c => ({ ...c, mod: 0 }))), before = snap(), rev0 = d.revlog.length;
+            a.startMatch(['dmg']); await w(200);
+            const s = a.session; out.kind = s.kind; out.tiles = document.querySelectorAll('.mg-tile').length;
+            const L = [...document.querySelectorAll('.mg-tile[data-side=l]')], R = id => document.querySelector(`.mg-tile[data-side=r][data-id="${id}"]`);
+            const bad = [...document.querySelectorAll('.mg-tile[data-side=r]')].find(x => x.dataset.id !== L[0].dataset.id);
+            L[0].click(); bad.click(); await w(100); out.err = s.errors;
+            await w(600);
+            for (const t of L) { t.click(); R(t.dataset.id).click(); await w(30); }
+            await w(700);
+            out.final = s.final && s.final.total === s.final.time + 2000 && s.final.record;
+            out.best = d.stats.matchBest.dmg === s.final.total;
+            out.result = !!document.querySelector('[data-action=mg-next]');
+            document.querySelector('[data-action=mg-next]').click(); await w(300);
+            out.round2 = a.session.round === 2 && a.session.matched.size === 0 && !a.session.final;
+            out.untouched = snap() === before && d.revlog.length === rev0;
+            const m = mergeStates(normalizeState(a.serialize()), Object.assign(normalizeState(a.serialize()), {}));
+            const x = normalizeState(a.serialize()), y = normalizeState(a.serialize()); x.stats.matchBest = { dmg: 9000, z: 5000 }; y.stats.matchBest = { dmg: 7000 };
+            out.mergeMin = mergeStates(x, y).data.stats.matchBest.dmg === 7000 && mergeStates(x, y).data.stats.matchBest.z === 5000;
+            a.endSession(true); d.cards = d.cards.filter(c => c.deckId !== 'dmg'); d.decks = d.decks.filter(k => k.id !== 'dmg'); delete d.stats.matchBest.dmg; a.go('dashboard');
+            return out;
+        });
+        ok('Association: not enough short cards → message; 6 pairs per round (12 tiles), +2 s per mistake, best time per deck, "next round", no card touched', g.refused && g.pool === 9 && g.kind === 'match' && g.tiles === 12 && g.err === 1 && g.final && g.best && g.result && g.round2 && g.untouched && g.mergeMin, JSON.stringify(g));
+    }
+
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));
     console.log(R.join('\n') + `\n\n${R.length - failed}/${R.length} checks passed`);
     await browser.close(); server.close(); process.exit(failed ? 1 : 0);

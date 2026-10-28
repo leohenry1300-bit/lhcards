@@ -26,6 +26,7 @@ const ICONS = {
     bulb: '<path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.3h6c0-1 .4-1.8 1-2.3A7 7 0 0 0 12 2z"/>',
     volume: '<path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/>',
     check: '<path d="M20 6 9 17l-5-5"/>',
+    link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
     undo: '<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/>',
     cloud: '<path d="M17.5 19H9a7 7 0 1 1 6.7-9h1.8a4.5 4.5 0 1 1 0 9z"/>',
     palette: '<circle cx="13.5" cy="6.5" r="1.2"/><circle cx="17.5" cy="10.5" r="1.2"/><circle cx="8.5" cy="7.5" r="1.2"/><circle cx="6.5" cy="12.5" r="1.2"/><path d="M12 2a10 10 0 0 0 0 20c.9 0 1.7-.7 1.7-1.7 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.8-1.7 1.7-1.7H17a5 5 0 0 0 5-5c0-5-4.5-9.4-10-9.4z"/>',
@@ -329,7 +330,7 @@ const DEFAULT_STATS = () => ({
     streak: 0, longestStreak: 0, lastStudyDate: null, freezes: 1,
     newSeen: { date: null, count: 0, by: {} }, revSeen: { date: null, count: 0, by: {} }, history: {}, timeByDay: {}, studySeconds: 0,
     gradeCounts: { 1: 0, 2: 0, 3: 0, 4: 0 }, hourly: new Array(24).fill(0),
-    chronoBest: {}, quizBest: 0
+    chronoBest: {}, quizBest: 0, matchBest: {}
 });
 const EMOJIS = ['📚', '🧠', '💡', '🔬', '🧪', '📜', '🗺️', '🌍', '💰', '🏛️', '⚖️', '💼', '📈', '💻', '🎨', '🎵', '🗣️', '🇬🇧', '🇪🇸', '🩺', '🍳', '🚗', '🏠', '⭐'];
 const STATUS = {
@@ -392,7 +393,7 @@ function normalizeStats(s) {
         lastStudyDate: typeof s.lastStudyDate === 'string' ? s.lastStudyDate.slice(0, 10) : null,
         freezes: clamp(num(s.freezes, 1), 0, 2),
         studySeconds: num(s.studySeconds, num(s.totalStudyMinutes, 0) * 60),
-        quizBest: num(s.quizBest, 0)
+        quizBest: num(s.quizBest, 0), matchBest: {}
     });
     if (s.newSeen && typeof s.newSeen === 'object') out.newSeen = { date: s.newSeen.date || null, count: num(s.newSeen.count, 0), by: { ...(s.newSeen.by || {}) }, ids: toArray(s.newSeen.ids).filter(x => typeof x === 'string').slice(0, 500) };
     else if (s.newSeenDate) out.newSeen = { date: String(s.newSeenDate).slice(0, 10), count: num(s.newSeenToday, 0), by: {} };
@@ -406,6 +407,7 @@ function normalizeStats(s) {
     if (Array.isArray(s.hourly)) out.hourly = Array.from({ length: 24 }, (_, i) => num(s.hourly[i], 0));
     if (typeof s.chronoBest === 'number') out.chronoBest = { 60: s.chronoBest };
     else if (s.chronoBest && typeof s.chronoBest === 'object') Object.entries(s.chronoBest).forEach(([k, v]) => { out.chronoBest[k] = num(v, 0); });
+    if (s.matchBest && typeof s.matchBest === 'object') Object.entries(s.matchBest).forEach(([k, v]) => { if (num(v, 0) > 0) out.matchBest[k] = num(v, 0); });
     return out;
 }
 function normalizeState(raw) {
@@ -427,7 +429,9 @@ function normalizeState(raw) {
         seenCards.add(c.id);
         return c;
     });
-    const orphans = cards.filter(c => !seenDecks.has(c.deckId));
+    const seenQ = new Set();
+    const qcms = toArray(raw.qcms).map(normalizeQcm).filter(q => q && !seenQ.has(q.id) && seenQ.add(q.id));
+    const orphans = [...cards, ...qcms].filter(c => !seenDecks.has(c.deckId));
     if (orphans.length) {
         let misc = decks.find(d => d.id === 'misc');
         if (!misc) { misc = { id: 'misc', name: 'Divers', emoji: '🗂️', description: '', created: Date.now() }; decks.push(misc); }
@@ -460,7 +464,7 @@ function normalizeState(raw) {
     const deleted = {};
     if (raw.deleted && typeof raw.deleted === 'object') Object.entries(raw.deleted).forEach(([k, v]) => { if (num(v, 0) > 0) deleted[k] = num(v); });
     const revlog = toArray(raw.revlog).filter(r => Array.isArray(r) && r.length >= 4 && Number.isFinite(r[0])).slice(-REVLOG_MAX);
-    return { version: 6, decks, cards, presets, stats: normalizeStats(raw.stats), settings, revlog, deleted, toeic: normalizeToeic(raw.toeic), media: normalizeMedia(raw.media), noteTypes: normalizeNoteTypes(raw.noteTypes), trash: normalizeTrash(raw.trash), updatedAt: num(raw.updatedAt, 0) };
+    return { version: 6, decks, cards, qcms, presets, stats: normalizeStats(raw.stats), settings, revlog, deleted, toeic: normalizeToeic(raw.toeic), media: normalizeMedia(raw.media), noteTypes: normalizeNoteTypes(raw.noteTypes), trash: normalizeTrash(raw.trash), updatedAt: num(raw.updatedAt, 0) };
 }
 function cardSig(c) {
     return [c.deckId, c.state, c.step, c.due, c.interval, c.ease, c.reps, c.lapses, c.suspended ? 1 : 0, c.flag, c.marked ? 1 : 0, c.buriedUntil, c.errors, c.wrong, c.right,
@@ -1024,13 +1028,15 @@ class SuperAnki {
     }
 
     serialize() {
-        const { version, decks, cards, presets, stats, settings, revlog, deleted, toeic, media, noteTypes, trash, updatedAt } = this.data;
-        return JSON.stringify({ version, decks, cards, presets, stats, settings, revlog, deleted, toeic, media, noteTypes, trash, updatedAt });
+        const { version, decks, cards, qcms, presets, stats, settings, revlog, deleted, toeic, media, noteTypes, trash, updatedAt } = this.data;
+        return JSON.stringify({ version, decks, cards, qcms, presets, stats, settings, revlog, deleted, toeic, media, noteTypes, trash, updatedAt });
     }
     /* Change tracking: per-card modification times let two devices merge instead of overwriting each other */
     initSigs() {
         this.sigs = new Map(this.data.cards.map(c => [c.id, cardSig(c)]));
         this.refs = new Map(this.data.cards.map(c => [c.id, c]));
+        this.qsigs = new Map(this.data.qcms.map(q => [q.id, qcmSig(q)]));
+        this.qrefs = new Map(this.data.qcms.map(q => [q.id, q]));
         this.drefs = new Map(this.data.decks.map(d => [d.id, d]));
         this.dsigs = new Map([...this.data.decks.map(d => [d.id, deckSig(d)]), ...this.data.presets.map(x => [x.id, presetSig(x)]), ...this.data.noteTypes.map(x => [x.id, noteTypeSig(x)])]);
     }
@@ -1043,6 +1049,14 @@ class SuperAnki {
             this.refs.set(c.id, c);
         });
         [...this.sigs.keys()].forEach(id => { if (!seen.has(id)) { this.sigs.delete(id); d.deleted[id] = now; const gone = this.refs.get(id); if (gone) this.trashAdd('card', gone, now); this.refs.delete(id); } });
+        const seenQ = new Set();
+        d.qcms.forEach(q => {
+            seenQ.add(q.id);
+            const sig = qcmSig(q);
+            if (this.qsigs.get(q.id) !== sig) { q.mod = now; this.qsigs.set(q.id, sig); delete d.deleted[q.id]; if (d.trash.length) this.trashDrop('qcm', q.id); }
+            this.qrefs.set(q.id, q);
+        });
+        [...this.qsigs.keys()].forEach(id => { if (!seenQ.has(id)) { this.qsigs.delete(id); d.deleted[id] = now; const gone = this.qrefs.get(id); if (gone) this.trashAdd('qcm', gone, now); this.qrefs.delete(id); } });
         const seenD = new Set();
         d.decks.forEach(k => {
             seenD.add(k.id);
@@ -1883,6 +1897,10 @@ class SuperAnki {
                         <span class="mode-ico">${ic('timer')}</span>
                         <span><h4>Chrono</h4><p>${chronoBest ? `Record : ${chronoBest} pts en ${d.settings.chronoDuration} s` : 'Un max de bonnes réponses, vite !'}</p></span>${ic('chevronRight', 'chev')}
                     </button>
+                    <button class="panel mode-tile" style="--c:#14b8a6" data-action="mode" data-mode="match">
+                        <span class="mode-ico">${ic('link')}</span>
+                        <span><h4>Association</h4><p>${(d.stats.matchBest || {}).all ? `Relie les paires · record ${fmtMatch(d.stats.matchBest.all)}` : 'Relie les paires le plus vite possible'}</p></span>${ic('chevronRight', 'chev')}
+                    </button>
 
                 </div>
             </div>
@@ -2411,6 +2429,7 @@ class SuperAnki {
                 <button class="btn ${ui.selMode ? 'btn-primary' : 'btn-soft'} btn-sm" data-action="sel-toggle" title="Sélectionner plusieurs cartes">${ic('checkSq')}<span class="hide-mobile">Sélection</span></button>
                 <button class="btn btn-soft btn-sm" data-action="custom-study" data-deck="${deck ? esc(deck.id) : ''}" title="Révisions personnalisées">${ic('sliders')}<span class="hide-mobile">Perso</span></button></div></div>
             ${progBlock}
+            ${deck ? this.qcmBlockHtml(deck.id) : ''}
             <div class="filter-row"><div class="chip-row">${chips}</div></div>
             ${resultLine}
             <div id="card-list">${list || `<div class="empty"><div class="empty-mascot sm">${searching ? leoSvg('ready', { state: 's0', intro: 'shrug0' }) : ui.deck === 'errors' ? leoSvg('happy', { intro: 'tablet' }) : leoSvg('ready', { state: 's0', intro: 'aha0' })}</div><p>${emptyMsg}</p></div>`}</div>
@@ -2715,6 +2734,7 @@ class SuperAnki {
     quitSession() {
         const s = this.session;
         if (!s) return;
+        if (s.kind === 'match') { this.endSession(true); return; }
         if (s.kind === 'chrono') { this.finishChrono(); return; }
         if (s.kind !== 'srs' && s.done > 0) { this.showSummary(); return; }
         const done = s.done;
@@ -3027,12 +3047,14 @@ class SuperAnki {
     }
     cardAnswer(c) { return c.kind === 'cloze' ? clozeAnswerHtml(c) : c.back; }
     startQuiz(deckIds, count, chrono = 0) {
+        const qpool = chrono ? [] : this.qcmPool(deckIds);   // QCM sur mesure : mélangés aux questions du quiz (jamais au chrono)
         const pool = this.poolFor(deckIds).filter(c => c.kind !== 'cloze' && c.kind !== 'occl');
-        if (this.data.cards.filter(c => c.kind !== 'cloze' && c.kind !== 'occl').length < 4) { this.toast('Il faut au moins 4 cartes pour un quiz.', 'warning'); return; }
-        if (!pool.length) { this.toast('Aucune carte dans cette sélection.', 'warning'); return; }
+        if (this.data.cards.filter(c => c.kind !== 'cloze' && c.kind !== 'occl').length < 4 && !qpool.length) { this.toast('Il faut au moins 4 cartes pour un quiz.', 'warning'); return; }
+        if (!pool.length && !qpool.length) { this.toast('Aucune carte dans cette sélection.', 'warning'); return; }
         const deck = Array.isArray(deckIds) && deckIds.length === 1 ? this.deck(deckIds[0]) : null;
         const label = deckIds === 'errors' ? 'Mes erreurs' : deck ? deck.name : 'Tous les paquets';
-        const ids = shuffle(pool.map(c => c.id));
+        const ids = shuffle([...(this.data.cards.filter(c => c.kind !== 'cloze' && c.kind !== 'occl').length < 4 ? [] : pool.map(c => c.id)), ...qpool.map(q => q.id)]);
+        if (!ids.length) { this.toast('Il faut au moins 4 cartes pour un quiz.', 'warning'); return; }
         this.session = {
             kind: chrono ? 'chrono' : 'quiz', title: `${chrono ? 'Chrono' : 'Quiz'} · ${label}`,
             pool: ids, queue: chrono ? [...ids] : ids.slice(0, count >= 9999 ? ids.length : count),
@@ -3060,12 +3082,16 @@ class SuperAnki {
             if (s.kind === 'chrono') s.queue = shuffle([...s.pool]);
             else return this.showSummary();
         }
-        const card = this.card(s.queue.shift());
+        const qid = s.queue.shift(), q = this.qcm(qid);
+        if (q) { this.nextQcm(q); return; }
+        s.qcm = null;
+        const card = this.card(qid);
         if (!card) return this.nextQuestion();
         s.quizCard = card.id; s.options = this.buildOptions(card); s.answered = false; s.cardStart = Date.now();
         this.renderQuiz();
     }
     renderQuiz() {
+        if (this.session && this.session.qcm) { this.renderQcm(); return; }
         const s = this.session, card = this.card(s.quizCard), deck = this.deck(card.deckId);
         const chrono = s.kind === 'chrono';
         const hud = chrono
@@ -3104,6 +3130,7 @@ class SuperAnki {
     quizAnswer(i, el) {
         const s = this.session;
         if (!s || s.answered || (s.kind !== 'quiz' && s.kind !== 'chrono')) return;
+        if (s.qcm) { this.qcmPick(i); return; }
         const opt = s.options[i];
         if (!opt) return;
         s.answered = true;
@@ -3182,7 +3209,10 @@ class SuperAnki {
             emoji = s.newRecord ? '🏆' : '⏱️';
             lead = s.newRecord ? `Nouveau record : <b>${s.score} points</b> !` : `Score : <b>${s.score}</b> · record ${this.data.stats.chronoBest[s.duration] || 0}`;
         } else if (s.kind === 'quiz') {
-            if (s.total >= 5 && acc > (this.data.stats.quizBest || 0)) { this.data.stats.quizBest = acc; this.save(); lead = 'Nouveau record de réussite !'; }
+            /* the success record counts the cards only: custom QCM have their own score */
+            const cd = done - (s.qcmN || 0), ca = cd ? Math.round((correct - (s.qcmOk || 0)) / cd * 100) : 0;
+            if (cd >= 5 && ca > (this.data.stats.quizBest || 0)) { this.data.stats.quizBest = ca; this.save(); lead = 'Nouveau record de réussite !'; }
+            if (s.qcmN) lead = [lead, `Dont ${plural(s.qcmN, 'QCM', 'QCM')} : ${s.qcmOk} réussi${s.qcmOk > 1 ? 's' : ''}.`].filter(Boolean).join(' ');
         } else if (s.kind === 'srs') {
             const pending = (s.learning || []).length;
             const next = this.nextDueTime();
@@ -3335,13 +3365,14 @@ class SuperAnki {
     async deleteDeck(deckId) {
         const deck = this.deck(deckId);
         if (!deck) return;
-        const ids = this.descendantIds(deckId), set = new Set(ids), kids = ids.length - 1, n = this.cardsOf(deckId).length;
-        const ok = await this.confirm({ title: 'Supprimer le paquet ?', message: `« ${esc(this.deckPath(deck.id))} »${kids ? `, ${plural(kids, 'sous-paquet')}` : ''} et ${plural(n, 'carte')} seront supprimés. Tu pourras annuler juste après.`, ok: 'Supprimer', danger: true });
+        const ids = this.descendantIds(deckId), set = new Set(ids), kids = ids.length - 1, n = this.cardsOf(deckId).length, nq = this.data.qcms.filter(q => set.has(q.deckId)).length;
+        const ok = await this.confirm({ title: 'Supprimer le paquet ?', message: `« ${esc(this.deckPath(deck.id))} »${kids ? `, ${plural(kids, 'sous-paquet')}` : ''} et ${plural(n, 'carte')}${nq ? ` (+ ${plural(nq, 'QCM', 'QCM')})` : ''} seront supprimés. Tu pourras annuler juste après.`, ok: 'Supprimer', danger: true });
         if (!ok) return;
         this.change('suppression de paquet', this.data.cards.filter(c => set.has(c.deckId)).map(c => c.id), () => {
             this.data.decks = this.data.decks.filter(d => !set.has(d.id));
             this.data.cards = this.data.cards.filter(c => !set.has(c.deckId));
-        }, { decks: true });
+            this.data.qcms = this.data.qcms.filter(q => !set.has(q.deckId));
+        }, { decks: true, qcms: true });
         /* after deleting the deck he was looking at: back to its parent deck, else to the page he came from (never to the pile of all the cards) */
         if (this.view === 'decks' && (this.ui.deck === deckId || set.has(this.ui.deck))) {
             const parent = deck.parent && this.deck(deck.parent) ? deck.parent : null, from = this._deckPrev;
@@ -3741,7 +3772,8 @@ class SuperAnki {
         const meta = {
             write: { title: `${ic('keyboard')} Écrire`, desc: 'Tape la réponse de mémoire, la correction est automatique (fautes de frappe tolérées).', key: 'writeCount' },
             quiz: { title: `${ic('quiz')} Quiz`, desc: 'Pour chaque question, choisis la bonne réponse parmi 4.', key: 'quizCount' },
-            chrono: { title: `${ic('timer')} Chrono`, desc: 'Un maximum de bonnes réponses avant la fin du temps. Chaque erreur coûte 3 secondes.', key: 'chronoDuration' }
+            chrono: { title: `${ic('timer')} Chrono`, desc: 'Un maximum de bonnes réponses avant la fin du temps. Chaque erreur coûte 3 secondes.', key: 'chronoDuration' },
+            match: { title: `${ic('link')} Association`, desc: 'Relie chaque question à sa réponse le plus vite possible : 6 paires par manche, chaque erreur ajoute 2 secondes. Seules les cartes courtes sont utilisées.', key: 'matchCount' }
         }[mode];
         const s = this.data.settings;
         let sel = presetDeck || 'all';
@@ -3755,12 +3787,12 @@ class SuperAnki {
                 <div class="field"><span class="label">Cartes</span>
                     <label class="input-icon" style="display:block;margin-bottom:8px">${ic('search')}<input class="input" id="pick-filter" placeholder="Filtrer les paquets..." autocomplete="off"></label>
                     <div class="pick-list" id="pick-list">
-                        ${item('all', '📂', 'Tous les paquets', this.data.cards.length)}
-                        ${item('errors', '🎯', 'Mes erreurs', errCount)}
-                        ${this.sortedDecks().map(d => item(d.id, esc(d.emoji), d.name, this.cardsOf(d.id).length)).join('')}
+                        ${item('all', '📂', 'Tous les paquets', mode === 'match' ? this.matchPool(null).length : this.data.cards.length + (mode === 'quiz' ? this.data.qcms.length : 0))}
+                        ${item('errors', '🎯', 'Mes erreurs', mode === 'match' ? this.matchPool('errors').length : errCount)}
+                        ${this.sortedDecks().map(d => item(d.id, esc(d.emoji), d.name, mode === 'match' ? this.matchPool([d.id]).length : this.cardsOf(d.id).length + (mode === 'quiz' ? this.qcmsOf(d.id).length : 0))).join('')}
                     </div>
                 </div>
-                <div class="field"><span class="label">${mode === 'chrono' ? 'Durée' : 'Nombre de questions'}</span>
+                <div class="field ${mode === 'match' ? 'hidden' : ''}"><span class="label">${mode === 'chrono' ? 'Durée' : 'Nombre de questions'}</span>
                     <div class="segmented" id="opt-seg">${choices.map(([v, l]) => `<button class="${opt === v ? 'active' : ''}" data-opt="${v}">${l}</button>`).join('')}</div>
                 </div>`,
             foot: `<button class="btn btn-soft" data-close>Annuler</button><button class="btn btn-primary" id="mode-go">${ic('play')}C'est parti</button>`
@@ -3784,7 +3816,7 @@ class SuperAnki {
         const active = $('.pick-item.active', m);
         if (active) setTimeout(() => active.scrollIntoView({ block: 'nearest' }), 30);
         $('#mode-go', m).addEventListener('click', () => {
-            s[meta.key] = opt;
+            if (mode !== 'match') s[meta.key] = opt;
             this.save(false);
             this.closeModal(m);
             const deckIds = sel === 'all' ? null : sel === 'errors' ? 'errors' : [sel];
@@ -3792,7 +3824,8 @@ class SuperAnki {
                 const pool = this.poolFor(deckIds).filter(c => c.kind !== 'occl').map(c => c.id);
                 const d = deckIds && deckIds !== 'errors' ? this.deck(sel) : null;
                 this.startPractice(null, 'type', opt, `Écrire · ${sel === 'errors' ? 'Mes erreurs' : d ? d.name : 'Tous les paquets'}`, pool);
-            } else if (mode === 'quiz') this.startQuiz(deckIds, opt, 0);
+            } else if (mode === 'match') this.startMatch(deckIds);
+            else if (mode === 'quiz') this.startQuiz(deckIds, opt, 0);
             else this.startQuiz(deckIds, 0, opt);
         });
     }
@@ -4027,8 +4060,11 @@ class SuperAnki {
             return;
         }
         const k = e.key.toLowerCase();
+        if (s.kind === 'match') return;
         if (s.kind === 'quiz' || s.kind === 'chrono') {
-            if (['1', '2', '3', '4'].includes(k)) { e.preventDefault(); this.quizAnswer(Number(k) - 1, $$('.quiz-opt')[Number(k) - 1]); }
+            if (s.qcm && !s.answered && ['1', '2', '3', '4', '5', '6'].includes(k)) { e.preventDefault(); this.qcmPick(Number(k) - 1); }
+            else if (s.qcm && !s.answered && k === 'enter' && s.qcm.multi) { e.preventDefault(); this.qcmCheck(); }
+            else if (['1', '2', '3', '4'].includes(k)) { e.preventDefault(); this.quizAnswer(Number(k) - 1, $$('.quiz-opt')[Number(k) - 1]); }
             else if ((k === 'enter' || k === ' ') && s.answered && s.kind === 'quiz') { e.preventDefault(); this.nextQuestion(); }
             return;
         }
@@ -4413,11 +4449,11 @@ class SuperAnki {
             case 'tool-check': this.checkDatabase(); break;
             case 'fsrs-optimize': this.fsrsOptimizeModal(ds.id || ''); break;
             case 'fsrs-reset': this.fsrsReset(ds.id || ''); break;
-            default: if (action.startsWith('tq-')) this.toeicAction(action, el); break;
+            default: if (action.startsWith('tq-')) this.toeicAction(action, el); else if (action.startsWith('qcm-')) this.qcmAction(action, el); else if (action.startsWith('mg-')) this.matchAction(action, el); break;
         }
     }
     startQuizFromIds(ids, count, chrono, title) {
-        const pool = (ids || []).filter(id => this.card(id));
+        const pool = (ids || []).filter(id => this.card(id) || (!chrono && this.qcm(id)));
         if (!pool.length) { this.go('dashboard'); return; }
         const s = {
             kind: chrono ? 'chrono' : 'quiz', title: chrono ? 'Chrono' : 'Quiz', pool: shuffle([...pool]),

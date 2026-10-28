@@ -6,16 +6,16 @@ const TRASH_DAYS = 30, TRASH_MAX = 1000;
 function normalizeTrash(list) {
     const cut = Date.now() - TRASH_DAYS * DAY, seen = new Set(), out = [];
     toArray(list).forEach(t => {
-        if (!t || !t.c || !['card', 'deck'].includes(t.k) || num(t.at) < cut) return;
-        const c = t.k === 'card' ? normalizeCard(t.c) : (t.c.id ? { id: String(t.c.id), name: String(t.c.name || 'Sans nom').slice(0, 80), emoji: String(t.c.emoji || '📁').slice(0, 8), description: String(t.c.description || '').slice(0, 300), created: num(t.c.created), parent: t.c.parent ? String(t.c.parent) : null, opts: null, mod: num(t.c.mod), preset: t.c.preset ? String(t.c.preset) : null, limits: t.c.limits && typeof t.c.limits === 'object' ? { ...t.c.limits } : null } : null);
+        if (!t || !t.c || !['card', 'deck', 'qcm'].includes(t.k) || num(t.at) < cut) return;
+        const c = t.k === 'card' ? normalizeCard(t.c) : t.k === 'qcm' ? normalizeQcm(t.c) : (t.c.id ? { id: String(t.c.id), name: String(t.c.name || 'Sans nom').slice(0, 80), emoji: String(t.c.emoji || '📁').slice(0, 8), description: String(t.c.description || '').slice(0, 300), created: num(t.c.created), parent: t.c.parent ? String(t.c.parent) : null, opts: null, mod: num(t.c.mod), preset: t.c.preset ? String(t.c.preset) : null, limits: t.c.limits && typeof t.c.limits === 'object' ? { ...t.c.limits } : null } : null);
         if (!c || seen.has(`${t.k}${c.id}`)) return;
         seen.add(`${t.k}${c.id}`);
         out.push({ k: t.k, at: num(t.at), c });
     });
     return out.sort((a, b) => b.at - a.at).slice(0, TRASH_MAX);
 }
-function mergeTrash(a, b, cards, decks) {
-    const live = new Set([...cards.map(c => `card${c.id}`), ...decks.map(d => `deck${d.id}`)]);
+function mergeTrash(a, b, cards, decks, qcms = []) {
+    const live = new Set([...cards.map(c => `card${c.id}`), ...decks.map(d => `deck${d.id}`), ...qcms.map(q => `qcm${q.id}`)]);
     const seen = new Map();
     [...(a || []), ...(b || [])].forEach(t => { const k = `${t.k}${t.c.id}`; if (!live.has(k) && (!seen.has(k) || seen.get(k).at < t.at)) seen.set(k, t); });
     return normalizeTrash([...seen.values()]);
@@ -129,6 +129,7 @@ Object.assign(SuperAnki.prototype, {
         if (kind === 'deck') {
             restoreDeck(item.c);
             d.trash.filter(x => x.k === 'card' && x.c.deckId === id && Math.abs(x.at - item.at) < 5000).forEach(x => { d.cards.push({ ...x.c }); this.trashDrop('card', x.c.id); n++; });
+            d.trash.filter(x => x.k === 'qcm' && x.c.deckId === id && Math.abs(x.at - item.at) < 5000).forEach(x => { d.qcms.push({ ...x.c }); this.trashDrop('qcm', x.c.id); n++; });
             d.trash.filter(x => x.k === 'deck' && x.c.parent === id).forEach(x => restoreDeck(x.c));
         } else {
             if (!d.decks.some(x => x.id === item.c.deckId)) {
@@ -136,7 +137,8 @@ Object.assign(SuperAnki.prototype, {
                 if (dk) restoreDeck(dk.c);
                 else { d.decks.push({ id: item.c.deckId, name: 'Récupérées', emoji: '♻️', description: '', created: Date.now(), parent: null, opts: null, mod: 0, preset: null, limits: null }); }
             }
-            d.cards.push({ ...item.c }); this.trashDrop('card', id); n = 1;
+            if (kind === 'qcm') d.qcms.push({ ...item.c }); else d.cards.push({ ...item.c });
+            this.trashDrop(kind, id); n = 1;
         }
         this.searchCache.clear();
         this.save();
@@ -145,12 +147,12 @@ Object.assign(SuperAnki.prototype, {
     openTrash() {
         const html = () => {
             const t = this.data.trash, decks = t.filter(x => x.k === 'deck');
-            const inDeck = (x, dk) => x.k === 'card' && x.c.deckId === dk.c.id && Math.abs(x.at - dk.at) < 5000;
-            const loose = t.filter(x => x.k === 'card' && !decks.some(dk => inDeck(x, dk)));
+            const inDeck = (x, dk) => (x.k === 'card' || x.k === 'qcm') && x.c.deckId === dk.c.id && Math.abs(x.at - dk.at) < 5000;
+            const loose = t.filter(x => (x.k === 'card' || x.k === 'qcm') && !decks.some(dk => inDeck(x, dk)));
             const ago = at => fmtAgo(at);
             const rows = [
-                ...decks.map(x => `<div class="set-row"><div class="txt"><b>${esc(x.c.emoji)} ${esc(x.c.name)}</b><span>Paquet · ${plural(t.filter(y => inDeck(y, x)).length, 'carte')} · supprimé ${ago(x.at)}</span></div><div class="row-gap"><button class="btn btn-soft btn-sm" data-tr="restore" data-k="deck" data-id="${esc(x.c.id)}">${ic('undo')}Restaurer</button><button class="icon-btn" data-tr="purge" data-k="deck" data-id="${esc(x.c.id)}" title="Supprimer définitivement" aria-label="Supprimer définitivement">${ic('trash')}</button></div></div>`),
-                ...loose.slice(0, 200).map(x => `<div class="set-row"><div class="txt"><b>${esc(truncate(stripHtml(x.c.front) || '(image)', 70))}</b><span>Carte · supprimée ${ago(x.at)}</span></div><div class="row-gap"><button class="btn btn-soft btn-sm" data-tr="restore" data-k="card" data-id="${esc(x.c.id)}">${ic('undo')}Restaurer</button><button class="icon-btn" data-tr="purge" data-k="card" data-id="${esc(x.c.id)}" title="Supprimer définitivement" aria-label="Supprimer définitivement">${ic('trash')}</button></div></div>`)
+                ...decks.map(x => `<div class="set-row"><div class="txt"><b>${esc(x.c.emoji)} ${esc(x.c.name)}</b><span>Paquet · ${plural(t.filter(y => inDeck(y, x) && y.k === 'card').length, 'carte')}${t.some(y => inDeck(y, x) && y.k === 'qcm') ? ` + ${plural(t.filter(y => inDeck(y, x) && y.k === 'qcm').length, 'QCM', 'QCM')}` : ''} · supprimé ${ago(x.at)}</span></div><div class="row-gap"><button class="btn btn-soft btn-sm" data-tr="restore" data-k="deck" data-id="${esc(x.c.id)}">${ic('undo')}Restaurer</button><button class="icon-btn" data-tr="purge" data-k="deck" data-id="${esc(x.c.id)}" title="Supprimer définitivement" aria-label="Supprimer définitivement">${ic('trash')}</button></div></div>`),
+                ...loose.slice(0, 200).map(x => `<div class="set-row"><div class="txt"><b>${esc(truncate(x.k === 'qcm' ? x.c.q : stripHtml(x.c.front) || '(image)', 70))}</b><span>${x.k === 'qcm' ? 'QCM' : 'Carte'} · supprimé${x.k === 'qcm' ? '' : 'e'} ${ago(x.at)}</span></div><div class="row-gap"><button class="btn btn-soft btn-sm" data-tr="restore" data-k="${x.k}" data-id="${esc(x.c.id)}">${ic('undo')}Restaurer</button><button class="icon-btn" data-tr="purge" data-k="${x.k}" data-id="${esc(x.c.id)}" title="Supprimer définitivement" aria-label="Supprimer définitivement">${ic('trash')}</button></div></div>`)
             ];
             return rows.length ? `<p class="small muted">Les éléments supprimés restent ici ${TRASH_DAYS} jours, puis disparaissent. Restaurer une carte garde sa progression.</p>${rows.join('')}${loose.length > 200 ? `<p class="small muted">… et ${loose.length - 200} autres cartes.</p>` : ''}` : '<p class="muted">La corbeille est vide.</p>';
         };
@@ -160,10 +162,10 @@ Object.assign(SuperAnki.prototype, {
             const b = e.target.closest('[data-tr]');
             if (!b) return;
             const { k, id } = b.dataset;
-            if (b.dataset.tr === 'restore') { const n = this.trashRestore(k, id); this.render(); refresh(); this.toast(k === 'deck' ? `Paquet restauré (${plural(n, 'carte')})` : 'Carte restaurée', 'success', ic('undo')); }
+            if (b.dataset.tr === 'restore') { const n = this.trashRestore(k, id); this.render(); refresh(); this.toast(k === 'deck' ? `Paquet restauré (${plural(n, 'carte')})` : k === 'qcm' ? 'QCM restauré' : 'Carte restaurée', 'success', ic('undo')); }
             else {
                 const dk = k === 'deck' ? this.data.trash.find(x => x.k === 'deck' && x.c.id === id) : null;
-                if (dk) this.data.trash = this.data.trash.filter(x => !(x.k === 'card' && x.c.deckId === id && Math.abs(x.at - dk.at) < 5000));
+                if (dk) this.data.trash = this.data.trash.filter(x => !((x.k === 'card' || x.k === 'qcm') && x.c.deckId === id && Math.abs(x.at - dk.at) < 5000));
                 this.trashDrop(k, id); this.save(); refresh();
             }
         });

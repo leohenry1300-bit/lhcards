@@ -55,6 +55,8 @@ function mergeStats(a, b) {
     out.gradeCounts = mergeMaxMap(a.gradeCounts, b.gradeCounts);
     out.hourly = a.hourly.map((v, i) => Math.max(v, b.hourly[i] || 0));
     out.quizBest = Math.max(a.quizBest || 0, b.quizBest || 0);
+    out.matchBest = { ...(a.matchBest || {}) };
+    Object.entries(b.matchBest || {}).forEach(([k, v]) => { if (!(out.matchBest[k] > 0) || v < out.matchBest[k]) out.matchBest[k] = v; });
     out.longestStreak = Math.max(a.longestStreak, b.longestStreak);
     out.studySeconds = Math.max(a.studySeconds, b.studySeconds);
     const useB = (b.lastStudyDate || '') > (a.lastStudyDate || '') || ((b.lastStudyDate || '') === (a.lastStudyDate || '') && b.streak > a.streak);
@@ -86,7 +88,7 @@ function mergeStates(L, R) {
         });
         return out;
     };
-    const noteTypes = mergeList(L.noteTypes || [], R.noteTypes || [], noteTypeSig), decks = mergeList(L.decks, R.decks, deckSig), cards = mergeList(L.cards, R.cards, cardSig), presets = mergeList(L.presets || [], R.presets || [], presetSig);
+    const noteTypes = mergeList(L.noteTypes || [], R.noteTypes || [], noteTypeSig), decks = mergeList(L.decks, R.decks, deckSig), cards = mergeList(L.cards, R.cards, cardSig), qcms = mergeList(L.qcms || [], R.qcms || [], qcmSig), presets = mergeList(L.presets || [], R.presets || [], presetSig);
     const stats = mergeStats(L.stats, R.stats);
     if (JSON.stringify(stats) !== JSON.stringify(L.stats)) localChanged = true;
     if (JSON.stringify(stats) !== JSON.stringify(R.stats)) remoteChanged = true;
@@ -103,7 +105,7 @@ function mergeStates(L, R) {
     const toeic = mergeToeic(L.toeic || normalizeToeic(), R.toeic || normalizeToeic());
     if (toeic.attempts.length > (L.toeic ? L.toeic.attempts.length : 0)) localChanged = true;
     if (toeic.attempts.length > (R.toeic ? R.toeic.attempts.length : 0)) remoteChanged = true;
-    const data = normalizeState({ version: 6, decks, cards, presets, stats, settings, revlog, deleted: tomb, noteTypes, trash: mergeTrash(L.trash, R.trash, cards, decks), toeic, media: { ...(R.media || {}), ...(L.media || {}) }, updatedAt: Math.max(L.updatedAt || 0, R.updatedAt || 0) });
+    const data = normalizeState({ version: 6, decks, cards, qcms, presets, stats, settings, revlog, deleted: tomb, noteTypes, trash: mergeTrash(L.trash, R.trash, cards, decks, qcms), toeic, media: { ...(R.media || {}), ...(L.media || {}) }, updatedAt: Math.max(L.updatedAt || 0, R.updatedAt || 0) });
     return { data, localChanged, remoteChanged };
 }
 
