@@ -3961,7 +3961,7 @@ class SuperAnki {
     toast(msg, type = 'success', icon, action = null) {
         const box = $('#toasts');
         const t = document.createElement('div');
-        t.className = `toast ${type}`;
+        t.className = `toast ${type}${type === 'success' ? ' quiet' : ''}`;   // confirmations ("supprimé", "ajouté"…) are not shown any more at his request: only warnings and errors appear
         const ico = icon || ic(type === 'error' ? 'alert' : type === 'warning' ? 'info' : 'check');
         t.innerHTML = `${ico}<span>${esc(msg)}</span>${action ? `<button type="button">${esc(action.label)}</button>` : ''}`;
         const close = () => { t.classList.add('out'); setTimeout(() => t.remove(), 260); };

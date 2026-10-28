@@ -2977,3 +2977,4 @@ body.pdf-open #nb-bar:not(.pdf-keep) { display: none; }
 body.pdf-open.nb-open.nb-editing #nb-bar { display: flex; }
 @media (max-width: 899px) { body.pdf-open.nb-open.nb-editing #nb-bar { z-index: 70; } }
 .menu-head { padding: 8px 12px 4px; font-size: .7rem; font-weight: 800; letter-spacing: .05em; color: var(--text-faint); max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toast.quiet { display: none !important; }
