@@ -8,6 +8,7 @@ app.init().catch(err => {
 
 /* Updates are applied while the loading screen is up (see checkUpdateEarly in app.js). Once the app is open it is never restarted by itself:
    if a newer build shows up later (app left open for a long time), only the "new version" banner is offered. */
+setTimeout(() => { try { app.pdfGc(); app.pdfSyncAll(); } catch { /* ignore */ } }, 9000);
 setTimeout(async () => {
     try {
         if (!/^https?:/.test(location.protocol)) return;

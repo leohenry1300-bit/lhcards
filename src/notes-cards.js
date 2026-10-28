@@ -354,6 +354,8 @@ Object.assign(SuperAnki.prototype, {
     noteOfCard(c) { return c && c.src && c.src.n ? this.note(c.src.n) : null; },
     /* a small window with the line of the course the card comes from (the review is not interrupted) */
     openCardSource(cardId) {
+        const c0 = this.card(cardId);
+        if (c0 && c0.src && c0.src.pdf) { if (!this.pdf(c0.src.pdf)) { this.toast('Le PDF de cette carte n\'existe plus.', 'warning'); return; } this.pdfOpen(c0.src.pdf, { pid: c0.src.pid, flash: c0.src.t, from: this.view === 'session' ? 'notes' : undefined }); return; }
         const c = this.card(cardId), n = this.noteOfCard(c); if (!n) { this.toast('La note de cette carte n\'existe plus.', 'warning'); return; }
         const i = n.b.findIndex(b => b.cd && b.cd.id === c.src.b), ctx = i >= 0 ? n.b.slice(Math.max(0, i - 2), Math.min(n.b.length, this.nbSubEnd(n.b, i) + 2)) : n.b.slice(0, 6);
         const line = b => `<div class="vc-line ${b.cd && b.cd.id === c.src.b ? 'on' : ''}" style="padding-left:${b.d * 16}px">• ${b.cd ? `<b>${this.inlineHtml(b.x)}</b>${b.cd.k === 'basic' ? ' → ' + this.inlineHtml(b.cd.a) : ''}` : this.inlineHtml(b.x)}</div>`;

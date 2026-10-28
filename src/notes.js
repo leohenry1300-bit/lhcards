@@ -55,7 +55,7 @@ Object.assign(SuperAnki.prototype, {
     /* what a note points to: [[Titre]] → { k:'note', t }, [[c:ID|texte]] → { k:'card', id } */
     noteLinks(n) {
         const out = [];
-        n.b.forEach(b => { String(b.x).replace(NB_LINK, (m, inner) => { const c = /^c:([^|]+)\|/.exec(inner); out.push(c ? { k: 'card', id: c[1] } : { k: 'note', t: inner.trim() }); return m; }); });
+        n.b.forEach(b => { String(b.x).replace(NB_LINK, (m, inner) => { const c = /^c:([^|]+)\|/.exec(inner); if (/^pdf:/.test(inner)) { out.push({ k: 'pdf' }); return m; } out.push(c ? { k: 'card', id: c[1] } : { k: 'note', t: inner.trim() }); return m; }); });
         return out;
     },
     /* backlinks: the other notes that cite this one */
@@ -74,6 +74,8 @@ Object.assign(SuperAnki.prototype, {
     },
     inlineHtml(x, q) {
         return this.fmtHtml(esc(x), q).replace(/\[\[([^\[\]\n]{1,160})\]\]/g, (m, inner) => {
+            const pl = /^pdf:([^:|]*):([^|]*)\|(.*)$/.exec(inner);
+            if (pl) { const doc = this.pdf(pl[1]); return `<a class="nb-link pdf ${doc ? '' : 'miss'}" data-pdf="${pl[1]}" data-pid="${pl[2]}">${ic('pdf')}${pl[3] || (doc ? esc(truncate(doc.name, 30)) : 'PDF')}</a>`; }
             const c = /^c:([^|]+)\|(.*)$/.exec(inner);
             if (c) { const card = this.card(c[1]); return `<a class="nb-link card ${card ? '' : 'miss'}" data-nbc="${c[1]}">${ic('card')}${c[2] || (card ? esc(truncate(stripHtml(card.front), 40)) : 'carte supprimée')}</a>`; }
             const hit = this.noteByTitle(inner);
@@ -403,8 +405,7 @@ Object.assign(SuperAnki.prototype, {
     },
 
     /* ---------- events ---------- */
-    nbBind() {
-        const root = $('#view-notes');
+    nbBind(root = $('#view-notes')) {
         if (root._nb) return; root._nb = true;
         const blocks = () => $('#nb-blocks');
         const idx = el => { const r = el.closest('.nb'); return r ? Number(r.dataset.i) : -1; };
@@ -414,6 +415,7 @@ Object.assign(SuperAnki.prototype, {
             const link = e.target.closest('.nb-link');
             if (link && !link.closest('.nb-t')) {
                 e.preventDefault();
+                if (link.dataset.pdf) { this.pdfOpen(link.dataset.pdf, { pid: link.dataset.pid || '', from: this.view === 'pdf' ? 'keep' : 'notes' }); return; }
                 if (link.dataset.nbc) { if (this.card(link.dataset.nbc)) this.openCardModal(link.dataset.nbc); else this.toast('Cette carte n\'existe plus.', 'warning'); }
                 else { const hit = this.noteByTitle(link.dataset.nbt); this.noteOpen((hit || this.noteNew(link.dataset.nbt)).id, { focus: hit ? '' : 'end' }); }
                 return;

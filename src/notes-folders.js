@@ -84,12 +84,12 @@ Object.assign(SuperAnki.prototype, {
         if (!root && !d) return '';
         const sortAZ = this.ui.nbFSort === 'az';
         const direct = root ? this.data.notes.filter(n => !n.deckId) : this.notesInDeck(deckId, false);
-        const subs = (root ? this.data.decks.filter(x => !x.parent) : this.childrenOf(deckId)).filter(x => this.notesInDeck(x.id, true).length || !root).sort((a, b) => a.name.localeCompare(b.name));
+        const subs = (root ? this.data.decks.filter(x => !x.parent) : this.childrenOf(deckId)).filter(x => !x.pdf).filter(x => this.notesInDeck(x.id, true).length || !root).sort((a, b) => a.name.localeCompare(b.name));
         const filter = this.ui.nbFType || 'all';
-        const docs = direct.slice().sort(sortAZ ? (a, b) => this.noteName(a).localeCompare(this.noteName(b)) : (a, b) => b.mod - a.mod || b.created - a.created);
+        const docs = direct.filter(n => filter === 'all' || (filter === 'pdf') === !!this.pdfOfNote(n.id)).sort(sortAZ ? (a, b) => this.noteName(a).localeCompare(this.noteName(b)) : (a, b) => b.mod - a.mod || b.created - a.created);
         const st = d ? this.deckStats().get(d.id) : null, nNotes = root ? this.data.notes.length : this.notesInDeck(deckId, true).length;
         const folderCard = x => `<button class="nbf-fold" data-action="nb-folder" data-id="${esc(x.id)}"><span class="nbf-emoji">${esc(x.emoji)}</span><span class="nbf-ft"><b>${esc(x.name)}</b><small>${plural(this.notesInDeck(x.id, true).length, 'note')}${this.nbDueDeck(x.id) ? ` · <span style="color:var(--due)">${this.nbDueDeck(x.id)} à revoir</span>` : ''}</small></span>${ic('chevronRight', 'chev')}</button>`;
-        const docRow = n => `<button class="nbf-doc" data-action="nb-open" data-id="${esc(n.id)}"><span class="nbf-dico">${n.emoji ? esc(n.emoji) : ic(n.daily ? 'calendar' : 'notebook')}</span><span class="nbf-dt"><b>${esc(this.noteName(n))}</b><small>${esc(truncate(n.parent ? this.notePathLabel(n).split(' › ').slice(-1)[0] + ' · ' : '', 40))}${esc(truncate(((n.b.find(b => b.x && b.t !== 'hr') || { x: 'Note vide' }).x), 70))}</small></span><span class="nbf-dd"><small>${this.nbNoteCards(n.id).length ? `${ic('card')} ${this.nbNoteCards(n.id).length}` : ''}</small><small>${new Date(n.mod || n.created).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</small></span></button>`;
+        const docRow = n => { const pf = this.pdfOfNote(n.id); return `<button class="nbf-doc" data-action="nb-open" data-id="${esc(n.id)}"><span class="nbf-dico">${pf ? ic('pdf') : n.emoji ? esc(n.emoji) : ic(n.daily ? 'calendar' : 'notebook')}</span><span class="nbf-dt"><b>${esc(this.noteName(n))}</b><small>${pf ? esc(this.pdfSubline(pf)) : ''}${pf ? '' : esc(truncate(n.parent ? this.notePathLabel(n).split(' › ').slice(-1)[0] + ' · ' : '', 40))}${esc(truncate(((n.b.find(b => b.x && b.t !== 'hr') || { x: 'Note vide' }).x), 70))}</small></span><span class="nbf-dd"><small>${this.nbNoteCards(n.id).length ? `${ic('card')} ${this.nbNoteCards(n.id).length}` : ''}</small><small>${new Date(n.mod || n.created).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</small></span></button>`; };
         const back = `<button class="icon-btn nbf-back" data-action="nb-folder-close" aria-label="Retour" title="Retour">${ic('arrowLeft')}</button>`;
         return `<div class="panel nb-folderpage" data-deck="${esc(root ? '' : deckId)}">
             <div class="nbf-head">${back}<span class="nbf-big">${root ? '🗂️' : esc(d.emoji)}</span><div class="nbf-title"><h2>${root ? 'Documents et dossiers' : esc(d.name)}</h2><p class="small faint">${root ? 'Tous tes dossiers (= tes paquets) et tes notes' : esc(this.deckPath(d.id))} · ${plural(nNotes, 'note')}${st ? ` · ${plural(st.total, 'carte')}` : ''}</p></div>
@@ -101,7 +101,7 @@ Object.assign(SuperAnki.prototype, {
             ${d ? this.nbExamsHtml(deckId) : ''}
             ${subs.length ? `<div class="nbf-sub">${subs.map(folderCard).join('')}</div>` : ''}
             <div class="nbf-listhead"><h4>Documents${docs.length ? ` (${docs.length})` : ''}</h4>
-                <span class="chip-row"><button class="chip ${filter === 'all' ? 'active' : ''}" data-action="nb-ftype" data-t="all">Tout</button><button class="chip ${filter === 'note' ? 'active' : ''}" data-action="nb-ftype" data-t="note">${ic('notebook')}Notes</button></span>
+                <span class="chip-row"><button class="chip ${filter === 'all' ? 'active' : ''}" data-action="nb-ftype" data-t="all">Tout</button><button class="chip ${filter === 'note' ? 'active' : ''}" data-action="nb-ftype" data-t="note">${ic('notebook')}Notes</button><button class="chip ${filter === 'pdf' ? 'active' : ''}" data-action="nb-ftype" data-t="pdf">${ic('pdf')}PDF</button></span>
                 <button class="btn btn-soft btn-sm" data-action="nb-fsort">${ic('list')}<span>${sortAZ ? 'A → Z' : 'Récents'}</span></button></div>
             <div class="nbf-docs">${docs.length ? docs.map(docRow).join('') : `<p class="small faint" style="padding:12px 4px">Aucune note ${root ? 'sans dossier' : 'dans ce dossier'} pour l'instant. Touche « Créer des notes » pour commencer.</p>`}</div>
         </div>`;
@@ -110,6 +110,7 @@ Object.assign(SuperAnki.prototype, {
         const d = deckId ? this.deck(deckId) : null;
         this.showMenu(anchor, [
             { icon: 'folderPlus', label: 'Sous-dossier (sous-paquet)', fn: () => this.handleAction('new-subdeck', { dataset: { deck: deckId } }) },
+            { icon: 'pdf', label: 'Importer un PDF…', fn: () => this.pdfPick(deckId || '') },
             ...(d ? [{ icon: 'calendar', label: 'Examen…', fn: () => this.nbExamModal(deckId) }] : []),
             { icon: 'file', label: 'Note depuis un modèle', fn: e => this.nbNewMenu(anchor, { deckId }) },
             { icon: 'plus', label: 'Nouvelle carte (formulaire)', fn: () => this.openCardModal(null, deckId || undefined) },

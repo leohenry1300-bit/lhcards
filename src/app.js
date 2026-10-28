@@ -382,7 +382,7 @@ function normalizeCard(c) {
         nid: c.nid ? String(c.nid) : '', kind: ['rev', 'cloze', 'occl', 'custom'].includes(c.kind) ? c.kind : 'basic', ord: Math.max(0, num(c.ord, 0)),
         nf: c.nf && typeof c.nf === 'object' ? { front: sanitizeHtml(c.nf.front || ''), back: sanitizeHtml(c.nf.back || ''), text: sanitizeHtml(c.nf.text || ''), extra: sanitizeHtml(c.nf.extra || ''), ...(c.nf.t ? { t: String(c.nf.t), f: Object.fromEntries(Object.entries(c.nf.f && typeof c.nf.f === 'object' ? c.nf.f : {}).map(([k, v]) => [String(k).slice(0, 40), sanitizeHtml(v || '')])) } : {}) } : null,
         fs: c.fs && num(c.fs.s, 0) > 0 ? { s: num(c.fs.s), d: clamp(num(c.fs.d, 5), 1, 10), t: num(c.fs.t, 0) } : null,
-        ls: Array.isArray(c.ls) && c.ls.length ? c.ls.map(x => String(x).slice(0, 300)).slice(0, 30) : null, ta: !!c.ta, src: c.src && typeof c.src === 'object' && c.src.n ? { n: String(c.src.n), b: String(c.src.b || '') } : null,
+        ls: Array.isArray(c.ls) && c.ls.length ? c.ls.map(x => String(x).slice(0, 300)).slice(0, 30) : null, ta: !!c.ta, src: c.src && typeof c.src === 'object' ? (c.src.pdf ? { pdf: String(c.src.pdf), pid: String(c.src.pid || ''), t: String(c.src.t || '').slice(0, 300) } : c.src.n ? { n: String(c.src.n), b: String(c.src.b || '') } : null) : null,
         mod: num(c.mod, 0)
     };
 }
@@ -420,7 +420,8 @@ function normalizeState(raw) {
         emoji: String(d.emoji || '📁').slice(0, 8), description: String(d.description || '').slice(0, 300), created: num(d.created, 0),
         parent: d.parent ? String(d.parent) : null, opts: d.opts && typeof d.opts === 'object' && Object.keys(d.opts).length ? { ...d.opts } : null, mod: num(d.mod, 0),
         preset: d.preset ? String(d.preset) : null,
-        limits: d.limits && typeof d.limits === 'object' ? { ...d.limits } : null
+        limits: d.limits && typeof d.limits === 'object' ? { ...d.limits } : null,
+        pdf: d.pdf ? String(d.pdf) : ''
     })).filter(d => (seenDecks.has(d.id) ? false : seenDecks.add(d.id)));
     decks.forEach(d => { if (d.parent && (d.parent === d.id || !seenDecks.has(d.parent))) d.parent = null; });
     decks.forEach(d => { let n = 0, p = d; while (p && p.parent && n++ < 20) p = decks.find(x => x.id === p.parent); if (n >= 20) d.parent = null; });
@@ -432,6 +433,9 @@ function normalizeState(raw) {
     });
     const seenQ = new Set();
     const qcms = toArray(raw.qcms).map(normalizeQcm).filter(q => q && !seenQ.has(q.id) && seenQ.add(q.id));
+    const seenP = new Set();
+    const pdfs = toArray(raw.pdfs).map(normalizePdf).filter(p => p && !seenP.has(p.id) && seenP.add(p.id));
+    pdfs.forEach(p => { if (p.deckId && !seenDecks.has(p.deckId)) p.deckId = ''; if (p.pdeck && !seenDecks.has(p.pdeck)) p.pdeck = ''; });
     const seenN = new Set();
     const notes = toArray(raw.notes).map(normalizeNote).filter(n => n && !seenN.has(n.id) && seenN.add(n.id));
     notes.forEach(n => { if (n.deckId && !seenDecks.has(n.deckId)) n.deckId = ''; });
@@ -473,13 +477,13 @@ function normalizeState(raw) {
     const deleted = {};
     if (raw.deleted && typeof raw.deleted === 'object') Object.entries(raw.deleted).forEach(([k, v]) => { if (num(v, 0) > 0) deleted[k] = num(v); });
     const revlog = toArray(raw.revlog).filter(r => Array.isArray(r) && r.length >= 4 && Number.isFinite(r[0])).slice(-REVLOG_MAX);
-    return { version: 6, decks, cards, qcms, notes, presets, stats: normalizeStats(raw.stats), settings, revlog, deleted, toeic: normalizeToeic(raw.toeic), media: normalizeMedia(raw.media), noteTypes: normalizeNoteTypes(raw.noteTypes), trash: normalizeTrash(raw.trash), updatedAt: num(raw.updatedAt, 0) };
+    return { version: 6, decks, cards, qcms, notes, pdfs, presets, stats: normalizeStats(raw.stats), settings, revlog, deleted, toeic: normalizeToeic(raw.toeic), media: normalizeMedia(raw.media), noteTypes: normalizeNoteTypes(raw.noteTypes), trash: normalizeTrash(raw.trash), updatedAt: num(raw.updatedAt, 0) };
 }
 function cardSig(c) {
     return [c.deckId, c.state, c.step, c.due, c.interval, c.ease, c.reps, c.lapses, c.suspended ? 1 : 0, c.flag, c.marked ? 1 : 0, c.buriedUntil, c.errors, c.wrong, c.right,
-        c.front.length, c.back.length, c.hint.length, c.detail.length, c.tags.join(','), c.fs ? c.fs.s.toFixed(3) : '', c.lastReview, c.nid, c.kind, c.ord, c.ta ? 1 : 0, c.ls ? c.ls.join('') : '', c.src ? c.src.n + c.src.b : '', c.kind === 'occl' && c.nf ? mediaHash(c.nf.back + c.nf.front) : c.kind === 'custom' && c.nf ? mediaHash(c.nf.t + JSON.stringify(c.nf.f)) : ''].join('|');
+        c.front.length, c.back.length, c.hint.length, c.detail.length, c.tags.join(','), c.fs ? c.fs.s.toFixed(3) : '', c.lastReview, c.nid, c.kind, c.ord, c.ta ? 1 : 0, c.ls ? c.ls.join('') : '', c.src ? (c.src.pdf ? c.src.pdf + c.src.pid + c.src.t : c.src.n + c.src.b) : '', c.kind === 'occl' && c.nf ? mediaHash(c.nf.back + c.nf.front) : c.kind === 'custom' && c.nf ? mediaHash(c.nf.t + JSON.stringify(c.nf.f)) : ''].join('|');
 }
-const deckSig = d => JSON.stringify([d.name, d.emoji, d.description, d.parent, d.preset, d.limits]);
+const deckSig = d => JSON.stringify([d.name, d.emoji, d.description, d.parent, d.preset, d.limits, d.pdf]);
 const presetSig = p => JSON.stringify([p.name, p.opts]);
 function seedState() {
     const now = Date.now();
@@ -1037,8 +1041,8 @@ class SuperAnki {
     }
 
     serialize() {
-        const { version, decks, cards, qcms, notes, presets, stats, settings, revlog, deleted, toeic, media, noteTypes, trash, updatedAt } = this.data;
-        return JSON.stringify({ version, decks, cards, qcms, notes, presets, stats, settings, revlog, deleted, toeic, media, noteTypes, trash, updatedAt });
+        const { version, decks, cards, qcms, notes, pdfs, presets, stats, settings, revlog, deleted, toeic, media, noteTypes, trash, updatedAt } = this.data;
+        return JSON.stringify({ version, decks, cards, qcms, notes, pdfs, presets, stats, settings, revlog, deleted, toeic, media, noteTypes, trash, updatedAt });
     }
     /* Change tracking: per-card modification times let two devices merge instead of overwriting each other */
     initSigs() {
@@ -1048,6 +1052,8 @@ class SuperAnki {
         this.qrefs = new Map(this.data.qcms.map(q => [q.id, q]));
         this.nsigs = new Map(this.data.notes.map(n => [n.id, noteSig(n)]));
         this.nrefs = new Map(this.data.notes.map(n => [n.id, n]));
+        this.psigs = new Map(this.data.pdfs.map(p => [p.id, pdfSig(p)]));
+        this.prefs = new Map(this.data.pdfs.map(p => [p.id, p]));
         this.drefs = new Map(this.data.decks.map(d => [d.id, d]));
         this.dsigs = new Map([...this.data.decks.map(d => [d.id, deckSig(d)]), ...this.data.presets.map(x => [x.id, presetSig(x)]), ...this.data.noteTypes.map(x => [x.id, noteTypeSig(x)])]);
     }
@@ -1068,6 +1074,14 @@ class SuperAnki {
             this.qrefs.set(q.id, q);
         });
         [...this.qsigs.keys()].forEach(id => { if (!seenQ.has(id)) { this.qsigs.delete(id); d.deleted[id] = now; const gone = this.qrefs.get(id); if (gone) this.trashAdd('qcm', gone, now); this.qrefs.delete(id); } });
+        const seenP = new Set();
+        d.pdfs.forEach(p => {
+            seenP.add(p.id);
+            const sig = pdfSig(p);
+            if (this.psigs.get(p.id) !== sig) { p.mod = now; this.psigs.set(p.id, sig); delete d.deleted[p.id]; if (d.trash.length) this.trashDrop('pdf', p.id); }
+            this.prefs.set(p.id, p);
+        });
+        [...this.psigs.keys()].forEach(id => { if (!seenP.has(id)) { this.psigs.delete(id); d.deleted[id] = now; const gone = this.prefs.get(id); if (gone) this.trashAdd('pdf', gone, now); this.prefs.delete(id); } });
         const seenN = new Set();
         d.notes.forEach(n => {
             seenN.add(n.id);
@@ -1476,6 +1490,7 @@ class SuperAnki {
        Navigation & rendering
        ============================================================ */
     go(view, opts = {}) {
+        if (this.view === 'pdf' && view !== 'pdf' && this.pv) this.pdfLeave();
         if (this.session && view !== 'session') this.endSession(false);
         if (this.ex && view !== 'exam') this.exLeave();
         if (view === 'session' && this.view !== 'session' && this.view !== 'exam') this.back = { view: this.view, deck: this.ui.deck, filter: this.ui.filter, y: window.scrollY };   // where to return when the session is closed
@@ -1765,12 +1780,12 @@ class SuperAnki {
 
     render(fromGo = false, reuse = false) {
         if (!fromGo) this._ver = (this._ver || 0) + 1;   // a redraw asked by a change: the screens kept from earlier are out of date
-        ['dashboard', 'decks', 'notes', 'stats', 'settings', 'session', 'toeic', 'exam'].forEach(v => $(`#view-${v}`).classList.toggle('hidden', v !== this.view));
+        ['dashboard', 'decks', 'notes', 'stats', 'settings', 'session', 'toeic', 'exam', 'pdf'].forEach(v => $(`#view-${v}`).classList.toggle('hidden', v !== this.view));
         $$('[data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === this.view && !b.classList.contains('brand') && !b.classList.contains('streak-chip') && !b.classList.contains('sync-dot')));
-        document.body.dataset.view = this.view; document.body.classList.toggle('in-session', this.view === 'session' || this.view === 'exam'); this.heroVideo();
+        document.body.dataset.view = this.view; document.body.classList.toggle('in-session', this.view === 'session' || this.view === 'exam' || this.view === 'pdf'); this.heroVideo();
         document.body.classList.toggle('in-exam', this.view === 'exam');
         if (this.view !== 'decks') document.body.classList.remove('deck-sheet');
-        if (this.view !== 'notes' && document.body.classList.contains('nb-open')) this.nbBarEnsure(false);
+        if (this.view !== 'notes' && this.view !== 'pdf' && document.body.classList.contains('nb-open')) this.nbBarEnsure(false);
         if (this.view !== 'session' && document.body.classList.contains('zen')) { document.body.classList.remove('zen'); this.zenScreen(false); }
         this.renderStreak(); this.renderProfileBtn();
         this.renderSyncIndicator();
@@ -1782,6 +1797,7 @@ class SuperAnki {
         else if (this.view === 'settings') this.renderSettings();
         else if (this.view === 'toeic') this.renderToeic();
         else if (this.view === 'notes') this.renderNotes();
+        else if (this.view === 'pdf') this.renderPdf();
         else if (this.view === 'exam') this.renderExam();
     }
     /* little sparks when the streak grows (first review of the day) */
@@ -2875,7 +2891,7 @@ class SuperAnki {
                 <div class="fc-top">
                     <span class="tag" title="${esc(deck ? this.deckPath(deck.id) : '')}">${esc(deck ? deck.emoji + ' ' + this.deckPath(deck.id).split(' › ').slice(-2).join(' › ') : '')}</span>
                     <span class="fc-size" role="group" aria-label="Taille du texte"><button class="fc-size-btn" data-action="card-size" data-d="-1" aria-label="Texte plus petit" title="Texte plus petit" ${csIdx === 0 ? 'disabled' : ''}>A<small>−</small></button><button class="fc-size-btn" data-action="card-size" data-d="1" aria-label="Texte plus grand" title="Texte plus grand" ${csIdx >= Object.keys(CARD_SIZES).length - 1 ? 'disabled' : ''}>A<small>+</small></button></span>
-                    ${card.src && this.note(card.src.n) ? `<button class="fc-src" data-action="card-src" data-card="${esc(card.id)}" title="Voir dans le cours" aria-label="Voir dans le cours">${ic('notebook')}<span>Cours</span></button>` : ''}
+                    ${card.src && this.note(card.src.n) ? `<button class="fc-src" data-action="card-src" data-card="${esc(card.id)}" title="Voir dans le cours" aria-label="Voir dans le cours">${ic('notebook')}<span>Cours</span></button>` : card.src && card.src.pdf && this.pdf(card.src.pdf) ? `<button class="fc-src" data-action="card-src" data-card="${esc(card.id)}" title="Voir dans le PDF" aria-label="Voir dans le PDF">${ic('pdf')}<span>PDF</span></button>` : ''}
                     <span class="tiny faint fc-badges">${card.flag ? `<span style="color:${FLAGS[card.flag].color}" title="${FLAGS[card.flag].name}">${ic('flag', 'i-flag')}</span>` : ''}${card.marked ? `<span style="color:#eab308" title="Marquée">${ic('star', 'i-fill')}</span>` : ''}${card.state === 'new' ? 'Nouvelle' : card.errors ? `${ic('target')} ${plural(card.errors, 'erreur')}` : ''}</span>
                 </div>
                 <div class="fc-content fc-front rich">${card.front}</div>
@@ -3768,7 +3784,12 @@ class SuperAnki {
         });
     }
     exportJSON() {
-        const json = JSON.stringify(JSON.parse(this.serialize()), null, 1);
+        if (this.data.pdfs && this.data.pdfs.length) { this.pdfExportChoice(); return; }
+        this.exportJSONNow(false);
+    }
+    async exportJSONNow(withPdf) {
+        const obj = JSON.parse(this.serialize()); if (withPdf) obj.pdfBlobs = await this.pdfBlobsForExport();
+        const json = JSON.stringify(obj, null, withPdf ? 0 : 1);
         const blob = new Blob([json], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -3784,15 +3805,16 @@ class SuperAnki {
         input.onchange = async () => {
             const f = input.files[0];
             if (!f) return;
-            let data = null;
-            try { data = normalizeState(await readAsText(f)); } catch (e) { data = null; }
+            let data = null, blobs = null;
+            try { const text = await readAsText(f); data = normalizeState(text); if (text.includes('"pdfBlobs"')) { try { blobs = JSON.parse(text).pdfBlobs; } catch { blobs = null; } } } catch (e) { data = null; }
             if (!data || !data.cards.length) { this.toast('Fichier de sauvegarde invalide.', 'error'); return; }
             const ok = await this.confirm({ title: 'Restaurer cette sauvegarde ?', message: `${plural(data.decks.length, 'paquet')} et ${plural(data.cards.length, 'carte')}. Tes données actuelles seront remplacées.`, ok: 'Restaurer', danger: true });
             if (!ok) return;
             data.settings = Object.assign({}, this.data.settings, data.settings);
             this.replaceData(data);
             this.save();
-            this.toast('Sauvegarde restaurée', 'success');
+            const np = blobs ? await this.pdfRestoreBlobs(blobs) : 0;
+            this.toast(np ? `Sauvegarde restaurée (avec ${plural(np, 'fichier PDF', 'fichiers PDF')})` : 'Sauvegarde restaurée', 'success');
         };
         input.click();
     }
@@ -4482,7 +4504,7 @@ class SuperAnki {
             case 'tool-check': this.checkDatabase(); break;
             case 'fsrs-optimize': this.fsrsOptimizeModal(ds.id || ''); break;
             case 'fsrs-reset': this.fsrsReset(ds.id || ''); break;
-            default: if (action.startsWith('tq-')) this.toeicAction(action, el); else if (action.startsWith('qcm-')) this.qcmAction(action, el); else if (action.startsWith('mg-')) this.matchAction(action, el); else if (action.startsWith('nb-')) this.noteAction(action, el, e); else if (action.startsWith('pf-')) this.profileAction(action, el); break;
+            default: if (action.startsWith('tq-')) this.toeicAction(action, el); else if (action.startsWith('qcm-')) this.qcmAction(action, el); else if (action.startsWith('mg-')) this.matchAction(action, el); else if (action.startsWith('nb-')) this.noteAction(action, el, e); else if (action.startsWith('pf-')) this.profileAction(action, el); else if (action.startsWith('pdf-')) this.pdfAction(action, el, e); break;
         }
     }
     startQuizFromIds(ids, count, chrono, title) {

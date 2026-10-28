@@ -6,16 +6,16 @@ const TRASH_DAYS = 30, TRASH_MAX = 1000;
 function normalizeTrash(list) {
     const cut = Date.now() - TRASH_DAYS * DAY, seen = new Set(), out = [];
     toArray(list).forEach(t => {
-        if (!t || !t.c || !['card', 'deck', 'qcm', 'note'].includes(t.k) || num(t.at) < cut) return;
-        const c = t.k === 'card' ? normalizeCard(t.c) : t.k === 'qcm' ? normalizeQcm(t.c) : t.k === 'note' ? normalizeNote(t.c) : (t.c.id ? { id: String(t.c.id), name: String(t.c.name || 'Sans nom').slice(0, 80), emoji: String(t.c.emoji || '📁').slice(0, 8), description: String(t.c.description || '').slice(0, 300), created: num(t.c.created), parent: t.c.parent ? String(t.c.parent) : null, opts: null, mod: num(t.c.mod), preset: t.c.preset ? String(t.c.preset) : null, limits: t.c.limits && typeof t.c.limits === 'object' ? { ...t.c.limits } : null } : null);
+        if (!t || !t.c || !['card', 'deck', 'qcm', 'note', 'pdf'].includes(t.k) || num(t.at) < cut) return;
+        const c = t.k === 'card' ? normalizeCard(t.c) : t.k === 'qcm' ? normalizeQcm(t.c) : t.k === 'note' ? normalizeNote(t.c) : t.k === 'pdf' ? normalizePdf(t.c) : (t.c.id ? { id: String(t.c.id), name: String(t.c.name || 'Sans nom').slice(0, 80), emoji: String(t.c.emoji || '📁').slice(0, 8), description: String(t.c.description || '').slice(0, 300), created: num(t.c.created), parent: t.c.parent ? String(t.c.parent) : null, opts: null, mod: num(t.c.mod), preset: t.c.preset ? String(t.c.preset) : null, limits: t.c.limits && typeof t.c.limits === 'object' ? { ...t.c.limits } : null, pdf: t.c.pdf ? String(t.c.pdf) : '' } : null);
         if (!c || seen.has(`${t.k}${c.id}`)) return;
         seen.add(`${t.k}${c.id}`);
         out.push({ k: t.k, at: num(t.at), c });
     });
     return out.sort((a, b) => b.at - a.at).slice(0, TRASH_MAX);
 }
-function mergeTrash(a, b, cards, decks, qcms = [], notes = []) {
-    const live = new Set([...notes.map(n => `note${n.id}`), ...cards.map(c => `card${c.id}`), ...decks.map(d => `deck${d.id}`), ...qcms.map(q => `qcm${q.id}`)]);
+function mergeTrash(a, b, cards, decks, qcms = [], notes = [], pdfs = []) {
+    const live = new Set([...pdfs.map(p => `pdf${p.id}`), ...notes.map(n => `note${n.id}`), ...cards.map(c => `card${c.id}`), ...decks.map(d => `deck${d.id}`), ...qcms.map(q => `qcm${q.id}`)]);
     const seen = new Map();
     [...(a || []), ...(b || [])].forEach(t => { const k = `${t.k}${t.c.id}`; if (!live.has(k) && (!seen.has(k) || seen.get(k).at < t.at)) seen.set(k, t); });
     return normalizeTrash([...seen.values()]);
@@ -121,6 +121,12 @@ Object.assign(SuperAnki.prototype, {
         const d = this.data, item = d.trash.find(x => x.k === kind && x.c.id === id);
         if (!item) return 0;
         let n = 0;
+        if (kind === 'pdf') {   // a PDF comes back with its deck and its cards
+            const p = item.c, dk = p.pdeck && d.trash.find(x => x.k === 'deck' && x.c.id === p.pdeck);
+            if (dk) this.trashRestore('deck', p.pdeck);
+            if (p.noteId && d.trash.some(x => x.k === 'note' && x.c.id === p.noteId)) this.trashRestore('note', p.noteId);
+            d.pdfs.push({ ...p, deckId: d.decks.some(x => x.id === p.deckId) ? p.deckId : '', pdeck: d.decks.some(x => x.id === p.pdeck) ? p.pdeck : '' }); this.trashDrop('pdf', id); this.searchCache.clear(); this.save(); return 1;
+        }
         if (kind === 'note') { d.notes.push({ ...item.c, deckId: d.decks.some(x => x.id === item.c.deckId) ? item.c.deckId : '' }); this.trashDrop('note', id); this.save(); return 1; }
         const restoreDeck = deck => {
             if (!deck || d.decks.some(x => x.id === deck.id)) return;
@@ -149,11 +155,11 @@ Object.assign(SuperAnki.prototype, {
         const html = () => {
             const t = this.data.trash, decks = t.filter(x => x.k === 'deck');
             const inDeck = (x, dk) => (x.k === 'card' || x.k === 'qcm') && x.c.deckId === dk.c.id && Math.abs(x.at - dk.at) < 5000;
-            const loose = t.filter(x => (x.k === 'card' || x.k === 'qcm' || x.k === 'note') && !decks.some(dk => inDeck(x, dk) || x.k === 'note'));
+            const loose = t.filter(x => (x.k === 'card' || x.k === 'qcm' || x.k === 'note' || x.k === 'pdf') && !decks.some(dk => inDeck(x, dk) || x.k === 'note' || x.k === 'pdf') && !(x.k === 'note' && t.some(y => y.k === 'pdf' && y.c.noteId === x.c.id)));
             const ago = at => fmtAgo(at);
             const rows = [
                 ...decks.map(x => `<div class="set-row"><div class="txt"><b>${esc(x.c.emoji)} ${esc(x.c.name)}</b><span>Paquet · ${plural(t.filter(y => inDeck(y, x) && y.k === 'card').length, 'carte')}${t.some(y => inDeck(y, x) && y.k === 'qcm') ? ` + ${plural(t.filter(y => inDeck(y, x) && y.k === 'qcm').length, 'QCM', 'QCM')}` : ''} · supprimé ${ago(x.at)}</span></div><div class="row-gap"><button class="btn btn-soft btn-sm" data-tr="restore" data-k="deck" data-id="${esc(x.c.id)}">${ic('undo')}Restaurer</button><button class="icon-btn" data-tr="purge" data-k="deck" data-id="${esc(x.c.id)}" title="Supprimer définitivement" aria-label="Supprimer définitivement">${ic('trash')}</button></div></div>`),
-                ...loose.slice(0, 200).map(x => `<div class="set-row"><div class="txt"><b>${esc(truncate(x.k === 'qcm' ? x.c.q : x.k === 'note' ? x.c.title || 'Sans titre' : stripHtml(x.c.front) || '(image)', 70))}</b><span>${x.k === 'qcm' ? 'QCM' : x.k === 'note' ? 'Note' : 'Carte'} · supprimé${x.k === 'qcm' || x.k === 'note' ? '' : 'e'} ${ago(x.at)}</span></div><div class="row-gap"><button class="btn btn-soft btn-sm" data-tr="restore" data-k="${x.k}" data-id="${esc(x.c.id)}">${ic('undo')}Restaurer</button><button class="icon-btn" data-tr="purge" data-k="${x.k}" data-id="${esc(x.c.id)}" title="Supprimer définitivement" aria-label="Supprimer définitivement">${ic('trash')}</button></div></div>`)
+                ...loose.slice(0, 200).map(x => `<div class="set-row"><div class="txt"><b>${esc(truncate(x.k === 'qcm' ? x.c.q : x.k === 'note' ? x.c.title || 'Sans titre' : x.k === 'pdf' ? x.c.name : stripHtml(x.c.front) || '(image)', 70))}</b><span>${x.k === 'qcm' ? 'QCM' : x.k === 'note' ? 'Note' : x.k === 'pdf' ? 'PDF (avec son paquet et ses annotations)' : 'Carte'} · supprimé${x.k === 'qcm' || x.k === 'note' || x.k === 'pdf' ? '' : 'e'} ${ago(x.at)}</span></div><div class="row-gap"><button class="btn btn-soft btn-sm" data-tr="restore" data-k="${x.k}" data-id="${esc(x.c.id)}">${ic('undo')}Restaurer</button><button class="icon-btn" data-tr="purge" data-k="${x.k}" data-id="${esc(x.c.id)}" title="Supprimer définitivement" aria-label="Supprimer définitivement">${ic('trash')}</button></div></div>`)
             ];
             return rows.length ? `<p class="small muted">Les éléments supprimés restent ici ${TRASH_DAYS} jours, puis disparaissent. Restaurer une carte garde sa progression.</p>${rows.join('')}${loose.length > 200 ? `<p class="small muted">… et ${loose.length - 200} autres cartes.</p>` : ''}` : '<p class="muted">La corbeille est vide.</p>';
         };
@@ -163,7 +169,7 @@ Object.assign(SuperAnki.prototype, {
             const b = e.target.closest('[data-tr]');
             if (!b) return;
             const { k, id } = b.dataset;
-            if (b.dataset.tr === 'restore') { const n = this.trashRestore(k, id); this.render(); refresh(); this.toast(k === 'deck' ? `Paquet restauré (${plural(n, 'carte')})` : k === 'qcm' ? 'QCM restauré' : k === 'note' ? 'Note restaurée' : 'Carte restaurée', 'success', ic('undo')); }
+            if (b.dataset.tr === 'restore') { const n = this.trashRestore(k, id); this.render(); refresh(); this.toast(k === 'deck' ? `Paquet restauré (${plural(n, 'carte')})` : k === 'qcm' ? 'QCM restauré' : k === 'note' ? 'Note restaurée' : k === 'pdf' ? 'PDF restauré avec ses cartes' : 'Carte restaurée', 'success', ic('undo')); }
             else {
                 const dk = k === 'deck' ? this.data.trash.find(x => x.k === 'deck' && x.c.id === id) : null;
                 if (dk) this.data.trash = this.data.trash.filter(x => !((x.k === 'card' || x.k === 'qcm') && x.c.deckId === id && Math.abs(x.at - dk.at) < 5000));

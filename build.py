@@ -254,6 +254,17 @@ for _old in (ROOT / "lazy").glob("toeic-photos.*.js"):
         _old.unlink()
 (ROOT / "lazy" / _photos_name).write_text(_photos_js, encoding="utf-8")
 LAZY = {"toeicPhotos": "lazy/" + _photos_name}
+# The PDF libraries (vendor/): copied to lazy/ under a name that contains their fingerprint, loaded only when a PDF is opened.
+for _key, _src in (("pdfjs", "pdf.min.js"), ("pdfworker", "pdf.worker.min.js"), ("pdflib", "pdf-lib.min.js")):
+    _b = (ROOT / "vendor" / _src).read_bytes()
+    _stem = _src[:-3]
+    _nm = _stem + "." + _hl.sha1(_b).hexdigest()[:8] + ".js"
+    for _old in (ROOT / "lazy").glob(_stem + ".*.js"):
+        if _old.name != _nm:
+            _old.unlink()
+    if not (ROOT / "lazy" / _nm).exists():
+        (ROOT / "lazy" / _nm).write_bytes(_b)
+    LAZY[_key] = "lazy/" + _nm
 (SRC / "toeic-bank.js").write_text("const TOEIC_BANK = " + json.dumps(toeic, ensure_ascii=False, separators=(",", ":")) + ";\n", encoding="utf-8")
 print("toeic bank:", {k: len(v) for k, v in toeic.items()}, "questions:",
       sum(len(v) if k in ("p1", "p2", "p5") else sum(len(i["qs"]) for i in v) for k, v in toeic.items()))
@@ -327,6 +338,9 @@ const LAZY = {json.dumps(LAZY)};   /* files loaded when needed (see loadLazy) */
 {read("notes-tree.js")}
 {read("notes-folders.js")}
 {read("profile.js")}
+{read("pdf.js")}
+{read("pdf-view.js")}
+{read("pdf-ann.js")}
 {read("boot.js")}
 if ("serviceWorker" in navigator && /^https?:/.test(location.protocol)) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {{}}));
 </script>

@@ -87,7 +87,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     await page.goto(`http://localhost:${PORT}/index.html`); await page.waitForSelector('.hero', { timeout: 20000 });
     ok('starts and shows the home screen under 4 s', Date.now() - t0 < 4000, (Date.now() - t0) + ' ms');
     await wait(2500);
-    ok('Léo greets on opening (sit wave, paw wave or hello without tablet)', await page.evaluate(() => { const r = document.querySelector('.hero .leo3d'); return !!r && (r._leoHist || []).some(k => ['sitwave', 'wave', 'hello0'].includes(k)); }));
+    ok('Léo greets on opening (sit wave, paw wave or hello without tablet)', await page.evaluate(() => { const r = document.querySelector('.hero .leo3d'); return !!r && (r._leoHist || []).some(k => ['sitwave', 'wave', 'hello0'].includes(k) || (k === 'yawn' && (new Date().getHours() >= 23 || new Date().getHours() < 9))); }));   // (at night and early morning he yawns first)
     ok('loading screen is gone', await page.evaluate(() => !document.getElementById('boot')));
     await wait(7500);   // his entrance
 
@@ -1100,6 +1100,233 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         ok('Profile: name + emoji + photo saved, shown on the button, kept in backups; the TOEIC exam on the home opens the TOEIC simulator', pf.saved && pf.photo && pf.photoKept && pf.persist && pf.examBtn && pf.toeic, JSON.stringify(pf));
         const w360 = await (async () => { await page.setViewportSize({ width: 360, height: 800 }); await page.evaluate(() => app.go('dashboard')); await wait(250); const r = await page.evaluate(() => { const tb = document.querySelector('.topbar-inner'); return tb.scrollWidth <= tb.clientWidth + 1 && document.documentElement.scrollWidth <= 360; }); await page.setViewportSize({ width: 390, height: 800 }); return r; })();
         ok('Profile: the top bar still fits at 360 px', w360);
+    }
+
+    /* Vague 3: PDF reader (import, lazy pages, annotations, cards, export, trash, sync) */
+    {
+        await page.setViewportSize({ width: 1280, height: 800 }); await go('notes'); await wait(300);
+        const pdfSel = (pageI, re) => page.evaluate(([i, src]) => { const sp = [...document.querySelectorAll(`.pdfp[data-i="${i}"] .pdft span`)].filter(s => new RegExp(src).test(s.textContent))[0]; if (!sp) return false; const r = document.createRange(); r.selectNodeContents(sp); const s = getSelection(); s.removeAllRanges(); s.addRange(r); return true; }, [pageI, re]);
+        const v1 = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {};
+            const buf = await (await fetch('/tests/sample.pdf')).arrayBuffer();
+            const f = new File([buf], 'Droit des contrats.pdf', { type: 'application/pdf' });
+            const p = await a.pdfImport(f); await w(1800);
+            out.imported = !!p && a.data.pdfs.length === 1 && p.pages === 3 && p.pg.length === 3;
+            out.deck = !!a.deck(p.pdeck) && a.deck(p.pdeck).pdf === p.id; out.note = !!a.note(p.noteId) && a.note(p.noteId).deckId === '';
+            out.stored = !!(await PdfStore.get(p.hash)) && (await PdfStore.get(p.hash)).byteLength === buf.byteLength;
+            out.view = a.view === 'pdf' && document.body.classList.contains('pdf-open') && !!document.querySelector('.pdfp canvas');
+            out.rendered = a.pv.pages[0].state === 2 && !!document.querySelector('.pdfp[data-i="0"] .pdft span');
+            out.libsLazy = !!window.pdfjsLib && typeof LAZY.pdfjs === 'string' && /^lazy\/pdf\.min\.[0-9a-f]{8}\.js$/.test(LAZY.pdfjs);
+            const again = await a.pdfImport(new File([buf], 'copie.pdf', { type: 'application/pdf' }), { open: false });
+            out.noDup = again.id === p.id && a.data.pdfs.length === 1;
+            out.text = !(await a.pdfImport(new File(['hello'], 'x.txt', { type: 'text/plain' })));
+            return out;
+        });
+        ok('PDF: import (file kept apart by fingerprint, deck + note created, opened, page drawn), same file twice = no duplicate, lazy libraries', v1.imported && v1.deck && v1.note && v1.stored && v1.view && v1.rendered && v1.noDup && v1.text && v1.libsLazy, JSON.stringify(v1));
+
+        /* a long PDF: only the pages in view are drawn, the others are freed */
+        const v2 = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {};
+            await loadLazy('pdflib'); const d = await PDFLib.PDFDocument.create(), font = await d.embedFont(PDFLib.StandardFonts.Helvetica);
+            for (let i = 1; i <= 60; i++) d.addPage([420, 595]).drawText(`Page numero ${i}`, { x: 40, y: 500, size: 22, font });
+            const bytes = await d.save(); a.go('notes'); await w(300);
+            const p = await a.pdfImport(new File([bytes], 'Long.pdf', { type: 'application/pdf' })); await w(2500);
+            const st = () => a.pv.pages.map(g => g.state), n = () => st().filter(x => x === 2).length;
+            out.first = n(); out.farCanvas = a.pv.pages[40].state;
+            a.pdfGoto(45, '', true); await w(1500);
+            out.after = n(); out.far = a.pv.pages[44].state === 2; out.freed = a.pv.pages[0].state === 0 && a.pv.pages[0].el.querySelector('canvas').width === 0;
+            out.cur = a.pdfCurrent(); out.label = document.getElementById('pdf-pg').textContent;
+            a.pdfSetZoom(2); await w(900); out.zoom = a.pv.zoom === 2 && document.getElementById('pdf-zoomv').textContent === '200 %' && a.pv.pages[a.pdfCurrent()].state === 2;
+            a.go('notes'); await w(300); a.pdfOpen(p.id); await w(1500); out.resume = a.pdfCurrent() >= 43 && a.pv.zoom === 2;
+            a.pdfDelete(p); await w(300); out.gone = a.data.pdfs.length === 1;
+            return out;
+        });
+        ok('PDF: long file — only the pages in view are drawn (others freed), jump to a page, zoom, reopening resumes at the last page and zoom', v2.first <= 8 && v2.farCanvas === 0 && v2.after <= 8 && v2.far && v2.freed && v2.cur >= 43 && /sur 60/.test(v2.label) && v2.zoom && v2.resume && v2.gone, JSON.stringify(v2));
+
+        await page.evaluate(async () => { const a = app; a.pdfOpen(a.data.pdfs[0].id); await new Promise(r => setTimeout(r, 1500)); });
+        /* highlight, quote, card, undo */
+        await pdfSel(0, 'accord'); await wait(600);
+        const popOk = await page.evaluate(() => !!document.querySelector('#pdf-pop [data-pop=color]') && document.querySelectorAll('#pdf-pop .pdft-c').length === 6);
+        await page.click('#pdf-pop [data-pop=color][data-c="#86efac"]'); await wait(300);
+        await pdfSel(0, 'formation'); await wait(600); await page.click('#pdf-pop [data-pop=cite]'); await wait(400);
+        await pdfSel(0, 'Exemple'); await wait(600); await page.click('#pdf-pop [data-pop=card]'); await wait(300); await page.fill('#pc-front', 'Un exemple de contrat ?'); await page.click('#pc-go'); await wait(300);
+        const v3 = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), p = a.pv.p, out = {};
+            const hl = (p.ann.p1 || []).filter(x => x.t === 'hl'); out.hl = hl.length === 1 && hl[0].c === '#86efac' && hl[0].s.includes('accord') && hl[0].r.every(r => r.every(v => v >= 0 && v <= 1));
+            out.svg = !!document.querySelector('.pdfp[data-i="0"] svg.pdfa g.hl rect');
+            const nb = a.pdfNoteOf(p).b; out.cite = nb.some(b => b.t === 'quote' && /formation du contrat/.test(b.x) && b.x.includes(`[[pdf:${p.id}:p1|page 1]]`));
+            const c = a.data.cards.find(x => x.src && x.src.pdf === p.id); out.card = !!c && c.deckId === p.pdeck && c.src.pid === 'p1' && /Exemple/.test(c.back) && /exemple de contrat/.test(c.front);
+            out.kept = normalizeState(a.serialize()).cards.find(x => x.id === c.id).src.pdf === p.id;
+            out.inDeck = a.deckStats().get(p.pdeck).total === 1;
+            return out;
+        });
+        ok('PDF: select text → 6 colours → highlight kept in page coordinates; "Citer" adds a quote with a "page 1" link; "Carte" makes a card in the PDF\'s own deck with its source', popOk && v3.hl && v3.svg && v3.cite && v3.card && v3.kept && v3.inDeck, JSON.stringify({ popOk, v3 }));
+
+        /* pen, eraser (→ trash), undo / redo, text box, blank page */
+        const box = await page.locator('.pdfp[data-i="0"]').boundingBox();
+        await page.click('[data-action=pdf-tool][data-t=pen]'); await page.mouse.move(box.x + 100, box.y + 450); await page.mouse.down();
+        for (let i = 0; i < 20; i++) await page.mouse.move(box.x + 100 + i * 12, box.y + 450 + Math.sin(i / 2) * 20); await page.mouse.up(); await wait(300);
+        const pen = await page.evaluate(() => { const l = app.pv.p.ann.p1.filter(x => x.t === 'dr'); return { n: l.length, pts: l[0] && l[0].p.length, c: l[0] && l[0].c, svg: !!document.querySelector('.pdfp[data-i="0"] path.dr') }; });
+        await page.click('[data-action=pdf-tool][data-t=eraser]'); await page.mouse.move(box.x + 160, box.y + 450 + Math.sin(3) * 20); await page.mouse.down(); await page.mouse.move(box.x + 196, box.y + 450 + Math.sin(5) * 20, { steps: 4 }); await page.mouse.up(); await wait(300);
+        const era = await page.evaluate(() => ({ dr: app.pv.p.ann.p1.filter(x => x.t === 'dr').length, trash: app.pv.p.trash.length, kind: app.pv.p.trash[0] && app.pv.p.trash[0].a.t }));
+        await page.click('[data-action=pdf-undo]'); await wait(200);
+        const und = await page.evaluate(() => ({ dr: app.pv.p.ann.p1.filter(x => x.t === 'dr').length, trash: app.pv.p.trash.length }));
+        await page.click('[data-action=pdf-redo]'); await wait(200);
+        const red = await page.evaluate(() => ({ dr: (app.pv.p.ann.p1 || []).filter(x => x.t === 'dr').length, trash: app.pv.p.trash.length }));
+        ok('PDF: pen draws a stroke (colour, width, points), eraser removes it into the trash of erased drawings, undo brings it back, redo erases again', pen.n === 1 && pen.pts > 5 && pen.svg && era.dr === 0 && era.trash === 1 && era.kind === 'dr' && und.dr === 1 && und.trash === 0 && red.dr === 0 && red.trash === 1, JSON.stringify({ pen, era, und, red }));
+        await page.evaluate(() => app.pdfTrashPanel()); await wait(200);
+        const tr = await page.evaluate(() => ({ rows: document.querySelectorAll('.pdf-trash-row').length })); await page.click('.pdf-trash-row [data-back]'); await wait(300);
+        const tr2 = await page.evaluate(() => ({ dr: app.pv.p.ann.p1.filter(x => x.t === 'dr').length, trash: app.pv.p.trash.length })); await page.evaluate(() => app.closeModal());
+        await page.click('[data-action=pdf-tool][data-t=text]'); await page.mouse.click(box.x + 120, box.y + 520); await wait(200); await page.keyboard.type('Ma remarque'); await page.evaluate(() => document.activeElement.blur()); await wait(300);
+        await page.click('[data-action=pdf-tool][data-t=note]'); await page.mouse.click(box.x + 200, box.y + 300); await wait(200); await page.keyboard.type('Note en marge'); await page.evaluate(() => document.activeElement.blur()); await wait(300);
+        await page.click('[data-action=pdf-blank]'); await page.click('.popover .menu-item:has-text("À la fin")'); await wait(1200);
+        const txt = await page.evaluate(() => { const l = app.pv.p.ann.p1 || []; return { tx: l.filter(x => x.t === 'tx' && x.s === 'Ma remarque').length, nt: l.filter(x => x.t === 'nt' && x.s === 'Note en marge').length, dom: document.querySelectorAll('.pdfp[data-i="0"] .pdfa-box').length, pages: app.pv.p.pg.length, blank: app.pv.p.pg[3].k, blankEl: !!document.querySelector('.pdfp.blank') }; });
+        ok('PDF: erased drawings can be put back from the trash panel; text box and margin note typed on the page; blank page added at the end', tr.rows === 1 && tr2.dr === 1 && tr2.trash === 0 && txt.tx === 1 && txt.nt === 1 && txt.dom === 2 && txt.pages === 4 && txt.blank === 'b' && txt.blankEl, JSON.stringify({ tr, tr2, txt }));
+
+        /* the annotated PDF is a real PDF: opened again with pdf.js, highlight pixel + text + extra page */
+        const ex = await page.evaluate(async () => {
+            const a = app, p = a.pv.p, { bytes } = await a.pdfAnnotatedBytes(p), out = {};
+            const doc = await pdfjsLib.getDocument({ data: bytes }).promise; out.pages = doc.numPages;
+            const pg = await doc.getPage(1), tc = await pg.getTextContent(); out.text = tc.items.map(i => i.str).join(' ');
+            const vp = pg.getViewport({ scale: 1 }), cv = document.createElement('canvas'); cv.width = vp.width; cv.height = vp.height; await pg.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+            const h = p.ann.p1.find(x => x.t === 'hl'), r = h.r[0], px = cv.getContext('2d').getImageData(Math.round((r[0] + r[2] * 0.97) * vp.width), Math.round((r[1] + r[3] / 2) * vp.height), 1, 1).data;
+            out.px = [px[0], px[1], px[2]]; out.size = bytes.byteLength; out.orig = (await PdfStore.get(p.hash)).byteLength;
+            return out;
+        });
+        ok('PDF: "Exporter le PDF annoté" gives a real PDF (extra blank page, typed text, highlight drawn in green)', ex.pages === 4 && /Ma remarque/.test(ex.text) && ex.px[1] > ex.px[0] + 8 && ex.px[2] < 245, JSON.stringify(ex));
+        const dl = await Promise.all([page.waitForEvent('download'), page.evaluate(() => app.pdfExportOriginal(app.pv.p))]);
+        const origBytes = fs.readFileSync(dl[0].suggestedFilename() ? await dl[0].path() : '');
+        ok('PDF: "Exporter l\'original" returns the file untouched (same bytes)', Buffer.compare(origBytes, fs.readFileSync(path.join(__dirname, 'sample.pdf'))) === 0 && /\.pdf$/.test(dl[0].suggestedFilename()));
+
+        /* search, text reader, jump from a card, Pratique */
+        await page.click('[data-action=pdf-search]'); await page.fill('#pdf-q', 'consentement'); await wait(1200);
+        const se = await page.evaluate(() => ({ st: document.getElementById('pdf-qst').textContent, hits: document.querySelectorAll('.pdf-hit').length, hl: document.querySelectorAll('.pdft span.hit').length }));
+        await page.click('.pdf-hit'); await wait(1800); const hitMarks = await page.evaluate(() => document.querySelectorAll('.pdft span.hit').length);
+        await page.evaluate(() => { const s = document.getElementById('pdf-searchbox'); if (s) s.remove(); app.pv.hitQ = ''; });
+        await page.click('[data-action=pdf-mode]'); await wait(1500);
+        const tm = await page.evaluate(() => ({ paras: document.querySelectorAll('#pdf-text p').length, hidden: document.getElementById('pdf-pages').classList.contains('hidden'), toolsHidden: document.getElementById('pdf-tools').classList.contains('hidden') }));
+        await page.click('[data-action=pdf-mode]'); await wait(900);
+        const cid = await page.evaluate(() => app.data.cards.find(c => c.src && c.src.pdf).id);
+        await page.evaluate(() => app.pdfGoto(3, '', true)); await wait(600);
+        await page.evaluate(id => app.openCardSource(id), cid); await wait(1500);
+        const jump = await page.evaluate(() => ({ cur: app.pdfCurrent(), hit: document.querySelectorAll('.pdft span.hit').length }));
+        ok('PDF: search lists results by page and marks them; text reader mode (paragraphs, tools hidden) and back; a card jumps to its page and flashes the passage', /1 résultat/.test(se.st) && se.hits === 1 && hitMarks >= 1 && tm.paras >= 5 && tm.hidden && tm.toolsHidden && jump.cur === 0 && jump.hit >= 1, JSON.stringify({ se, tm, jump }));
+        await page.click('[data-action=pdf-train]'); await wait(300);
+        const items = await page.evaluate(() => [...document.querySelectorAll('.popover .menu-item')].map(b => b.textContent.trim()));
+        await page.click('.popover .menu-item:has-text("S\'entraîner")'); await wait(1200);
+        const tr3 = await page.evaluate(() => ({ view: app.view, session: !!app.session, deck: app.session && app.session.deckId }));
+        await page.evaluate(() => { app.endSession(false); app.go('notes'); }); await wait(300);
+        ok('PDF: "Pratique" menu reuses the deck functions (study, free, in order, quiz, write, match, exam date, statistics, card table, options, move, help) and starts the review of the PDF\'s cards', ['S\'entraîner', 'Toutes les cartes (révision libre)', 'Dans l\'ordre du PDF', 'Créer un quiz', 'Date d\'examen…', 'Statistiques de ce PDF', 'Tableau des cartes', 'Configurer la pratique', 'Déplacer dans un dossier…', 'Comment ça marche ?'].every(l => items.some(i => i.includes(l))) && tr3.view === 'session' && tr3.session, JSON.stringify({ items, tr3 }));
+
+        /* Notes tab: PDF row (icon, opens the reader), folder page, extract, move with the folder, delete → trash → restore with its deck, note and cards */
+        const nl = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {}, p = a.data.pdfs[0];
+            a.go('notes'); await w(500); const row = document.querySelector(`.nb-row[data-id="${p.noteId}"]`); out.row = !!row && !!row.querySelector('.nb-row-pdf') && /PDF/.test(row.textContent) && !document.querySelector('.nb-folder .nb-row-t b')?.textContent.includes('Droit');
+            row.click(); await w(1200); out.opens = a.view === 'pdf' && a.pv.p.id === p.id;
+            a.pdfExtract(); await w(300); const nb = a.pdfNoteOf(p).b; out.extract = nb.some(b => b.t === 'h2' && /annotations/.test(b.x)) && nb.some(b => b.t === 'quote' && /accord de volontés/.test(b.x)) && nb.some(b => /Ma remarque/.test(b.x));
+            const dk = a.newDeckForTest ? null : null; a.go('notes'); await w(300);
+            const d = { id: uid('d'), name: 'Droit', emoji: '⚖️', description: '', created: Date.now(), parent: null, opts: null, mod: 0, preset: null, limits: null, pdf: '' }; a.data.decks.push(d);
+            a.noteMoveTo([p.noteId], { deckId: d.id }); out.followed = p.deckId === d.id && a.deck(p.pdeck).parent === d.id && a.note(p.noteId).deckId === d.id;
+            a.nbFolderOpen ? a.nbFolderOpen(d.id) : (a.ui.nbFolder = d.id, a.renderNotes()); await w(300);
+            out.docRow = !!document.querySelector('.nbf-doc .nbf-dico .i') && /PDF/.test(document.querySelector('.nbf-docs').textContent) && !document.querySelector('.nbf-sub .nbf-fold'); out.chip = !!document.querySelector('[data-action=nb-ftype][data-t=pdf]');
+            const nDecks = a.data.decks.length, nCards = a.data.cards.filter(c => c.src && c.src.pdf).length;
+            a.noteDeleteMany([p.noteId]);   // → asks to delete the PDF itself (answered below)
+            return Object.assign(out, { nDecks, nCards });
+        });
+        ok('PDF: row in the Notes tree (PDF icon, opens the reader), folder page lists it with a PDF filter, extract annotations into its note, moving the note moves the PDF + its deck', nl.row && nl.opens && nl.extract && nl.followed && nl.docRow && nl.chip, JSON.stringify(nl));
+        await wait(300); await page.evaluate(() => { const b = document.querySelector('.modal .btn-danger, .modal .btn-primary'); if (b) b.click(); }); await wait(500);
+        const del = await page.evaluate(() => ({ pdfs: app.data.pdfs.length, notes: app.data.notes.length, trash: app.data.trash.map(t => t.k).sort().join(), cards: app.data.cards.filter(c => c.src && c.src.pdf).length, pdecks: app.data.decks.filter(d => d.pdf).length }));
+        await page.evaluate(() => { const t = app.data.trash.find(x => x.k === 'pdf'); app.trashRestore('pdf', t.c.id); });
+        const rest = await page.evaluate(() => { const p = app.data.pdfs[0]; return p && { pdfs: app.data.pdfs.length, note: !!app.note(p.noteId), deck: !!app.deck(p.pdeck), cards: app.data.cards.filter(c => c.src && c.src.pdf).length, ann: Object.values(p.ann).flat().length >= 4, trash: app.data.trash.filter(t => (t.k === 'pdf' && t.c.id === p.id) || (t.k === 'deck' && t.c.id === p.pdeck) || (t.k === 'note' && t.c.id === p.noteId)).length }; });
+        ok('PDF: deleting its note asks to delete the PDF; it goes to the trash with deck, note and cards; restoring brings everything back (annotations included)', del.pdfs === 0 && del.notes === 0 && /pdf/.test(del.trash) && del.cards === 0 && del.pdecks === 0 && rest && rest.pdfs === 1 && rest.note && rest.deck && rest.cards === 1 && rest.ann && rest.trash === 0, JSON.stringify({ del, rest }));
+
+        /* merge between devices: lines of both sides kept, an erased line stays erased */
+        const mg = await page.evaluate(() => {
+            const base = normalizePdf(pdfClone(app.data.pdfs[0])), mk = (ann, trash = [], mod = 5) => normalizePdf({ ...pdfClone(base), mod, ann, trash });
+            const A = mk({ p1: [{ i: 'a1', t: 'hl', c: '#fde047', m: 1, r: [[0.1, 0.1, 0.2, 0.02]], s: 'x' }, { i: 'a2', t: 'dr', c: '#111827', m: 1, w: 0.004, p: [[0.1, 0.1], [0.2, 0.2]] }] }, [], 5);
+            const B = mk({ p1: [{ i: 'a1', t: 'hl', c: '#fde047', m: 1, r: [[0.1, 0.1, 0.2, 0.02]], s: 'x' }, { i: 'b1', t: 'tx', c: '#111827', m: 2, x: 0.3, y: 0.3, w: 0.3, s: 'autre', fs: 14 }] }, [{ pid: 'p1', at: 4, a: { i: 'a2', t: 'dr', c: '#111827', m: 1, w: 0.004, p: [[0.1, 0.1], [0.2, 0.2]] } }], 6);
+            const marks = []; const out = mergePdfList([A], [B], {}, (l, r) => marks.push([l, r]));
+            const ids = ((out[0] && out[0].ann.p1) || []).map(x => x.i).sort().join();
+            const gone = mergePdfList([A], [], { [A.id]: 99 }, () => {});
+            return { ids, one: out.length === 1, trashKept: out[0].trash.length === 1, gone: gone.length === 0 };
+        });
+        ok('PDF: two devices annotate the same PDF → lines of both are kept, a drawing erased on one side stays erased, a deleted PDF stays deleted', mg.one && mg.ids === 'a1,b1' && mg.trashKept && mg.gone, JSON.stringify(mg));
+    }
+
+    /* Vague 3: sync of the PDF files (fake server): encrypted, in pieces, resumable, 25 Mo limit; JSON backup with PDF option */
+    {
+        const DB = new Map();
+        const fake = async route => {
+            const req = route.request(), m = /id=eq\.([^&]+)/.exec(new URL(req.url()).search), row = m && DB.get(decodeURIComponent(m[1]));
+            if (req.method() === 'GET') {
+                if (/object\+json/.test(req.headers().accept || '')) return row ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(row) }) : route.fulfill({ status: 406, contentType: 'application/json', body: JSON.stringify({ code: 'PGRST116', message: '0 rows', details: '', hint: null }) });
+                return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(row ? [row] : []) });
+            }
+            const b = JSON.parse(req.postData()); (Array.isArray(b) ? b : [b]).forEach(r => DB.set(r.id, { data: r.data, updated_at: r.updated_at }));
+            return route.fulfill({ status: 201, contentType: 'application/json', body: '[]' });
+        };
+        const mkDev = async () => { const c = await browser.newContext({ viewport: { width: 1280, height: 800 } }); await c.route(/supabase\.co/, fake); await c.route(/fonts\.(googleapis|gstatic)/, r => r.abort()); const q = await c.newPage(); await q.goto(`http://localhost:${PORT}/index.html`); await q.waitForSelector('.hero', { timeout: 20000 }); return { c, q }; };
+        const A = await mkDev();
+        const KEY = 'LHC-TEST-TEST-TEST-TEST';
+        const up = await A.q.evaluate(async key => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {};
+            Object.assign(a.data.settings, { cloudSync: true, syncKey: key, backupLegacy: true, backupAutoDone: true });
+            await loadLazy('pdflib'); const d = await PDFLib.PDFDocument.create(), font = await d.embedFont(PDFLib.StandardFonts.Helvetica);
+            for (let i = 1; i <= 8; i++) { const pg = d.addPage([420, 595]); pg.drawText(`Sync ${i}`, { x: 40, y: 500, size: 22, font }); for (let k = 0; k < 40; k++) pg.drawText('Lorem ipsum dolor sit amet ' + Math.random(), { x: 20, y: 20 + k * 11, size: 8, font }); }
+            const bytes = await d.save(), p = await a.pdfImport(new File([bytes], 'Sync.pdf', { type: 'application/pdf' }), { open: false });
+            out.size = bytes.byteLength; out.hash = p.hash; out.n = Math.ceil(bytes.byteLength / PDF_CHUNK);
+            const prog = []; out.res = await PdfSync.upload(p, (k, n) => prog.push(k + '/' + n)); out.prog = prog.length;
+            out.json = JSON.stringify(a.data.pdfs.map(x => ({ ...x, up: true }))); out.settings = key;
+            /* a file above 25 Mo stays here */
+            const bigHash = 'big' + Date.now().toString(16); await PdfStore.put(bigHash, new ArrayBuffer(PDF_MAX_SYNC + 1024)); out.big = await PdfSync.upload({ hash: bigHash }, () => {}); await PdfStore.del(bigHash);
+            return out;
+        }, KEY);
+        const rowsA = [...DB.keys()].filter(k => k.startsWith('pdf_'));
+        const encA = rowsA.every(k => !!DB.get(k).data.enc) && !JSON.stringify([...DB.values()]).includes('Sync 1');
+        ok('PDF sync: the file goes to the cloud encrypted, cut in pieces (one row each), a file above 25 Mo stays on the device', up.res === true && rowsA.length === up.n && up.prog === up.n && encA && up.big === 'big', JSON.stringify({ rows: rowsA.length, n: up.n, big: up.big, prog: up.prog, encA }));
+        const again = await A.q.evaluate(async () => { const p = app.data.pdfs.find(x => x.name === 'Sync'); const prog = []; const r = await PdfSync.upload(p, (k, n) => prog.push(k)); return { r, prog: prog.length }; });
+        const B = await mkDev();
+        const dn = await B.q.evaluate(async ([key, json, hash]) => {
+            const a = app, out = {}; Object.assign(a.data.settings, { cloudSync: true, syncKey: key }); a.data.pdfs = JSON.parse(json).map(normalizePdf);
+            out.missing = !(await PdfStore.get(hash)); a.pdfOpen(a.data.pdfs[0].id); await new Promise(r => setTimeout(r, 3500));
+            out.fetched = !!(await PdfStore.get(hash)); out.shown = a.view === 'pdf' && !!document.querySelector('.pdfp canvas') && a.pv.pages.length === 8; return out;
+        }, [KEY, up.json, up.hash]);
+        ok('PDF sync: another device that knows the PDF but not the file downloads it by itself (checked against the fingerprint) and shows it; an interrupted upload resumes without re-sending', again.r === true && dn.missing && dn.fetched && dn.shown, JSON.stringify({ again, dn }));
+        await B.c.close();
+        /* the backup file: the PDF files are optional at export time */
+        const ej = await A.q.evaluate(async () => {
+            const a = app, out = {}; const p = a.data.pdfs.find(x => x.name === 'Sync');
+            const light = JSON.parse(a.serialize()); out.lightNoBlobs = !('pdfBlobs' in light) && light.pdfs.length === a.data.pdfs.length;
+            const blobs = await a.pdfBlobsForExport(); out.keys = Object.keys(blobs).includes(p.hash);
+            const orig = new Uint8Array(await PdfStore.get(p.hash)); await PdfStore.del(p.hash); out.deleted = !(await PdfStore.get(p.hash));
+            out.restored = await a.pdfRestoreBlobs(blobs); const back = new Uint8Array(await PdfStore.get(p.hash)); out.same = back.length === orig.length && back.every((v, i) => v === orig[i]);
+            a.pdfExportChoice(); await new Promise(r => setTimeout(r, 200)); out.modal = !!document.getElementById('xp-pdf') && /Inclure les fichiers PDF/.test(document.querySelector('.modal').textContent); a.closeModal();
+            out.total = a.pdfTotalSize() > 0; return out;
+        });
+        ok('PDF backup: JSON export offers "inclure les PDF (taille)", PDF files travel in the backup and come back identical; without the box the file stays light', ej.lightNoBlobs && ej.keys && ej.deleted && ej.restored >= 1 && ej.same && ej.modal && ej.total, JSON.stringify(ej));
+        await A.c.close();
+    }
+
+    /* Vague 3 on a phone: bottom drawer for the note, floating "Annoter" button, tools, nothing wider than the screen */
+    {
+        await page.setViewportSize({ width: 390, height: 800 }); await go('notes'); await wait(300);
+        const ph = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {}, p = a.data.pdfs[0];
+            a.pdfOpen(p.id); await w(1800); const v = document.querySelector('.pdfv');
+            out.narrow = v.classList.contains('narrow') && a.pv.tool === 'hand' && !a.pv.annotate; out.mode = a.pv.mode === 'pdf';
+            const fab = document.getElementById('pdf-fab'); out.fab = !!fab && fab.offsetWidth > 40 && !fab.classList.contains('hidden');
+            const nt = document.getElementById('pdf-notes'), pg = document.getElementById('pdf-scroll'); const r1 = nt.getBoundingClientRect(), r2 = pg.getBoundingClientRect();
+            out.drawer = v.classList.contains('with-notes') && r1.top > 300 && r1.bottom <= innerHeight + 1 && r2.bottom <= r1.top + 2 && r2.height > 200;
+            fab.click(); await w(250); out.tools = v.classList.contains('ann-on') && document.getElementById('pdf-tools').offsetHeight > 30 && a.pv.tool === 'select' && !document.getElementById('pdf-fab') .offsetWidth;
+            out.fit = document.documentElement.scrollWidth <= innerWidth + 1 && document.getElementById('pdf-scroll').scrollWidth <= innerWidth + 2;
+            const top = document.querySelector('.pdfv-top'); out.topFits = top.scrollWidth <= top.clientWidth + 1;
+            a.pdfDrawer('full'); await w(200); out.full = document.getElementById('pdf-notes').getBoundingClientRect().height > 500;
+            a.pdfToggleNotes(false); await w(200); out.hideNote = !v.classList.contains('with-notes') && document.getElementById('pdf-scroll').getBoundingClientRect().height > 450;
+            out.nav = getComputedStyle(document.querySelector('.bottom-nav')).display === 'none' && getComputedStyle(document.querySelector('.topbar')).display === 'none';
+            a.go('notes'); await w(400); out.back = !document.body.classList.contains('pdf-open') && getComputedStyle(document.querySelector('.bottom-nav')).display !== 'none' && a.pv === null;
+            return out;
+        });
+        ok('PDF on a phone: opens in "PDF fidèle", note in a bottom drawer (half / full / hidden), floating "Annoter" button opens the tools, nothing wider than the screen, tab bars come back after leaving', ph.narrow && ph.mode && ph.fab && ph.drawer && ph.tools && ph.fit && ph.topFits && ph.full && ph.hideNote && ph.nav && ph.back, JSON.stringify(ph));
     }
 
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));

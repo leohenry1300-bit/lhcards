@@ -89,12 +89,12 @@ Object.assign(SuperAnki.prototype, {
         return m;
     },
     /* Runs fn (which edits cards) and records it so it can be undone. fn may return the ids of cards it created. */
-    change(label, ids, fn, { decks = false, qcms = false, notes = false } = {}) {
-        const before = this.snapCards(ids), decksBefore = decks ? structuredClone(this.data.decks) : null, qcmsBefore = qcms ? structuredClone(this.data.qcms) : null, notesBefore = notes ? structuredClone(this.data.notes) : null;
+    change(label, ids, fn, { decks = false, qcms = false, notes = false, pdfs = false } = {}) {
+        const before = this.snapCards(ids), decksBefore = decks ? structuredClone(this.data.decks) : null, qcmsBefore = qcms ? structuredClone(this.data.qcms) : null, notesBefore = notes ? structuredClone(this.data.notes) : null, pdfsBefore = pdfs ? structuredClone(this.data.pdfs) : null;
         const created = fn() || [];
         created.forEach(id => { if (!before.has(id)) before.set(id, null); });
         const after = this.snapCards([...before.keys()]);
-        this.undoStack.push({ label, before, after, decksBefore, decksAfter: decks ? structuredClone(this.data.decks) : null, qcmsBefore, qcmsAfter: qcms ? structuredClone(this.data.qcms) : null, notesBefore, notesAfter: notes ? structuredClone(this.data.notes) : null });
+        this.undoStack.push({ label, before, after, decksBefore, decksAfter: decks ? structuredClone(this.data.decks) : null, qcmsBefore, qcmsAfter: qcms ? structuredClone(this.data.qcms) : null, notesBefore, notesAfter: notes ? structuredClone(this.data.notes) : null, pdfsBefore, pdfsAfter: pdfs ? structuredClone(this.data.pdfs) : null });
         if (this.undoStack.length > 40) this.undoStack.shift();
         this.redoStack = [];
         this.searchCache.clear();
@@ -116,6 +116,8 @@ Object.assign(SuperAnki.prototype, {
         if (qcms) this.data.qcms = structuredClone(qcms);
         const notes = dir === 'undo' ? entry.notesBefore : entry.notesAfter;
         if (notes) this.data.notes = structuredClone(notes);
+        const pdfs = dir === 'undo' ? entry.pdfsBefore : entry.pdfsAfter;
+        if (pdfs) this.data.pdfs = structuredClone(pdfs);
         this.searchCache.clear();
         this.save();
         const s = this.session;
@@ -400,6 +402,7 @@ Object.assign(SuperAnki.prototype, {
         pop.dataset.kind = 'menu';
         pop.innerHTML = items.map((it, i) => {
             if (it.sep) return '<div class="menu-sep"></div>';
+            if (it.head) return `<div class="menu-head">${it.head}</div>`;
             if (it.size) return `<div class="menu-size"><span>Taille du texte</span><span class="ms-btns"><button data-size="-1" aria-label="Texte plus petit" title="Plus petit">A−</button><button data-size="1" aria-label="Texte plus grand" title="Plus grand">A+</button></span></div>`;
             if (it.flags) return `<div class="menu-flags">${FLAGS.slice(1).map((f, k) => `<button data-flag="${k + 1}" class="${flagCur === k + 1 ? 'on' : ''}" title="${f.name}" style="--c:${f.color}">${ic('flag', 'i-flag')}</button>`).join('')}</div>`;
             return `<button class="menu-item ${it.danger ? 'danger' : ''}" data-mi="${i}">${it.icon ? ic(it.icon) : '<span class="i"></span>'}<span>${it.label}</span>${it.kbd ? `<kbd class="k">${it.kbd}</kbd>` : ''}</button>`;
@@ -426,6 +429,7 @@ Object.assign(SuperAnki.prototype, {
             items.push({ icon: 'pencil', label: 'Modifier', kbd: 'E', fn: () => this.openCardModal(c.id) });
             items.push({ icon: 'info', label: 'Informations sur la carte', kbd: 'I', fn: () => this.openCardInfo(c.id) });
             if (this.noteOfCard(c)) items.push({ icon: 'notebook', label: 'Voir dans le cours', fn: () => this.openCardSource(c.id) });
+            else if (c.src && c.src.pdf && this.pdf(c.src.pdf)) items.push({ icon: 'pdf', label: 'Voir dans le PDF', fn: () => this.openCardSource(c.id) });
             items.push({ sep: true });
         }
         items.push({ flags: true });
@@ -486,7 +490,7 @@ Object.assign(SuperAnki.prototype, {
             fsr && fs ? ['Stabilité', `${fmtNum(fs.s)} jours`] : ['Facilité', `${Math.round(c.ease * 100)} %`],
             fsr && fs ? ['Difficulté', `${fmtNum(fs.d)} / 10`] : null,
             fsr && R !== null ? ['Probabilité de souvenir', `${Math.round(R * 100)} %`] : null,
-            this.noteOfCard(c) ? ['Cours', esc(this.noteName(this.noteOfCard(c)))] : null,
+            this.noteOfCard(c) ? ['Cours', esc(this.noteName(this.noteOfCard(c)))] : c.src && c.src.pdf && this.pdf(c.src.pdf) ? ['PDF', esc(this.pdf(c.src.pdf).name)] : null,
             this.notesLinkingCard(id).length ? ['Citée dans les notes', esc(this.notesLinkingCard(id).map(n => this.noteName(n)).join(', '))] : null,
             ['Révisions', c.reps], ['Oublis', c.lapses], ['Erreurs en cours', c.errors],
             ['Temps total', fmtDuration(total)], ['Tags', c.tags.length ? esc(c.tags.join(', ')) : '-']

@@ -59,10 +59,10 @@ Object.assign(SuperAnki.prototype, {
             rows.push({ kind: 'folder', d, depth, open: !P.closed[d.id], count: notes.filter(n => n.deckId === d.id).length });
             if (P.closed[d.id]) return;
             top(d.id).forEach(n => addNote(n, depth + 1));
-            this.childrenOf(d.id).slice().sort((a, b) => a.name.localeCompare(b.name)).forEach(c => addDeck(c, depth + 1));
+            this.childrenOf(d.id).filter(c => !c.pdf).sort((a, b) => a.name.localeCompare(b.name)).forEach(c => addDeck(c, depth + 1));
         };
         const before = rows.length;
-        this.data.decks.filter(d => !d.parent).sort((a, b) => a.name.localeCompare(b.name)).forEach(d => addDeck(d, 0));
+        this.data.decks.filter(d => !d.parent && !d.pdf).sort((a, b) => a.name.localeCompare(b.name)).forEach(d => addDeck(d, 0));
         const loose = top('');
         if (loose.length) { if (rows.length > before || pinned.length) rows.push({ kind: 'head', label: rows.length > before ? 'Sans dossier' : 'Notes' }); loose.forEach(n => addNote(n, 0)); }
         return rows;
@@ -76,12 +76,12 @@ Object.assign(SuperAnki.prototype, {
         }
         const n = r.n, first = n.b.find(b => b.x && b.t !== 'hr' && b.t !== 'img'), when = new Date(n.mod || n.created).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
         const sub = r.flat ? this.notePathLabel(n) || (first ? first.x : '') : (first ? first.x.replace(NB_LINK, (m, i) => i.replace(/^c:[^|]+\|/, '')) : 'Note vide');
-        const checked = ui.noteSel && ui.noteSel.has(n.id);
+        const checked = ui.noteSel && ui.noteSel.has(n.id), pf = this.pdfOfNote(n.id);
         return `<div class="nb-wrap" data-kind="note" data-id="${esc(n.id)}"><div class="nb-row ${n.id === ui.note ? 'on' : ''} ${checked ? 'selected' : ''}" data-action="nb-open" data-id="${esc(n.id)}" data-kind="note" style="--d:${r.depth}">
             ${sel ? `<span class="row-check ${checked ? 'on' : ''}">${checked ? ic('check') : ''}</span>` : ''}
             ${r.kids ? `<button class="nb-fold" data-action="nb-fold" data-id="${esc(n.id)}" aria-label="${r.open ? 'Replier' : 'Déplier'}">${ic(r.open ? 'chevronDown' : 'chevronRight')}</button>` : '<span class="nb-fold none"></span>'}
-            <span class="nb-row-ico">${n.emoji ? esc(n.emoji) : ic(n.daily ? 'calendar' : 'notebook')}</span>
-            <span class="nb-row-t"><b>${esc(this.noteName(n))}</b><small>${esc(truncate(sub, 80))}</small>${n.tags.length ? `<span class="nb-tagline">${n.tags.slice(0, 3).map(t => `<i>#${esc(t)}</i>`).join('')}${n.tags.length > 3 ? `<i>+${n.tags.length - 3}</i>` : ''}</span>` : ''}</span>
+            <span class="nb-row-ico ${pf ? 'nb-row-pdf' : ''}">${pf ? ic('pdf') : n.emoji ? esc(n.emoji) : ic(n.daily ? 'calendar' : 'notebook')}</span>
+            <span class="nb-row-t"><b>${esc(this.noteName(n))}</b><small>${pf ? esc(this.pdfSubline(pf)) : esc(truncate(sub, 80))}</small>${n.tags.length ? `<span class="nb-tagline">${n.tags.slice(0, 3).map(t => `<i>#${esc(t)}</i>`).join('')}${n.tags.length > 3 ? `<i>+${n.tags.length - 3}</i>` : ''}</span>` : ''}</span>
             <span class="nb-row-d">${n.pin ? ic('pin', 'nb-pin') : ''}${n.fav ? ic('star', 'i-fill') : ''}<small>${when}</small></span>
             <button class="icon-btn icon-btn-sm nb-more-row" data-action="nb-row-menu" data-id="${esc(n.id)}" aria-label="Plus d'actions">${ic('more')}</button>
             ${sel || r.flat ? '' : `<span class="nb-grip" data-action="nb-noop" title="Glisser pour déplacer" aria-label="Glisser pour déplacer">${ic('grip')}</span>`}
@@ -181,7 +181,7 @@ Object.assign(SuperAnki.prototype, {
         if (!moving.length) return 0;
         const deckOf = dest.parent ? this.note(dest.parent).deckId : (dest.deckId || '');
         this.nbPrefs();
-        moving.forEach(id => { const n = this.note(id); n.parent = dest.parent || ''; n.deckId = deckOf; this.noteDescendants(id).forEach(d => { this.note(d).deckId = deckOf; }); [id, ...this.noteDescendants(id)].forEach(x => this.nbCardsFollow(this.note(x))); });   // the cards of a moved note follow it to its new folder
+        moving.forEach(id => { const n = this.note(id); n.parent = dest.parent || ''; n.deckId = deckOf; this.noteDescendants(id).forEach(d => { this.note(d).deckId = deckOf; }); [id, ...this.noteDescendants(id)].forEach(x => { this.nbCardsFollow(this.note(x)); const pf = this.pdfOfNote(x); if (pf) this.pdfMove(pf, deckOf); }); });   // the cards of a moved note follow it to its new folder
         /* the order among the new neighbours */
         const list = this.nbSortList(this.data.notes.filter(x => (x.parent || '') === (dest.parent || '') && x.deckId === deckOf && !moving.includes(x.id)));
         let at = list.length;
@@ -191,6 +191,8 @@ Object.assign(SuperAnki.prototype, {
         return moving.length;
     },
     async noteDeleteMany(ids) {
+        const pfs = ids.map(id => this.pdfOfNote(id)).filter(Boolean);
+        if (pfs.length) { ids = ids.filter(id => !this.pdfOfNote(id)); for (const pf of pfs) await this.pdfDeleteAsk(pf); if (!ids.length) return; }
         const all = new Set(); ids.forEach(id => { if (this.note(id)) { all.add(id); this.noteDescendants(id).forEach(d => all.add(d)); } });
         if (!all.size) return;
         const extra = all.size - ids.length;
@@ -238,7 +240,7 @@ Object.assign(SuperAnki.prototype, {
         });
         const paint = () => {
             const q = fold($('#nm-q', m).value.trim());
-            const items = [{ k: 'deck', id: '', label: '🗂️ Sans dossier', depth: 0 }, ...this.sortedDecks().map(d => ({ k: 'deck', id: d.id, label: `${d.emoji} ${d.name}`, depth: this.deckChain(d.id).length - 1 })),
+            const items = [{ k: 'deck', id: '', label: '🗂️ Sans dossier', depth: 0 }, ...this.sortedDecks().filter(d => !d.pdf).map(d => ({ k: 'deck', id: d.id, label: `${d.emoji} ${d.name}`, depth: this.deckChain(d.id).length - 1 })),
                 ...this.nbSortList(this.data.notes.filter(x => !blocked.has(x.id))).map(x => ({ k: 'note', id: x.id, label: `${x.emoji || '📄'} ${this.noteName(x)}`, depth: 0, sub: this.notePathLabel(x) }))];
             $('#nm-list', m).innerHTML = items.filter(i => !q || fold(i.label + (i.sub || '')).includes(q)).slice(0, 80).map(i => `<button class="pick-item ${(i.k === 'deck' && !first.parent && i.id === first.deckId) || (i.k === 'note' && i.id === first.parent) ? 'active' : ''}" data-k="${i.k}" data-id="${esc(i.id)}" style="padding-left:${12 + i.depth * 14}px">${esc(i.label)}${i.k === 'note' ? ` <span class="faint small">· sous-note${i.sub ? ' · ' + esc(truncate(i.sub, 30)) : ''}</span>` : ''}</button>`).join('') || '<p class="small faint">Rien ne correspond.</p>';
         };
@@ -261,7 +263,9 @@ Object.assign(SuperAnki.prototype, {
     /* ---------- menus ---------- */
     nbNoteMenu(anchor, id) {
         const n = this.note(id); if (!n) return;
+        const pf = this.pdfOfNote(n.id);
         this.showMenu(anchor, [
+            ...(pf ? [{ icon: 'pdf', label: 'Ouvrir le PDF', fn: () => this.pdfOpen(pf.id, { from: 'notes' }) }, { icon: 'export', label: 'Exporter le PDF annoté', fn: () => this.pdfExportAnnotated(pf) }, { icon: 'export', label: 'Exporter l\'original', fn: () => this.pdfExportOriginal(pf) }, { sep: true }] : []),
             { icon: 'pin', label: n.pin ? 'Désépingler' : 'Épingler en haut', fn: () => { n.pin = !n.pin; this.save(); this.renderNotes(); } },
             { icon: 'star', label: n.fav ? 'Retirer des favoris' : 'Ajouter aux favoris', fn: () => { n.fav = !n.fav; this.save(); this.renderNotes(); } },
             { sep: true },
@@ -280,6 +284,7 @@ Object.assign(SuperAnki.prototype, {
     nbNewMenu(anchor, ctx = {}) {
         this.showMenu(anchor, [
             { icon: 'plus', label: 'Note vide', fn: () => this.noteNewFrom(null, ctx) },
+            { icon: 'pdf', label: 'Importer un PDF…', fn: () => this.pdfPick(ctx.deckId || '') },
             { sep: true },
             ...NB_TEMPLATES.map(t => ({ icon: 'file', label: `${t.emoji} ${t.name}`, fn: () => this.noteNewFrom(t, ctx) })),
             { sep: true },
@@ -441,6 +446,7 @@ Object.assign(SuperAnki.prototype, {
         else if (action === 'nb-open') {
             if (recent()) return;
             if (ui.noteSelMode) { ui.noteSel = ui.noteSel || new Set(); if (ui.noteSel.has(ds.id)) ui.noteSel.delete(ds.id); else ui.noteSel.add(ds.id); this.nbRefreshList(); return; }
+            const pf = this.pdfOfNote(ds.id); if (pf) { this.pdfOpen(pf.id, { from: 'notes' }); return; }
             this.noteOpen(ds.id);
         }
         else if (action === 'nb-fold') { const P = this.nbPrefs(); if (P.closed[ds.id]) delete P.closed[ds.id]; else P.closed[ds.id] = 1; this.nbPrefSave(); this.nbRefreshList(); }
