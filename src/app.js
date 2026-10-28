@@ -81,6 +81,16 @@ const endOfDay = (t = Date.now()) => addDays(t, 1) - 1;
 const num = (v, def = 0) => { const n = Number(v); return Number.isFinite(n) ? n : def; };
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const plural = (n, one, many) => `${n} ${n > 1 ? (many || one + 's') : one}`;
+/* Heavy files that are not part of the page are loaded the first time they are needed (named after their content, so the offline copy is never stale).
+   Always resolves: when the file cannot be loaded, the caller keeps working with what it has. */
+const _lazyLoads = {};
+const loadLazy = key => _lazyLoads[key] || (_lazyLoads[key] = new Promise(res => {
+    if (!LAZY[key]) { res(false); return; }
+    const s = document.createElement('script'); let done = false;
+    const end = ok => { if (done) return; done = true; if (!ok) delete _lazyLoads[key]; res(ok); };
+    s.src = LAZY[key]; s.onload = () => end(true); s.onerror = () => end(false); setTimeout(() => end(false), 12000);
+    document.head.appendChild(s);
+}));
 const uid = (p = 'c') => `${p}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fold = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();

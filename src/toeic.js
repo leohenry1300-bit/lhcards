@@ -310,6 +310,7 @@ Object.assign(SuperAnki.prototype, {
         return { T, hist, scored, partAcc, wrong, last: scored[scored.length - 1], best: scored.reduce((m, a) => Math.max(m, a.total), 0) };
     },
     renderToeic() {
+        if (typeof TOEIC_PHOTOS === 'undefined') loadLazy('toeicPhotos');   // started now, so the part 1 photos are ready by the time a test starts
         const S = this.toeicStats(), T = S.T, saved = this.toeicSavedRun();
         const days = T.goalDate ? daysBetweenKeys(dayKey(), T.goalDate) : null;
         const lastTotal = S.last ? S.last.total : null, cefr = toeicCefr(lastTotal);
@@ -440,6 +441,8 @@ Object.assign(SuperAnki.prototype, {
 
     /* ---------- starting / resuming ---------- */
     toeicStart(cfg) {
+        /* the part 1 photos are a separate file: wait for it once (a few hundred ms the first time, then it is kept offline) */
+        if (typeof TOEIC_PHOTOS === 'undefined' && !cfg._ph) { loadLazy('toeicPhotos').then(() => this.toeicStart({ ...cfg, _ph: 1 })); return; }
         const S = this.toeicStats(), seed = uid('s'), rnd = toeicRng(seed + 'plan');
         let spec, style = cfg.style || 'exam', sel;
         if (cfg.kind === 'full') spec = TOEIC_FULL;
@@ -485,6 +488,7 @@ Object.assign(SuperAnki.prototype, {
     toeicResume() {
         const run = this.toeicSavedRun();
         if (!run) return;
+        if (typeof TOEIC_PHOTOS === 'undefined') { loadLazy('toeicPhotos').then(() => this.exOpen(run)); return; }
         this.exOpen(run);
     },
     toeicAbandon() {

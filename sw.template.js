@@ -33,6 +33,11 @@ self.addEventListener('fetch', e => {
         e.respondWith(caches.open('lh-mascot').then(c => c.match(req).then(hit => hit || fetch(req).then(res => { if (res && res.ok) c.put(req, res.clone()); return res; }))));
         return;
     }
+    // theme pictures and heavy data files: their names contain a fingerprint of their content, so a cached copy is always the right one (cached copy first; kept apart like Léo's clips)
+    if (sameOrigin && (url.pathname.includes('/themes/') || url.pathname.includes('/lazy/'))) {
+        e.respondWith(caches.open('lh-files').then(c => c.match(req).then(hit => hit || fetch(req).then(res => { if (res && res.ok) c.put(req, res.clone()); return res; }))));
+        return;
+    }
     // fonts and libraries: cached copy first, refreshed in the background
     e.respondWith(caches.match(req).then(hit => {
         const net = fetch(req).then(res => { if (res && (res.ok || res.type === 'opaque')) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); } return res; }).catch(() => hit);

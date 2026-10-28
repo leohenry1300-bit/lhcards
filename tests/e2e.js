@@ -57,6 +57,31 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         await up.close();
     }
 
+    /* 0c. DECISION (user: "l'appli est parfois lente ou lourde, mais ne rien enlever") : the page stays light and nothing is removed.
+       The theme pictures are files that only the theme in use downloads; the TOEIC photos are a separate file loaded when the TOEIC tab opens. */
+    {
+        const lw = await ctx.newPage(), reqs = [];
+        lw.on('request', r => reqs.push(r.url()));
+        await lw.route(/fonts\.(googleapis|gstatic)/, r => r.abort());
+        await lw.addInitScript(() => { try { localStorage.setItem('superanki_theme', 'clair'); } catch { /* private mode */ } });
+        await lw.goto(`http://localhost:${PORT}/index.html`); await lw.waitForSelector('.hero', { timeout: 20000 }); await wait(2500);
+        const size = fs.statSync(path.join(ROOT, 'index.html')).size;
+        ok('the page is light: index.html stays under 3 Mo', size < 3 * 1024 * 1024, Math.round(size / 1024) + ' Ko');
+        const first = await lw.evaluate(() => ({ photos: typeof TOEIC_PHOTOS, lazy: LAZY && Object.keys(LAZY).length }));
+        ok('at start with a plain theme: no theme picture and no TOEIC photo is downloaded', !reqs.some(u => /\/(themes|lazy)\//.test(u)) && first.photos === 'undefined' && first.lazy > 0, JSON.stringify(first));
+        await lw.evaluate(() => app.setSetting('theme', 'hiver')); await wait(2500);
+        const hv = reqs.filter(u => /\/themes\//.test(u));
+        const bg = await lw.evaluate(() => getComputedStyle(document.body, '::before').backgroundImage);
+        ok('choosing a theme downloads its own pictures only, and they are used', hv.length > 0 && hv.every(u => /\/themes\/hiver\//.test(u)) && /themes\/hiver\//.test(bg), hv.length + ' files, ' + bg.slice(0, 60));
+        await lw.evaluate(() => app.go('toeic')); await wait(2500);
+        const ph = await lw.evaluate(() => typeof TOEIC_PHOTOS !== 'undefined' ? Object.keys(TOEIC_PHOTOS).length : -1);
+        ok('the TOEIC photos load when the TOEIC tab opens', ph > 0 && reqs.some(u => /\/lazy\/toeic-photos\.[0-9a-f]{8}\.js/.test(u)), String(ph));
+        await lw.evaluate(() => app.toeicStart({ kind: 'part', part: 'p1', count: 2, style: 'train' })); await wait(1200); await lw.evaluate(() => app.exStartPart()); await wait(1500);
+        const pic = await lw.evaluate(() => { const i = document.querySelector('.tq-photo img'); return i ? i.getAttribute('src').slice(0, 22) : ''; });
+        ok('a TOEIC part 1 question shows its real photo', pic === 'data:image/jpeg;base64', pic);
+        await lw.close();
+    }
+
     /* 1. start */
     const t0 = Date.now();
     await page.goto(`http://localhost:${PORT}/index.html`); await page.waitForSelector('.hero', { timeout: 20000 });

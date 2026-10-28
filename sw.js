@@ -1,5 +1,5 @@
-/* LH Cards service worker: makes the app work offline. Version: db92f28361 */
-const CACHE = 'superanki-db92f28361';
+/* LH Cards service worker: makes the app work offline. Version: 5628344bbd */
+const CACHE = 'superanki-5628344bbd';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -31,6 +31,11 @@ self.addEventListener('fetch', e => {
     // Léo's animation clips are big and never change under the same name: kept apart (an app update does not clear them), cached copy first
     if (sameOrigin && url.pathname.includes('/mascot/')) {
         e.respondWith(caches.open('lh-mascot').then(c => c.match(req).then(hit => hit || fetch(req).then(res => { if (res && res.ok) c.put(req, res.clone()); return res; }))));
+        return;
+    }
+    // theme pictures and heavy data files: their names contain a fingerprint of their content, so a cached copy is always the right one (cached copy first; kept apart like Léo's clips)
+    if (sameOrigin && (url.pathname.includes('/themes/') || url.pathname.includes('/lazy/'))) {
+        e.respondWith(caches.open('lh-files').then(c => c.match(req).then(hit => hit || fetch(req).then(res => { if (res && res.ok) c.put(req, res.clone()); return res; }))));
         return;
     }
     // fonts and libraries: cached copy first, refreshed in the background

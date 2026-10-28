@@ -244,7 +244,16 @@ if _pdir.exists():
 for _it in toeic["p1"]:
     if _it.get("ph") and _it["ph"] not in _ph:
         raise SystemExit("missing photo " + _it["ph"])
-(SRC / "toeic-photos.js").write_text("const TOEIC_PHOTOS = " + json.dumps(_ph, ensure_ascii=False, separators=(",", ":")) + ";\n", encoding="utf-8")
+# The TOEIC photos (about 1 Mo) are not part of the page: they are a separate file, named after its content, loaded when the TOEIC tab opens.
+import hashlib as _hl
+_photos_js = "const TOEIC_PHOTOS = " + json.dumps(_ph, ensure_ascii=False, separators=(",", ":")) + ";\n"
+_photos_name = "toeic-photos." + _hl.sha1(_photos_js.encode("utf-8")).hexdigest()[:8] + ".js"
+(ROOT / "lazy").mkdir(exist_ok=True)
+for _old in (ROOT / "lazy").glob("toeic-photos.*.js"):
+    if _old.name != _photos_name:
+        _old.unlink()
+(ROOT / "lazy" / _photos_name).write_text(_photos_js, encoding="utf-8")
+LAZY = {"toeicPhotos": "lazy/" + _photos_name}
 (SRC / "toeic-bank.js").write_text("const TOEIC_BANK = " + json.dumps(toeic, ensure_ascii=False, separators=(",", ":")) + ";\n", encoding="utf-8")
 print("toeic bank:", {k: len(v) for k, v in toeic.items()}, "questions:",
       sum(len(v) if k in ("p1", "p2", "p5") else sum(len(i["qs"]) for i in v) for k, v in toeic.items()))
@@ -289,7 +298,7 @@ try {{ var cs = getComputedStyle(document.documentElement), c = (cs.getPropertyV
 {read("packs-data.js").strip()}
 {read("courses-data.js").strip()}
 {read("toeic-bank.js").strip()}
-{read("toeic-photos.js").strip()}
+const LAZY = {json.dumps(LAZY)};   /* files loaded when needed (see loadLazy) */
 </script>
 <script>
 {read("fsrs.js")}
