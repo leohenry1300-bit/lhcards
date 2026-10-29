@@ -269,8 +269,8 @@ Object.assign(SuperAnki.prototype, {
     /* a quick horizontal slide on a page goes to the next / previous tab: a finger (not from the very edge), a mouse drag on an empty part of the page, or two fingers on a trackpad.
        Not on a field, a chart, anything that scrolls sideways, or (to the left) a list row: there it shows the row's buttons. */
     initTabSwipe() {
-        const ORDER = ['dashboard', 'decks', 'notes', 'stats'];
-        let x0 = -1, y0 = 0, t0 = 0, onRow = false;
+        const ORDER = ['dashboard', 'decks', 'notes', 'stats', 'settings'];
+        let x0 = -1, y0 = 0, t0 = 0, onRow = false, live = false, cur = null;
         const sideScroll = el => { for (let n = el; n && n !== document.body; n = n.parentElement) { const cs = getComputedStyle(n); if (/(auto|scroll)/.test(cs.overflowX) && n.scrollWidth > n.clientWidth + 2) return true; } return false; };
         const allowed = el => !this.session && !this.modals.length && !this.popover && !this.ui.selMode && ORDER.includes(this.view) && !(this.view === 'notes' && this.ui.note) && el && el.closest
             && !el.closest('textarea, select, input[type=range], [contenteditable], .chart, .range, [data-chart-box], .leo-bubble') && !(el.closest('input') && el.closest('input') === document.activeElement) && !sideScroll(el);   // (a search field that is not being typed in does not stop a slide)
@@ -281,13 +281,29 @@ Object.assign(SuperAnki.prototype, {
                 x0 = ok ? x : -1; y0 = y; t0 = Date.now(); onRow = ok && !!el.closest('.card-row, .nb-row');
                 return ok ? true : false;
             },
-            move: () => {},
-            end: (x, y) => {
-                if (x0 < 0) return; const dx = x - x0, dy = Math.abs(y - y0); x0 = -1;
+            /* the page follows the finger (like Instagram), then slides away on release if the push was far or fast enough; otherwise it springs back */
+            move: (x, y, e, mouse) => {
+                if (x0 < 0 || mouse) return; const dx = x - x0, dy = y - y0;
+                if (!live) { if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.3 && !(onRow && dx < 0)) { live = true; cur = $(`#view-${this.view}`); if (cur) { cur.style.transition = 'none'; cur.style.willChange = 'transform, opacity'; } } else return; }
+                if (!cur) return; const i = ORDER.indexOf(this.view), j = i + (dx < 0 ? 1 : -1), ok = j >= 0 && j < ORDER.length, d = ok ? dx : dx * 0.22;
+                cur.style.transform = `translate3d(${d}px,0,0)`; cur.style.opacity = String(1 - Math.min(0.55, Math.abs(d) / innerWidth * 0.8));
+            },
+            end: (x, y, e, mouse) => {
+                if (x0 < 0) return; const dx = x - x0, dy = Math.abs(y - y0), dt = Math.max(1, Date.now() - t0); x0 = -1;
+                const reset = (anim) => { if (!cur) return; const c = cur; c.style.transition = anim ? 'transform .2s cubic-bezier(.2,.7,.2,1), opacity .2s' : 'none'; c.style.transform = ''; c.style.opacity = ''; setTimeout(() => { c.style.transition = ''; c.style.willChange = ''; }, 230); };
+                const i = ORDER.indexOf(this.view), j = i + (dx < 0 ? 1 : -1), ok = j >= 0 && j < ORDER.length;
+                const far = Math.abs(dx) > innerWidth * 0.26 || (Math.abs(dx) > 40 && Math.abs(dx) / dt > 0.45), good = ok && far && dy * 1.5 < Math.abs(dx) && !this.session && !(onRow && dx < 0);
+                if (live) {
+                    live = false; const c = cur; cur = null;
+                    if (!good) { cur = c; reset(true); cur = null; return; }
+                    c.style.transition = 'transform .11s ease-out, opacity .11s'; c.style.transform = `translate3d(${dx < 0 ? -innerWidth * 0.5 : innerWidth * 0.5}px,0,0)`; c.style.opacity = '0';
+                    setTimeout(() => { c.style.transition = 'none'; c.style.transform = ''; c.style.opacity = ''; c.style.willChange = ''; go(dx); setTimeout(() => { c.style.transition = ''; }, 50); }, 100);
+                    return;
+                }
                 if (Math.abs(dx) < 90 || dy * 2.2 > Math.abs(dx) || Date.now() - t0 > 650 || this.session || (onRow && dx < 0)) return;
                 go(dx);
             },
-            cancel: () => { x0 = -1; }
+            cancel: () => { x0 = -1; if (live && cur) { cur.style.transition = 'transform .2s'; cur.style.transform = ''; cur.style.opacity = ''; } live = false; cur = null; }
         });
         /* trackpad: two fingers sliding sideways. One slide = one tab: the tail of the slide (its gliding) never counts as another one; a new slide can start while the previous one is still
            gliding only if it is a real new push (the speed fell, then clearly rises again) and some time has passed, so tabs can still be chained quickly */
