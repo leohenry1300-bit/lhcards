@@ -931,7 +931,8 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         await page.evaluate(() => { app.data.notes = []; app.ui.note = null; app.ui.nbFolder = null; app.ui.nbMem = false; app.noteNewFrom(null, {}); });
         await wait(400);
         await page.keyboard.type('Marketing'); await page.keyboard.press('Enter');
-        await page.keyboard.type('Capitale de la France >> Paris'); await page.keyboard.press('Enter'); await wait(300);
+        const vOK = async () => { await page.evaluate(() => { document.querySelectorAll('.nbc-ok').forEach(b => b.click()); const n = app.data.notes[0]; if (n) app.nbActivate(n.b.length - 1, 'end'); }); await wait(300); };   // card lines are drafts until « Créer la carte »
+        await page.keyboard.type('Capitale de la France >> Paris'); await page.keyboard.press('Enter'); await wait(300); await vOK();
         const k1 = await page.evaluate(() => { const n = app.data.notes[0], c = app.data.cards.find(x => x.src); return { cd: n.b[0].cd && n.b[0].cd.k + ':' + n.b[0].cd.a, x: n.b[0].x, next: n.b.length === 2 && n.b[1].x === '', card: !!c && c.front === 'Capitale de la France' && c.back === 'Paris' && c.deckId === 'notes_auto' && c.src.n === n.id && c.src.b === n.b[0].cd.id, deck: !!app.deck('notes_auto') }; });
         const bar = await page.evaluate(() => [...document.querySelectorAll('#nb-bar button')].map(b => b.textContent.trim()));
         await page.click('[data-nb=card]'); await wait(150);
@@ -939,7 +940,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         await page.click('.nb-menu button:has-text("Liste")'); await wait(250);
         await page.keyboard.type('Les 4 P'); await page.keyboard.press('Enter');
         for (const w of ['Produit', 'Prix', 'Place', 'Promotion']) { await page.keyboard.type(w); if (w !== 'Promotion') await page.keyboard.press('Enter'); }
-        await wait(900);
+        await wait(900); await vOK();
         const k2 = await page.evaluate(() => { const n = app.data.notes[0], b = n.b[1], c = b.cd && app.card(b.cd.cid[0]); return { kind: b.cd && b.cd.k, kids: n.b.slice(2).map(z => z.x).join(','), back: c && c.back, own: app.nbCardOwners(n).slice(2).every(v => v === 1) }; });
         /* settings round button: type, direction, order, type the answer, switch off */
         await page.evaluate(() => { app.nbCardToggle(1, 'ord'); }); await wait(500);
@@ -961,23 +962,23 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         ok('Notes 2B: direction "Les deux" gives two cards, "Saisir la réponse" is kept on the cards, switching cards off suspends them and back on re-activates them; an incomplete line says what is missing', k4.n === 2 && k4.kinds === 'rev,rev' && k4.ta && k5.off && k6 && /pas encore de réponse/.test(pv), JSON.stringify({ k4, k5, k6, pv }));
         /* editing keeps the progress; deleting the line keeps the card */
         const e1 = await page.evaluate(async () => {
-            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {}, n = a.data.notes[0], id = n.b[0].cd.cid[0], c = a.card(id);
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {}, n = a.data.notes[0], id = n.b[0].cd.cid[0], c = a.card(id); delete a.confirm;   // (earlier steps replaced confirm by an automatic « oui »)
             c.reps = 4; c.state = 'review'; c.interval = 12; c.due = Date.now() + 864e5 * 5;
             n.b[0].cd.a = 'Paris (France)'; n.b[0].cd.sg = ''; a.nbCardSyncAll(n); out.same = a.card(id) === c && c.reps === 4 && c.interval === 12 && /Paris \(France\)/.test(c.back || a.card(n.b[0].cd.cid[1]).front + c.back);
             const before = a.data.cards.length;
             a.nbOp(nn => { nn.b.splice(0, 1); }, null); await w(200);
-            out.kept = a.data.cards.length === before && !!a.card(id) && a.card(id).src.b === '' && !!document.querySelector('.toast button');
-            out.toastTxt = [...document.querySelectorAll('.toast')].map(t => t.textContent).join('|');
-            document.querySelectorAll('.toast').forEach(t => t.remove());
+            out.kept = a.data.cards.length === before && !!a.card(id) && a.card(id).src.b === '' && a.modals.length === 1;
+            out.toastTxt = [...document.querySelectorAll('.modal')].map(t => t.textContent).join('|');
+            const keep = document.querySelector('.modal [data-close]'); if (keep) keep.click(); await w(200); out.stillThere = !!a.card(id);
             a.nbUndo(); await w(200); out.undo = !!a.data.notes[0].b[0].cd;
             return out;
         });
-        ok('Notes 2B: editing a line updates its card without losing its progress; deleting a line keeps the card (message to delete it too); undo brings the line back', e1.same && e1.kept && /restent? dans le paquet/.test(e1.toastTxt) && e1.undo, JSON.stringify(e1));
+        ok('Notes 2B: editing a line updates its card without losing its progress; deleting a line keeps the card (message to delete it too); undo brings the line back', e1.same && e1.kept && /encore dans ton paquet/.test(e1.toastTxt) && e1.stillThere && e1.undo, JSON.stringify(e1));
         const e2 = await page.evaluate(async () => {
             const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {}, n = a.data.notes[0];
             /* choices (QCM outside the planning), holes with stable numbers */
-            n.b.push({ t: 'p', x: 'Quels sont des fruits ?', d: 0, cd: a.nbCdNew('mcq') }, { t: 'p', x: 'Pomme', d: 1, ok: true }, { t: 'p', x: 'Carotte', d: 1 }, { t: 'p', x: 'Fraise', d: 1, ok: true });
-            n.b.push({ t: 'p', x: 'Paris est la {{capitale}} de la {{France}}', d: 0, cd: a.nbCdNew('cloze') });
+            n.b.push({ t: 'p', x: 'Quels sont des fruits ?', d: 0, cd: Object.assign(a.nbCdNew('mcq'), { vd: true }) }, { t: 'p', x: 'Pomme', d: 1, ok: true }, { t: 'p', x: 'Carotte', d: 1 }, { t: 'p', x: 'Fraise', d: 1, ok: true });
+            n.b.push({ t: 'p', x: 'Paris est la {{capitale}} de la {{France}}', d: 0, cd: Object.assign(a.nbCdNew('cloze'), { vd: true }) });
             a.nbCardSyncAll(n); a.save();
             const q = a.data.qcms.find(x => x.id === n.b[n.b.length - 5].cd.qid); out.qcm = !!q && q.multi && q.o.filter(o => o.ok).length === 2 && !a.data.cards.some(c => c.front && /fruits/.test(c.front));
             const cl = a.data.cards.filter(c => c.src && c.src.b === n.b[n.b.length - 1].cd.id); out.cloze = cl.length === 2 && cl.map(c => c.ord).sort().join() === '1,2';
@@ -1366,6 +1367,42 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         await page.keyboard.press('Enter'); await wait(2500);
         const q2 = await page.evaluate(() => ({ view: app.view, modal: app.modals.length > 0 }));
         ok('Quick search (Ctrl+K): suggestions at once, results grouped (PDF, notes, cards…), Enter opens the first result', q0.box && q0.acts && /PDF|Notes|Cartes/.test(q1) && !q2.modal && q2.view !== 'dashboard', JSON.stringify({ q0, q1, q2 }));
+    }
+
+    {   /* Notes v5: a card line is a draft until validated, erasing the line asks about the card, Cartes mémoire has a closable tab, trash newest first */
+        await page.setViewportSize({ width: 1280, height: 800 }); await go('notes'); await wait(300);
+        const dv = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {}; delete a.confirm;
+            const n = a.noteNew('Brouillon', { b: [{ t: 'p', x: 'Capitale de la France ?', d: 0, cd: { ...a.nbCdNew('basic'), a: 'Paris' } }, { t: 'p', x: '', d: 0 }] });
+            a.go('notes'); a.noteOpen(n.id); await w(500); a.nbCardSyncAll(n); a.nbFlush();
+            const count = () => a.data.cards.filter(c => c.src && c.src.n === n.id).length;
+            out.draft = count() === 0 && !!document.querySelector('.nbc-ok');
+            document.querySelector('.nbc-ok').click(); await w(400);
+            out.made = count() === 1 && !document.querySelector('.nbc-ok');
+            a.nbOp(() => { n.b.splice(0, 1); }, 0, 'end'); await w(400);
+            out.ask = a.modals.length === 1 && /Supprimer aussi la carte/.test(document.querySelector('.modal').textContent) && count() === 1;
+            const mb = document.querySelector('.modal [data-ok]'); out.mb = !!mb; if (mb) mb.click(); await w(400);
+            out.gone = count() === 0;
+            const now = Date.now(); a.data.trash.push({ k: 'note', at: now - 5e6, c: { id: 'tz1', title: 'ZAncienne', b: [{ t: 'p', x: '', d: 0 }], tags: [], created: now, mod: now } }, { k: 'note', at: now - 10, c: { id: 'tz2', title: 'ZRecente', b: [{ t: 'p', x: '', d: 0 }], tags: [], created: now, mod: now } });
+            a.openTrash(); await w(300);
+            const names = [...document.querySelectorAll('#tr-body .set-row b')].map(x => x.textContent).filter(x => /^Z/.test(x));
+            out.trash = names[0] === 'ZRecente' && names[1] === 'ZAncienne'; const cb = document.querySelector('.modal [data-close]'); if (cb) cb.click(); await w(200);
+            a.ui.note = null; a.folderAction('nb-mem', { dataset: {} }); await w(300);
+            out.tab = !!document.querySelector('#doc-tabs .dt.on .dt-x') && a.ui.nbMem;
+            const xb = document.querySelector('#doc-tabs .dt.on .dt-x'); if (xb) xb.click(); await w(300);
+            out.closed = !a.ui.nbMem && !!document.querySelector('#nb-list');
+            return out;
+        });
+        ok('Notes: card lines are drafts until "Créer la carte"; erasing the line asks whether to delete the card; trash lists newest first; "Cartes mémoire" opens as a tab that closes with ✕', dv.draft && dv.made && dv.ask && dv.gone && dv.trash && dv.tab && dv.closed, JSON.stringify(dv));
+    }
+
+    {   /* PDF: the bar that opens when you touch a highlight stays open (it used to vanish after a quarter of a second) */
+        await page.setViewportSize({ width: 1280, height: 800 });
+        await page.evaluate(async () => { const buf = await (await fetch('/tests/sample.pdf')).arrayBuffer(); await app.pdfImport(new File([buf], 'Droit des contrats.pdf', { type: 'application/pdf' })); await new Promise(r => setTimeout(r, 1800)); const pid = app.pv.p.pg[0].id; app.pdfEdit(() => { app.pdfAnnAdd(pid, { t: 'hl', c: '#facc15', r: [[0.1, 0.18, 0.5, 0.04]], s: 'Le contrat' }); }); await new Promise(r => setTimeout(r, 500)); });
+        const hb = await page.evaluate(() => { const e = document.querySelector('.pdfp[data-i="0"]').getBoundingClientRect(); return { x: e.x, y: e.y, w: e.width, h: e.height }; });
+        await page.mouse.click(hb.x + hb.w * 0.3, hb.y + hb.h * 0.2); await wait(900);
+        const hp = await page.evaluate(() => ({ pop: !!document.querySelector('#pdf-pop'), btns: document.querySelectorAll('#pdf-pop button').length }));
+        ok('PDF: touching a highlight opens its bar (colour, quote, card, erase) and it stays open', hp.pop && hp.btns >= 3, JSON.stringify(hp));
     }
 
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));

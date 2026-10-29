@@ -159,9 +159,9 @@ Object.assign(SuperAnki.prototype, {
         const ds = el.dataset || {}, ui = this.ui;
         if (action === 'nb-train') this.nbTrain(ds.k, ds.id, 'srs');
         else if (action === 'nb-train-menu') this.nbTrainMenu(el, ds.k, ds.id);
-        else if (action === 'nb-folder') { ui.note = null; ui.nbMem = false; ui.nbFolder = ds.id; this.renderNotes(); window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' }); }
-        else if (action === 'nb-docs') { ui.note = null; ui.nbMem = false; ui.nbFolder = NB_ROOT; this.renderNotes(); window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' }); }
-        else if (action === 'nb-mem') { ui.note = null; ui.nbFolder = null; ui.nbMem = true; this.renderNotes(); window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' }); }
+        else if (action === 'nb-folder') { ui.note = null; ui.nbMem = false; ui.nbFolder = ds.id; this.tabsAdd('folder', ds.id); this.renderNotes(); window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' }); }
+        else if (action === 'nb-docs') { ui.note = null; ui.nbMem = false; ui.nbFolder = NB_ROOT; this.tabsAdd('folder', NB_ROOT); this.renderNotes(); window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' }); }
+        else if (action === 'nb-mem') { ui.note = null; ui.nbFolder = null; ui.nbMem = true; this.tabsAdd('mem'); this.renderNotes(); window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' }); }
         else if (action === 'nb-folder-close') { ui.nbFolder = null; ui.nbMem = false; this.renderNotes(); }
         else if (action === 'nb-folder-plus') this.nbFolderPlusMenu(el, ds.deck);
         else if (action === 'nb-favs') { ui.noteFav = !ui.noteFav; ui.noteTag = ''; this.nbRefreshList(); const t = $('[data-action=nb-favs]'); if (t) t.classList.toggle('on', ui.noteFav); }

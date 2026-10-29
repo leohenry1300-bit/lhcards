@@ -3236,6 +3236,45 @@ body.tab-drag .view, body.tab-drag .view * { -webkit-backdrop-filter: none !impo
 .ph-tile span { font-size: .82rem; }
 .ph-hint { font-size: .95rem; }
 @media (max-width: 520px) { .ph-info h2 { font-size: 1.55rem; } .ph-info p { font-size: .95rem; } .ph-tile b { font-size: 1.35rem; } .ph-tile span { font-size: .78rem; } }
-.dash-tools { flex-direction: column; align-items: stretch; gap: 10px; }
-.dash-tools .dash-find, .dash-tools .sort-pick { width: 100%; flex: none; }
-.dash-tools .sort-pick .select { width: 100%; max-width: none; }
+.dash-tools { flex-direction: row; align-items: stretch; gap: 10px; }
+.dash-tools .dash-find { flex: 1; min-width: 0; }
+.dash-tools .sort-pick { flex: none; width: auto; display: flex; }
+.dash-tools .sort-pick .select { width: 190px; max-width: 46vw; height: 100%; min-height: 0; }
+@media (max-width: 420px) { .dash-tools { flex-wrap: nowrap; } .dash-tools .sort-pick .select { width: 150px; } }
+
+/* Notes selection bar: one tidy block (count + Tout/Aucune on top, 3 equal actions below), stuck above the bottom bar */
+#nb-bulk { display: block; position: sticky; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); z-index: 20; }
+@media (max-width: 767px) { #nb-bulk { bottom: calc(env(safe-area-inset-bottom, 0px) + 74px); } }
+.nb-bulk { margin: 8px 4px; padding: 10px; border-radius: 16px; background: var(--surface-solid, var(--surface)); border: 1px solid var(--border-strong, var(--border)); box-shadow: 0 10px 30px rgba(0,0,0,.22); display: grid; gap: 8px; }
+.nbb-top { display: flex; align-items: center; gap: 8px; }
+.nbb-top b { flex: 1; font-size: .95rem; }
+.nbb-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.nbb { display: flex; align-items: center; justify-content: center; gap: 6px; height: 44px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); font-weight: 700; font-size: .88rem; color: var(--text); }
+.nbb .i { width: 18px; height: 18px; }
+.nbb.danger { color: var(--danger, #dc2626); background: color-mix(in srgb, var(--danger, #dc2626) 10%, var(--surface-solid, var(--surface))); }
+.nbb:disabled { opacity: .45; }
+@media (max-width: 380px) { .nbb span { display: none; } }
+.notes-shell.has-open .nbb span { display: none; }
+
+/* Notes toolbar on a computer: as wide as the page, evenly spread, no scrollbar; room left under the note so it never hides text */
+.nb-bar { scrollbar-width: none; -ms-overflow-style: none; }
+.nb-bar::-webkit-scrollbar { display: none; }
+@media (min-width: 900px) {
+  body.nb-open .nb-bar { width: min(1088px, calc(100vw - 32px)); bottom: 14px; padding: 6px 10px; gap: 4px; justify-content: space-between; box-shadow: 0 10px 34px rgba(0,0,0,.2); }
+  body.nb-open .nb-bar button { flex: 1 1 0; min-width: 0; height: 52px; }
+  body.nb-open .nb-bar .nb-sep, body.nb-open .nb-bar i.sep { flex: none; }
+  body.nb-open.nb-editing .notes-shell { padding-bottom: 96px; }
+}
+/* card drafts */
+.nbc-draft { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0 2px; padding: 8px 10px; border-radius: 12px; background: color-mix(in srgb, var(--primary) 10%, var(--surface-solid, var(--surface))); border: 1px dashed var(--primary); font-size: .85rem; color: var(--text-muted); }
+.nbc-ok { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 10px; background: var(--primary); color: var(--on-primary, #fff); font-weight: 800; }
+.nbc-ok .i { width: 16px; height: 16px; }
+.nbc-dot.st-draft { background: #94a3b8; }
+
+.deck-grip { flex: none; display: grid; place-items: center; width: 28px; height: 32px; color: var(--text-faint); cursor: grab; touch-action: none; border-radius: 8px; }
+.deck-grip .i { width: 18px; height: 18px; }
+.deck-card { position: relative; }
+.deck-card.dragging { opacity: .4; }
+.deck-card.dz-before::before, .deck-card.dz-after::after { content: ""; position: absolute; top: 6px; bottom: 6px; width: 4px; border-radius: 4px; background: var(--primary); z-index: 3; }
+.deck-card.dz-before::before { left: -8px; } .deck-card.dz-after::after { right: -8px; }
+.nb-searchpanel .nb-chips { justify-content: safe center; }

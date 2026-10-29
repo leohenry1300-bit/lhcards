@@ -136,6 +136,7 @@ Object.assign(SuperAnki.prototype, {
     /* the small bar that appears on a selection (or on a highlight that is touched) */
     pdfPop(rect, { sel = null, ann = null, area = null } = {}) {
         this.pdfPopClose(); const pv = this.pv, v = $('.pdfv'); if (!v) return;
+        pv.popKind = ann ? 'ann' : sel ? 'sel' : 'area';
         const pop = document.createElement('div'); pop.id = 'pdf-pop'; pop.className = 'pdf-pop';
         const cur = ann ? ann.a.c : pv.color;
         pop.innerHTML = `<div class="pdf-pop-c">${PDF_COLORS.map(c => `<button class="pdft-c ${c === cur && !area ? 'on' : ''}" data-pop="color" data-c="${c}" style="--c:${c}" aria-label="${area ? 'Surligner la zone' : 'Surligner'} (${c})"></button>`).join('')}</div>
@@ -172,7 +173,7 @@ Object.assign(SuperAnki.prototype, {
         clearTimeout(this._pdfSelT);
         this._pdfSelT = setTimeout(() => {
             const pv = this.pv; if (!pv || this.view !== 'pdf' || pv.tool !== 'select' || pv.mode === 'text') return;
-            const sel = this.pdfSelection(); if (!sel) { if (!pv.areaPop) this.pdfPopClose(); return; }
+            const sel = this.pdfSelection(); if (!sel) { if (!pv.areaPop && pv.popKind === 'sel') this.pdfPopClose(); return; }
             if (pv.auto) { this.pdfHighlight(sel, pv.color); window.getSelection().removeAllRanges(); return; }
             const g = sel.groups[sel.groups.length - 1], gf = sel.groups[0];
             this.pdfPop({ left: gf.left, right: g.right, top: gf.top, bottom: g.bottom }, { sel });

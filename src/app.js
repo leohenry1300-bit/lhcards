@@ -288,7 +288,7 @@ const DEFAULT_SETTINGS = {
     theme: 'auto', cardSize: 'm', showIntervals: true,
     autoSpeak: false, autoAudio: false, loadBalance: true, filters: [], sessionSize: 0, fsrsW: null, fsrsMeta: null, answerMode: 'flip', learnAhead: 20, cloudSync: false,
     quizCount: 20, writeCount: 20, chronoDuration: 60,
-    rolloverHour: 4, syncKey: '', settingsMod: 0, autoBackup: true, libSeen: false, tipsSeen: false, goalName: '', goalDate: '', goals: [], deckSort: 'recent', profile: { name: '', emoji: '🦁', photo: '' },
+    rolloverHour: 4, syncKey: '', settingsMod: 0, autoBackup: true, libSeen: false, tipsSeen: false, goalName: '', goalDate: '', goals: [], deckSort: 'recent', deckOrder: [], profile: { name: '', emoji: '🦁', photo: '' },
     ...OPT_DEFAULTS
 };
 function parseSteps(str, def) {
@@ -1950,7 +1950,7 @@ class SuperAnki {
                     <span class="deck-head-links"><button class="link" data-action="tool-trash">${ic('trash')}Corbeille</button><button class="link" data-nav="decks">Gérer ${ic('chevronRight')}</button></span>
                 </div>
                 ${d.decks.length ? `<div class="dash-tools"><label class="input-icon dash-find">${ic('search')}<span class="sr-only">Rechercher un paquet</span><input class="input" type="search" placeholder="Rechercher un paquet..." data-input="dash-find" autocomplete="off" spellcheck="false"></label>
-                <label class="sort-pick"><span class="sr-only">Trier</span><select class="select" aria-label="Trier les paquets" data-input="deck-sort">${[['recent', 'Plus récents'], ['due', 'À revoir d\'abord'], ['studied', 'Révisés récemment'], ['alpha', 'A → Z'], ['size', 'Plus de cartes']].map(([v, l]) => `<option value="${v}" ${(d.settings.deckSort || 'recent') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
+                <label class="sort-pick"><span class="sr-only">Trier</span><select class="select" aria-label="Trier les paquets" data-input="deck-sort">${[['alpha', 'A à Z'], ['recent', 'Plus récents'], ['studied', 'Révisés récemment'], ['due', 'À revoir d\'abord'], ['manual', 'Mon ordre']].map(([v, l]) => `<option value="${v}" ${(['alpha', 'recent', 'studied', 'due', 'manual'].includes(d.settings.deckSort) ? d.settings.deckSort : 'recent') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
                 <div id="dash-find-res" class="panel dl-results hidden"></div>
                 <div id="dash-decks" class="deck-grid ${this.deckCompact() ? 'compact' : ''}">${this.dashboardDeckCards()}</div>`
                     : `<div class="panel empty"><div class="empty-mascot">${leoSvg('ready', { state: 's0', intro: 'hello0', amb: 'aha0,read0,talk0' })}</div><p>Aucun paquet pour l'instant.</p><button class="btn btn-primary" style="margin-top:14px" data-action="new-deck">${ic('folderPlus')}Créer un paquet</button></div>`}
@@ -1987,11 +1987,11 @@ class SuperAnki {
         const recency = ({ deck, cards }) => Math.max(deck.created || 0, ...cards.map(x => x.created || 0));
         const studied = ({ deck }) => Math.max(0, ...this.descendantIds(deck.id).map(id => lastReview.get(id) || 0));
         const byName = (a, b) => a.deck.name.localeCompare(b.deck.name, 'fr', { sensitivity: 'base' });
-        const mode = this.data.settings.deckSort || 'recent';
+        const mode = this.data.settings.deckSort || 'recent', manualOrd = this.data.settings.deckOrder || [], deckIdx = id => { const i = manualOrd.indexOf(id); return i < 0 ? 1e9 : i; };
         rows.sort(mode === 'due' ? (a, b) => (b.c.due > 0) - (a.c.due > 0) || b.c.due - a.c.due || byName(a, b)
             : mode === 'studied' ? (a, b) => studied(b) - studied(a) || byName(a, b)
             : mode === 'alpha' ? byName
-            : mode === 'size' ? (a, b) => b.cards.length - a.cards.length || byName(a, b)
+            : mode === 'manual' ? (a, b) => deckIdx(a.deck.id) - deckIdx(b.deck.id) || recency(b) - recency(a) || byName(a, b)
             : (a, b) => recency(b) - recency(a) || byName(a, b));
         const pins = this.data.settings.pinnedDecks || [];
         if (pins.length) rows.sort((a, b) => pins.includes(b.deck.id) - pins.includes(a.deck.id));   // pinned decks first (stable)
@@ -2016,6 +2016,7 @@ class SuperAnki {
                 <div class="deck-head">
                     <span class="deck-emoji">${esc(deck.emoji)}</span>
                     <div style="min-width:0"><div class="deck-name">${esc(deck.name)}</div><div class="deck-meta">${plural(cards.length, 'carte')} · ${this.pctSeen(st)} % vu · ${this.pctMature(st)} % maîtrisé</div></div>
+                    ${mode === 'manual' ? `<span class="deck-grip" data-action="deck-noop" title="Glisser pour réorganiser" aria-label="Glisser pour réorganiser">${ic('grip')}</span>` : ''}
                     <button class="icon-btn icon-btn-sm pin-btn ${pins.includes(deck.id) ? 'on' : ''}" data-action="pin-deck" data-deck="${esc(deck.id)}" title="${pins.includes(deck.id) ? 'Désépingler' : 'Épingler en haut'}" aria-label="Épingler le paquet" aria-pressed="${pins.includes(deck.id)}">${ic('pin')}</button>
                 </div>
                 <div class="counts">
@@ -3337,13 +3338,13 @@ class SuperAnki {
         el.remove();
         if (!this.modals.length) document.body.style.overflow = '';
     }
-    confirm({ title, message, ok = 'Confirmer', danger = false }) {
+    confirm({ title, message, ok = 'Confirmer', danger = false, cancel = 'Annuler' }) {
         return new Promise(resolve => {
             let answered = false;
             const m = this.openModal({
                 title, size: 'narrow',
                 body: `<p class="muted">${message}</p>`,
-                foot: `<button class="btn btn-soft" data-close>Annuler</button><button class="btn ${danger ? 'btn-danger' : 'btn-primary'}" data-ok>${ok}</button>`,
+                foot: `<button class="btn btn-soft" data-close>${cancel}</button><button class="btn ${danger ? 'btn-danger' : 'btn-primary'}" data-ok>${ok}</button>`,
                 onClose: () => { if (!answered) resolve(false); }
             });
             m.querySelector('[data-ok]').addEventListener('click', () => { answered = true; this.closeModal(m); resolve(true); });
@@ -4351,6 +4352,7 @@ class SuperAnki {
             }
             case 'export-txt': this.exportTXT(); break;
             case 'open-library': this.openLibrary(); break;
+            case 'deck-noop': break;
             case 'lib-dismiss': this.setSetting('libSeen', true); this.renderDashboard(); break;
             case 'tips-dismiss': this.setSetting('tipsSeen', true); this.renderDashboard(); break;
             case 'toggle-deck': this.toggleOpen('side', ds.deck); this.renderDeckSidebar(); break;

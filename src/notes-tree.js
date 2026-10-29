@@ -4,7 +4,7 @@
    les tags, l'emoji, les modèles, l'export, les infos et la recherche dans une note.
    ============================================================ */
 const NB_EMOJIS = ['📘', '📗', '📙', '📕', '📒', '📝', '🧠', '💡', '🎯', '⭐', '🔥', '✅', '📌', '📚', '🎓', '✏️', '🧪', '🔬', '💼', '📈', '💰', '⚖️', '🌍', '🗣️', '🇬🇧', '🎧', '🩺', '🏠', '🎨', '🎵', '🚀', '❤️'];
-const NB_SORTS = [['recent', 'Récentes (modifiées)', 'clock'], ['created', 'Date de création', 'calendar'], ['manual', 'Mon ordre (glisser-déposer)', 'list']];
+const NB_SORTS = [['alpha', 'A à Z', 'typeT'], ['recent', 'Récentes (modifiées)', 'clock'], ['created', 'Date de création', 'calendar'], ['manual', 'Mon ordre (glisser-déposer)', 'list']];
 const NB_TEMPLATES = [
     { name: 'Cours', emoji: '📘', title: 'Cours du ', blocks: [['h2', 'Objectifs'], ['p', ''], ['h2', 'Notions clés'], ['p', ''], ['h2', 'À retenir'], ['p', ''], ['h2', 'Questions'], ['todo', '']] },
     { name: 'Résumé de chapitre', emoji: '📝', title: 'Résumé : ', blocks: [['h2', 'Idée principale'], ['p', ''], ['h2', 'Plan du chapitre'], ['p', ''], ['p', '', 1], ['h2', 'Définitions'], ['p', ''], ['h2', 'Exemples'], ['p', '']] },
@@ -25,6 +25,7 @@ Object.assign(SuperAnki.prototype, {
         const m = this.nbPrefs().sort, a = list.slice();
         if (m === 'manual') a.sort((x, y) => x.order - y.order || x.created - y.created);
         else if (m === 'created') a.sort((x, y) => y.created - x.created);
+        else if (m === 'alpha') a.sort((x, y) => String(x.title || 'zzz').localeCompare(String(y.title || 'zzz'), 'fr', { sensitivity: 'base' }));
         else a.sort((x, y) => y.mod - x.mod || y.created - x.created);
         return a;
     },
@@ -95,17 +96,14 @@ Object.assign(SuperAnki.prototype, {
     nbChipsHtml() {
         const ui = this.ui, tags = this.noteTagCounts().slice(0, 14);
         const nPdf = this.data.pdfs.length, ty = ui.noteType || 'all', none = !ui.noteFav && !ui.noteTag, tc = (k, label, n) => `<button class="chip ${none && ty === k ? 'active' : ''}" data-action="nb-filter" data-kind="type" data-t="${k}">${label} <span class="count">${n}</span></button>`;
-        return `${tc('all', 'Tout', this.data.notes.length)}${tc('note', ic('notebook') + ' Notes', this.data.notes.length - nPdf)}${tc('pdf', ic('pdf') + ' PDF', nPdf)}<button class="chip ${ui.noteFav ? 'active' : ''}" data-action="nb-filter" data-kind="fav">${ic('star', 'i-fill')} Favoris <span class="count">${this.data.notes.filter(x => x.fav).length}</span></button>${tags.map(([t, c]) => `<button class="chip ${ui.noteTag && ui.noteTag.toLowerCase() === t.toLowerCase() ? 'active' : ''}" data-action="nb-filter" data-kind="tag" data-tag="${esc(t)}">#${esc(t)} <span class="count">${c}</span></button>`).join('')}`;
+        return `<button class="chip ${ui.noteFav ? 'active' : ''}" data-action="nb-filter" data-kind="fav">${ic('star', 'i-fill')} Favoris <span class="count">${this.data.notes.filter(x => x.fav).length}</span></button>${tc('all', 'Tout', this.data.notes.length)}${tc('note', ic('notebook') + ' Notes', this.data.notes.length - nPdf)}${tc('pdf', ic('pdf') + ' PDF', nPdf)}${tags.map(([t, c]) => `<button class="chip ${ui.noteTag && ui.noteTag.toLowerCase() === t.toLowerCase() ? 'active' : ''}" data-action="nb-filter" data-kind="tag" data-tag="${esc(t)}">#${esc(t)} <span class="count">${c}</span></button>`).join('')}`;
     },
     nbBulkHtml() {
         const ui = this.ui; if (!ui.noteSelMode) return '';
-        const n = ui.noteSel ? ui.noteSel.size : 0;
-        return `<div class="bulk-bar nb-bulk"><span><b>${n}</b> sélectionnée${n > 1 ? 's' : ''}</span>
-            <button class="btn btn-soft btn-sm" data-action="nb-sel-all">${(() => { const all = this.nbRows().filter(r => r.kind === 'note'); return all.length && ui.noteSel && all.every(r => ui.noteSel.has(r.n.id)) ? 'Aucune' : 'Tout'; })()}</button>
-            <button class="btn btn-soft btn-sm" data-action="nb-bulk" data-act="move" ${n ? '' : 'disabled'}>${ic('folder')}Déplacer</button>
-            <button class="btn btn-soft btn-sm" data-action="nb-bulk" data-act="pin" ${n ? '' : 'disabled'}>${ic('pin')}Épingler</button>
-            <button class="btn btn-danger-soft btn-sm" data-action="nb-bulk" data-act="del" ${n ? '' : 'disabled'}>${ic('trash')}Supprimer</button>
-            <button class="icon-btn" data-action="nb-sel-exit" title="Quitter la sélection" aria-label="Quitter la sélection">${ic('x')}</button></div>`;
+        const n = ui.noteSel ? ui.noteSel.size : 0, all = this.nbRows().filter(r => r.kind === 'note'), allOn = all.length && ui.noteSel && all.every(r => ui.noteSel.has(r.n.id));
+        const b = (act, ico, label, cls = '') => `<button class="nbb ${cls}" data-action="nb-bulk" data-act="${act}" ${n ? '' : 'disabled'} title="${label}" aria-label="${label}">${ic(ico)}<span>${label}</span></button>`;
+        return `<div class="nb-bulk"><div class="nbb-top"><button class="icon-btn icon-btn-sm" data-action="nb-sel-exit" title="Quitter la sélection" aria-label="Quitter la sélection">${ic('x')}</button><b>${n ? plural(n, 'sélectionnée', 'sélectionnées') : 'Rien de sélectionné'}</b><button class="btn btn-soft btn-sm" data-action="nb-sel-all">${allOn ? 'Aucune' : 'Tout'}</button></div>
+            <div class="nbb-row">${b('move', 'folder', 'Déplacer')}${b('pin', 'pin', 'Épingler')}${b('del', 'trash', 'Supprimer', 'danger')}</div></div>`;
     },
     nbRefreshList() {
         const l = $('#nb-list'); if (l) l.innerHTML = this.noteListHtml();
@@ -140,9 +138,9 @@ Object.assign(SuperAnki.prototype, {
                     <div class="head-tools" id="nb-headtools">${this.nbHeadToolsHtml()}</div>
                 </div>
                 <div class="decks-toolbar" id="nb-home">${this.nbHomeHtml()}</div>
-                <div class="panel search-bar nb-searchpanel">${searchRow}<div class="nb-filterrow"><div class="chip-row nb-chips" id="nb-chips">${this.nbChipsHtml()}</div>${tools}</div></div>
+                <div class="panel search-bar nb-searchpanel">${searchRow}<div class="chip-row nb-chips" id="nb-chips">${this.nbChipsHtml()}</div></div>
                 <div class="panel nb-listpanel">
-                    <div class="nb-lp-head"><b id="nb-lp-title">${this.nbListTitle()}</b></div>
+                    <div class="nb-lp-head"><b id="nb-lp-title">${this.nbListTitle()}</b>${tools}</div>
                     <div id="nb-bulk">${this.nbBulkHtml()}</div>
                     <div id="nb-list" class="nb-tree">${this.noteListHtml()}</div>
                 </div>

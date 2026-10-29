@@ -24,7 +24,7 @@ const NB_DIR = { fwd: 'Avant', back: 'Arrière', both: 'Les deux' };
 const CLOZE_HOLE = /\{\{(?:c(\d+)::)?([^{}]+?)\}\}/g;
 
 Object.assign(SuperAnki.prototype, {
-    nbCdNew(k = 'basic') { return { k, a: '', dir: 'fwd', on: true, ta: false, ord: false, mx: false, id: uid('b'), cid: [], qid: '', hm: [], sg: '', so: true, dead: false }; },
+    nbCdNew(k = 'basic') { return { k, a: '', dir: 'fwd', on: true, ta: false, ord: false, mx: false, id: uid('b'), cid: [], qid: '', hm: [], sg: '', so: true, dead: false, vd: false }; },
     /* plain text typed in a note → html for a card (links unwrapped, **bold** etc. kept) */
     nbH(x) { return sanitizeHtml(this.fmtHtml(esc(String(x || '').replace(NB_LINK, (m, i) => i.replace(/^c:[^|]+\|/, '')))).replace(/\n/g, '<br>')); },
     nbPlain(x) { return String(x || '').replace(NB_LINK, (m, i) => i.replace(/^c:[^|]+\|/, '')).replace(/\*\*|==|`/g, '').trim(); },
@@ -76,6 +76,7 @@ Object.assign(SuperAnki.prototype, {
         const b = n.b[i], cd = b.cd, f = this.nbCardFields(n, i), now = Date.now();
         if (!cd.on) return { cls: 'off', label: 'Cartes désactivées' };
         if (!f.valid) return { cls: 'inc', label: 'Carte incomplète' };
+        if (cd.vd === false && !cd.cid.length && !cd.qid) return { cls: 'draft', label: 'Brouillon : touche « Créer la carte »' };
         if (cd.dead) return { cls: 'dead', label: 'Carte supprimée du paquet' };
         if (cd.k === 'mcq') { const q = this.qcm(cd.qid); return q ? { cls: 'ok', label: q.right + q.wrong ? `QCM · ${q.right}/${q.right + q.wrong} réussi` : 'QCM · jamais posé' } : { cls: 'inc', label: 'QCM à enregistrer' }; }
         const cs = this.nbCardsOf(n, cd); if (!cs.length) return { cls: 'inc', label: 'Pas encore créée' };
@@ -91,7 +92,7 @@ Object.assign(SuperAnki.prototype, {
         const arrow = ico => `<button class="nbc-arrow" data-nbk="cmenu" aria-label="Réglages de la carte" title="Réglages de la carte (type, direction…)">${ico}</button>`;
         const mid = k === 'basic' ? arrow(ic(cd.dir === 'both' ? 'swap' : 'arrowRight', cd.dir === 'back' ? 'nb-flip-h' : '')) + `<div class="nbc-a"><input class="nbc-ain" data-nbf="a" value="${esc(cd.a)}" placeholder="Verso de la carte" autocomplete="off" spellcheck="true" enterkeyhint="done"></div>`
             : k === 'cloze' ? arrow(ic('brackets')) : arrow(ic('arrowDown'));
-        return `<div class="nbc nbc-${k} st-${st.cls}"><div class="nbc-line"><div class="nbc-q"><div class="nb-view" data-ph="${ph}">${view}</div><div class="nb-t" data-ph="${ph}" contenteditable="${NB_CE}" role="textbox" aria-multiline="false" spellcheck="true" autocapitalize="sentences"></div></div>${mid}<button class="nbc-prev" data-nbk="cprev" title="${esc(st.label)} · Aperçu de la carte mémoire">${ic('eye')}<span>Aperçu</span><i class="nbc-dot st-${st.cls}"></i></button></div></div>`;
+        return `<div class="nbc nbc-${k} st-${st.cls}"><div class="nbc-line"><div class="nbc-q"><div class="nb-view" data-ph="${ph}">${view}</div><div class="nb-t" data-ph="${ph}" contenteditable="${NB_CE}" role="textbox" aria-multiline="false" spellcheck="true" autocapitalize="sentences"></div></div>${mid}<button class="nbc-prev" data-nbk="cprev" title="${esc(st.label)} · Aperçu de la carte mémoire">${ic('eye')}<span>Aperçu</span><i class="nbc-dot st-${st.cls}"></i></button></div>${st.cls === 'draft' ? `<div class="nbc-draft"><span>Pas encore une carte</span><button class="nbc-ok" data-nbk="cvalid">${ic('check')}Créer la carte</button></div>` : ''}</div>`;
     },
 
     /* ---------- keeping the real cards in step with the line ---------- */
@@ -117,6 +118,7 @@ Object.assign(SuperAnki.prototype, {
         const sig = JSON.stringify([cd.k, cd.dir, cd.on, cd.ta, cd.ord, cd.mx, f.q, f.a, f.items, f.holes ? f.holes.text : '', deckId]);
         if (!force && sig === cd.sg) return false;
         if (!f.valid) { cd.sg = ''; return false; }
+        if (cd.vd === false && !cd.cid.length && !cd.qid && !force) return false;   // a draft: the card is only made when you validate it
         const hadCards = cd.cid.length > 0, exist = this.nbCardsOf(n, cd);
         if (cd.k !== 'mcq') {
             if (hadCards && !exist.length && !force) { cd.dead = true; cd.sg = sig; return true; }   // the card was deleted from the deck: not brought back by itself
@@ -172,7 +174,11 @@ Object.assign(SuperAnki.prototype, {
         before.forEach((v, id) => { if (!now.has(id)) { v.cid.forEach(c => { if (this.card(c)) ids.push(c); }); if (v.qid && this.qcm(v.qid)) qids.push(v.qid); } });
         if (!ids.length && !qids.length) return;
         ids.forEach(id => { const c = this.card(id); if (c && c.src) c.src = { n: c.src.n, b: '' }; });
-        this.toast(ids.length + qids.length > 1 ? 'Lignes supprimées : leurs cartes restent dans le paquet' : 'Ligne supprimée : la carte reste dans le paquet', 'success', ic('card'), { label: 'Supprimer aussi', fn: () => { this.nbCardsRemove(ids); if (qids.length) { this.data.qcms = this.data.qcms.filter(q => !qids.includes(q.id)); this.save(); } this.toast('Carte supprimée', 'success', ic('trash')); }, ms: 9000 });
+        const many = ids.length + qids.length > 1;
+        this.confirm({ title: many ? 'Supprimer aussi les cartes ?' : 'Supprimer aussi la carte ?', message: many ? 'Tu as effacé des lignes qui avaient des cartes mémoire. Les cartes sont encore dans ton paquet.' : 'Tu as effacé une ligne qui avait une carte mémoire. La carte est encore dans ton paquet.', ok: many ? 'Supprimer les cartes' : 'Supprimer la carte', cancel: 'Garder', danger: true }).then(yes => {
+            if (!yes) return;
+            this.nbCardsRemove(ids); if (qids.length) { this.data.qcms = this.data.qcms.filter(q => !qids.includes(q.id)); this.save(); }
+        });
     },
     /* a note changes folder: its cards follow */
     nbCardsFollow(n) {
@@ -228,6 +234,12 @@ Object.assign(SuperAnki.prototype, {
         if (ids.length) this.nbCardsRemove(ids, plural(ids.length, 'carte supprimée', 'cartes supprimées'));
         if (qid && this.qcm(qid)) { this.data.qcms = this.data.qcms.filter(q => q.id !== qid); this.save(); this.toast('Carte supprimée', 'success', ic('trash')); }
     },
+    nbCardValidate(i) {
+        const n = this.note(this.ui.note), b = n && n.b[i], cd = b && b.cd; if (!cd) return;
+        const f = this.nbCardFields(n, i); if (!f.valid) { this.toast(f.why, 'warning'); return; }
+        this.nbOp(() => { cd.vd = true; cd.sg = ''; }, i, 'end');
+        this.nbCardSyncAll(n); this.nbFlush(); this.nbRefreshBadges();
+    },
     nbCardRecreate(i) { const n = this.note(this.ui.note), cd = n.b[i].cd; if (!cd) return; cd.cid = []; cd.sg = ''; this.nbCardSync(n, i, true); this.nbFlush(); this.nbRefreshBadges(); this.toast('Carte recréée', 'success', ic('card')); },
 
     /* « question >> réponse » (and « <> » for both ways) becomes a card line when you press Enter */
@@ -236,7 +248,6 @@ Object.assign(SuperAnki.prototype, {
         const m = /^(.+?)\s*(<>|>>)\s*(.+)$/.exec(b.x); if (!m) return false;
         this.nbOp(nn => { b.cd = this.nbCdNew('basic'); b.cd.a = m[3].trim(); b.x = m[1].trim(); if (m[2] === '<>') b.cd.dir = 'both'; nn.b.splice(i + 1, 0, { t: 'p', x: '', d: b.d }); }, i + 1, 0);
         this.nbCardSyncAll(n); this.nbFlush(); this.nbRefreshBadges();
-        this.toast('Carte créée', 'success', ic('card'), { label: 'Annuler', fn: () => { const cd = this.nbCardIdsOf(n); const ids = []; n.b.forEach(x => { if (x.cd && x.cd.a === m[3].trim()) x.cd.cid.forEach(c => ids.push(c)); }); this.nbUndo(); this.nbCardsRemove(ids.filter(id => this.card(id))); } });
         return true;
     },
     /* the selected words become a hole of a « À trous » line */
@@ -261,7 +272,7 @@ Object.assign(SuperAnki.prototype, {
         $('#p2c-go', m).addEventListener('click', () => {
             const keep = new Set($$('input[data-k]', m).filter(x => x.checked).map(x => Number(x.dataset.k)));
             this.closeModal(m); if (!keep.size) return;
-            this.nbOp(nn => { cand.forEach((c, k) => { if (keep.has(k)) nn.b[c.i].cd = this.nbCdNew(c.kids.length > 1 ? 'list' : 'multi'); }); }, null);
+            this.nbOp(nn => { cand.forEach((c, k) => { if (keep.has(k)) { nn.b[c.i].cd = this.nbCdNew(c.kids.length > 1 ? 'list' : 'multi'); nn.b[c.i].cd.vd = true; } }); }, null);
             this.nbCardSyncAll(n); this.nbFlush(); this.nbRefreshBadges();
             this.toast(`${plural(keep.size, 'carte créée', 'cartes créées')}`, 'success', ic('card'), { label: 'Annuler', fn: () => { const ids = []; n.b.forEach(x => { if (x.cd) x.cd.cid.forEach(c => ids.push(c)); }); this.nbUndo(); this.nbCardsRemove(ids); } });
         });

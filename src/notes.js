@@ -21,7 +21,7 @@ function normalizeNoteBlock(x) {
     if (t === 'p' && x.cd && typeof x.cd === 'object') {   // this line is a memory card (see notes-cards.js)
         const c = x.cd;
         b.cd = { k: NB_CARD_KINDS.includes(c.k) ? c.k : 'basic', a: String(c.a || '').replace(/\n+/g, ' ').slice(0, 4000), dir: ['fwd', 'back', 'both'].includes(c.dir) ? c.dir : 'fwd', on: c.on !== false, ta: !!c.ta, ord: !!c.ord, mx: !!c.mx,
-            id: String(c.id || uid('b')), cid: toArray(c.cid).map(String).slice(0, 12), qid: c.qid ? String(c.qid) : '', hm: toArray(c.hm).slice(0, 40).map(h => ({ t: String(h && h.t || '').slice(0, 200), n: Math.max(1, Math.round(num(h && h.n, 1))) })), sg: String(c.sg || '').slice(0, 2000), so: c.so !== false, dead: !!c.dead };
+            id: String(c.id || uid('b')), cid: toArray(c.cid).map(String).slice(0, 12), qid: c.qid ? String(c.qid) : '', hm: toArray(c.hm).slice(0, 40).map(h => ({ t: String(h && h.t || '').slice(0, 200), n: Math.max(1, Math.round(num(h && h.n, 1))) })), sg: String(c.sg || '').slice(0, 2000), so: c.so !== false, dead: !!c.dead, vd: c.vd !== false };
     }
     if (t === 'todo' && x.done) b.done = true;
     if (t === 'img') { b.src = String(x.src || ''); if (!/^(media:[a-z0-9]+|data:image\/[a-z+.-]+;base64,.+)$/i.test(b.src)) return null; }
@@ -426,6 +426,7 @@ Object.assign(SuperAnki.prototype, {
             else if (kind === 'bul') { if (Date.now() - (this._nbDragEnd || 0) < 450) return; if (this.nbHasKids(n.b, i)) { this.nbPush(); b.c = !b.c; this.nbChanged(); this.nbRender(); } else this.nbActivate(i, 'end'); }
             else if (kind === 'cmenu') this.nbCardMenu(k, i);
             else if (kind === 'cprev') this.nbCardPreview(k, i);
+            else if (kind === 'cvalid') this.nbCardValidate(i);
             else if (kind === 'ok') { this.nbPush(); const ow = this.nbCardOwners(n)[i], mx = ow >= 0 && n.b[ow].cd.mx; if (!b.ok && !mx) { for (let j = ow + 1; j < this.nbSubEnd(n.b, ow); j++) delete n.b[j].ok; } b.ok = !b.ok; if (ow >= 0) n.b[ow].cd.sg = ''; this.nbChanged(); if (ow >= 0) for (let j = ow + 1; j < this.nbSubEnd(n.b, ow); j++) { const bt = $('.nb-okb', this.nbEl(j)); if (bt) { bt.classList.toggle('on', !!n.b[j].ok); bt.innerHTML = n.b[j].ok ? ic('check') : ''; bt.setAttribute('aria-pressed', String(!!n.b[j].ok)); } } this.nbCardFlushLater(); }
             else if (kind === 'imgx') { this.nbOp(nn => { nn.b.splice(i, 1); if (!nn.b.length) nn.b.push(nbEmpty()); }, null); }
             else if (kind === 'tail') { const last = n.b[n.b.length - 1]; if (last.t === 'p' && !last.x) this.nbActivate(n.b.length - 1, 'end'); else if (nbSolid(last.t) || last.x) this.nbOp(nn => { nn.b.push({ t: 'p', x: '', d: 0 }); }, n.b.length); else this.nbActivate(n.b.length - 1, 'end'); }
