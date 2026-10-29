@@ -912,7 +912,7 @@ Object.assign(SuperAnki.prototype, {
                         : `<div class="ex-decks">${ds.map(d => `<div class="ex-deck"><button class="link" data-action="open-deck" data-deck="${esc(d.id)}">${esc(d.emoji)} ${esc(d.name)}</button><span class="ex-actions">${btns(d)}</span></div>`).join('')}</div>`}`;
             }
             const toeic = /toeic/i.test(g.name);   // the TOEIC exam opens the TOEIC simulator (it is no longer a tab)
-            return `<div class="panel exam-row ${soon ? 'soon' : ''}"><div class="ex-top">${toeic ? `<button class="ex-name" data-nav="toeic" title="Ouvrir le simulateur TOEIC">${ic('headphones')}<b>${esc(g.name)}</b>${ic('chevronRight')}</button>` : `<b>${esc(g.name)}</b>`}<span class="goal-days ${soon ? 'soon' : ''}">${left}</span></div>${body}</div>`;
+            return `<div class="panel exam-row ${soon ? 'soon' : ''}"><div class="ex-top ${toeic ? 'ex-link' : ''}" ${toeic ? 'data-nav="toeic"' : ''}>${toeic ? `<button class="ex-name" data-nav="toeic" title="Ouvrir le simulateur TOEIC">${ic('headphones')}<b>${esc(g.name)}</b>${ic('chevronRight')}</button>` : `<b>${esc(g.name)}</b>`}<span class="goal-days ${soon ? 'soon' : ''}">${left}</span></div>${body}</div>`;
         }).join('');
         const open = this.homeOpen('goals', true);
         return `<div>${this.secToggle('goals', 'Examens', `<button class="link" data-action="goals-manage">Gérer</button>`, true)}<div class="exam-list${open ? '' : ' hidden'}">${rows}</div></div>`;

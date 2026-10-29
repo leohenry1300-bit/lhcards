@@ -3033,3 +3033,6 @@ body.pdf-open.nb-open.nb-editing #nb-bar { display: flex; }
 .ph-hint { margin: 8px 0 0; font-size: .85rem; opacity: .85; }
 .set-nav { margin-top: 14px; margin-bottom: 6px; justify-content: safe center; }
 body.tab-drag { overflow-x: hidden; }
+.ex-top.ex-link { cursor: pointer; margin: -14px -16px; padding: 14px 16px; border-radius: inherit; }
+.ex-top.ex-link:active { background: var(--primary-soft); }
+.exam-row:has(.ex-link) .ex-top + * { margin-top: 22px; }
