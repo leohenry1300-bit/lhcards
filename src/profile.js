@@ -66,8 +66,7 @@ Object.assign(SuperAnki.prototype, {
         const hero = `<section class="profile-hero">
             <div class="ph-main">
                 <button class="pc-av ph-av" data-action="pf-edit" aria-label="Modifier mon profil">${this.avatarHtml(p)}<span class="pc-edit">${ic('pencil')}</span></button>
-                <div class="ph-info"><h2>${p.name ? esc(p.name) : 'Ton profil'}</h2><p>${since ? `Sur LH Cards depuis ${esc(since)}` : 'Bienvenue sur LH Cards'}${st.streak ? ` · ${st.streak} jour${st.streak > 1 ? 's' : ''} de série 🔥` : ''}</p>
-                    <button class="btn btn-sm ph-edit" data-action="pf-edit">${ic('pencil')}${p.name ? 'Modifier le profil' : 'Ajouter mon prénom et ma photo'}</button></div>
+                <div class="ph-info"><h2>${p.name ? esc(p.name) : 'Ton profil'}</h2><p>${since ? `Sur LH Cards depuis ${esc(since)}` : 'Bienvenue sur LH Cards'}${st.streak ? ` · ${st.streak} jour${st.streak > 1 ? 's' : ''} de série 🔥` : ''}</p>${p.name ? '' : '<p class="ph-hint">Touche ta photo pour ajouter ton prénom.</p>'}</div>
             </div>
             <div class="ph-stats">${tile('flame', st.streak, 'jours de série')}${tile('award', st.longestStreak, 'record de série')}${tile('layers', d.cards.length, 'cartes')}${tile('check2', mature, 'maîtrisées')}${tile('repeat', d.revlog.length, 'révisions')}${tile('clock', fmtDuration(st.studySeconds || 0), 'd\'étude')}</div>
         </section>`;

@@ -1519,7 +1519,7 @@ class SuperAnki {
             el.classList.remove('view-in', 'view-in-l', 'view-in-r', 'view-in-n', 'view-in-zoom', 'cascade'); void el.offsetWidth;
             const zoom = opts.from && !this.calm();
             if (zoom) { el.style.setProperty('--ox', opts.from.x + 'px'); el.style.setProperty('--oy', opts.from.y + 'px'); }
-            el.classList.add('view-in', ...(this._vtOn ? [] : ['cascade']), zoom ? 'view-in-zoom' : this._vtOn ? 'view-in-n' : a >= 0 && b >= 0 && a !== b ? (b > a ? 'view-in-r' : 'view-in-l') : 'view-in-n');
+            if (this._noAnim) el.classList.add('view-in-none'); else el.classList.add('view-in', ...(this._vtOn ? [] : ['cascade']), zoom ? 'view-in-zoom' : this._vtOn ? 'view-in-n' : a >= 0 && b >= 0 && a !== b ? (b > a ? 'view-in-r' : 'view-in-l') : 'view-in-n');
             clearTimeout(el._cascT); el._cascT = setTimeout(() => el.classList.remove('cascade'), 900);
             if (tabbed) this.flushTail(el);   // the cascade only plays on arrival, not on later redraws
         }

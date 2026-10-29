@@ -3029,3 +3029,7 @@ body.pdf-open.nb-open.nb-editing #nb-bar { display: flex; }
 .quick-i.on, .quick-i:hover { background: var(--primary-soft); }
 
 @media (pointer: coarse) { .dt-x { width: 32px; height: 32px; } .pdft-c { width: 32px; height: 32px; } .pdfv-tools .pdft-c { margin: 0 2px; } .nb-link { padding: 6px 2px; } }
+
+.ph-hint { margin: 8px 0 0; font-size: .85rem; opacity: .85; }
+.set-nav { margin-top: 14px; margin-bottom: 6px; justify-content: safe center; }
+body.tab-drag { overflow-x: hidden; }

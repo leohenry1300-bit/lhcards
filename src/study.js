@@ -270,7 +270,8 @@ Object.assign(SuperAnki.prototype, {
        Not on a field, a chart, anything that scrolls sideways, or (to the left) a list row: there it shows the row's buttons. */
     initTabSwipe() {
         const ORDER = ['dashboard', 'decks', 'notes', 'stats', 'settings'];
-        let x0 = -1, y0 = 0, t0 = 0, onRow = false, live = false, cur = null;
+        let x0 = -1, y0 = 0, t0 = 0, onRow = false, live = false, cur = null, nbEl = null, nbSide = 0;
+        const nbDrop = () => { if (nbEl) { nbEl.classList.add('hidden'); nbEl.style.cssText = ''; document.body.classList.remove('tab-drag'); nbEl = null; } };
         const sideScroll = el => { for (let n = el; n && n !== document.body; n = n.parentElement) { const cs = getComputedStyle(n); if (/(auto|scroll)/.test(cs.overflowX) && n.scrollWidth > n.clientWidth + 2) return true; } return false; };
         const allowed = el => !this.session && !this.modals.length && !this.popover && !this.ui.selMode && ORDER.includes(this.view) && !(this.view === 'notes' && this.ui.note) && el && el.closest
             && !el.closest('textarea, select, input[type=range], [contenteditable], .chart, .range, [data-chart-box], .leo-bubble') && !(el.closest('input') && el.closest('input') === document.activeElement) && !sideScroll(el);   // (a search field that is not being typed in does not stop a slide)
@@ -278,32 +279,38 @@ Object.assign(SuperAnki.prototype, {
         dragBind(document, {
             start: (x, y, e, mouse) => {
                 const el = e.target, ok = allowed(el) && (mouse ? !el.closest('[data-action], label, summary, .card-row, .nb-row, .panel-click') : x > 26 && x < innerWidth - 26);
-                x0 = ok ? x : -1; y0 = y; t0 = Date.now(); onRow = ok && !!el.closest('.card-row, .nb-row');
+                x0 = ok ? x : -1; y0 = y; t0 = Date.now(); onRow = ok && (!!el.closest('.card-row, .nb-row') || !!this._openRow);   // (on a row — or while a row is open — a slide only shows / hides its buttons, it never changes tab)
                 return ok ? true : false;
             },
             /* the page follows the finger (like Instagram), then slides away on release if the push was far or fast enough; otherwise it springs back */
             move: (x, y, e, mouse) => {
                 if (x0 < 0 || mouse) return; const dx = x - x0, dy = y - y0;
-                if (!live) { if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.3 && !(onRow && dx < 0)) { live = true; cur = $(`#view-${this.view}`); if (cur) { cur.style.transition = 'none'; cur.style.willChange = 'transform, opacity'; } } else return; }
+                if (!live) { if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.3 && !onRow) { live = true; cur = $(`#view-${this.view}`); if (cur) { cur.style.transition = 'none'; cur.style.willChange = 'transform'; } } else return; }
+                const side = dx < 0 ? 1 : -1, jj = ORDER.indexOf(this.view) + side;
+                if (nbSide !== side) {   // the neighbouring page appears next to this one, as on Instagram (what it showed last time; it is drawn again properly when the slide is done)
+                    nbDrop(); nbSide = side; const ne = jj >= 0 && jj < ORDER.length ? $(`#view-${ORDER[jj]}`) : null;
+                    if (ne && this.view !== ORDER[jj]) { const top = Math.max(0, $('.topbar').getBoundingClientRect().bottom); nbEl = ne; document.body.classList.add('tab-drag'); ne.classList.remove('hidden'); ne.style.cssText = `position:fixed;left:0;right:0;top:${top}px;bottom:0;overflow:hidden;padding:16px 16px 0;pointer-events:none;z-index:2;background:var(--bg);will-change:transform;transition:none`; }
+                }
                 if (!cur) return; const i = ORDER.indexOf(this.view), j = i + (dx < 0 ? 1 : -1), ok = j >= 0 && j < ORDER.length, d = ok ? dx : dx * 0.22;
-                cur.style.transform = `translate3d(${d}px,0,0)`; cur.style.opacity = String(1 - Math.min(0.55, Math.abs(d) / innerWidth * 0.8));
+                cur.style.transform = `translate3d(${d}px,0,0)`; if (nbEl) nbEl.style.transform = `translate3d(${d + (dx < 0 ? innerWidth : -innerWidth)}px,0,0)`;
             },
             end: (x, y, e, mouse) => {
                 if (x0 < 0) return; const dx = x - x0, dy = Math.abs(y - y0), dt = Math.max(1, Date.now() - t0); x0 = -1;
-                const reset = (anim) => { if (!cur) return; const c = cur; c.style.transition = anim ? 'transform .2s cubic-bezier(.2,.7,.2,1), opacity .2s' : 'none'; c.style.transform = ''; c.style.opacity = ''; setTimeout(() => { c.style.transition = ''; c.style.willChange = ''; }, 230); };
+                const reset = (anim) => { if (!cur) return; const c = cur, n = nbEl; c.style.transition = anim ? 'transform .2s cubic-bezier(.2,.7,.2,1)' : 'none'; c.style.transform = ''; if (n) { n.style.transition = 'transform .2s cubic-bezier(.2,.7,.2,1)'; n.style.transform = `translate3d(${nbSide > 0 ? innerWidth : -innerWidth}px,0,0)`; } setTimeout(() => { c.style.transition = ''; c.style.willChange = ''; if (nbEl === n) nbDrop(); }, 230); nbSide = 0; };
                 const i = ORDER.indexOf(this.view), j = i + (dx < 0 ? 1 : -1), ok = j >= 0 && j < ORDER.length;
-                const far = Math.abs(dx) > innerWidth * 0.26 || (Math.abs(dx) > 40 && Math.abs(dx) / dt > 0.45), good = ok && far && dy * 1.5 < Math.abs(dx) && !this.session && !(onRow && dx < 0);
+                const far = Math.abs(dx) > innerWidth * 0.26 || (Math.abs(dx) > 40 && Math.abs(dx) / dt > 0.45), good = ok && far && dy * 1.5 < Math.abs(dx) && !this.session && !onRow;
                 if (live) {
                     live = false; const c = cur; cur = null;
                     if (!good) { cur = c; reset(true); cur = null; return; }
-                    c.style.transition = 'transform .11s ease-out, opacity .11s'; c.style.transform = `translate3d(${dx < 0 ? -innerWidth * 0.5 : innerWidth * 0.5}px,0,0)`; c.style.opacity = '0';
-                    setTimeout(() => { c.style.transition = 'none'; c.style.transform = ''; c.style.opacity = ''; c.style.willChange = ''; go(dx); setTimeout(() => { c.style.transition = ''; }, 50); }, 100);
+                    const n = nbEl; c.style.transition = 'transform .14s ease-out'; c.style.transform = `translate3d(${dx < 0 ? -innerWidth : innerWidth}px,0,0)`; if (n) { n.style.transition = 'transform .14s ease-out'; n.style.transform = 'translate3d(0,0,0)'; } else c.style.opacity = '0';
+                    nbSide = 0;
+                    setTimeout(() => { c.style.transition = 'none'; c.style.transform = ''; c.style.opacity = ''; c.style.willChange = ''; if (n) { n.classList.add('hidden'); n.style.cssText = ''; document.body.classList.remove('tab-drag'); nbEl = null; } this._noAnim = true; go(dx); this._noAnim = false; setTimeout(() => { c.style.transition = ''; }, 50); }, 130);
                     return;
                 }
-                if (Math.abs(dx) < 90 || dy * 2.2 > Math.abs(dx) || Date.now() - t0 > 650 || this.session || (onRow && dx < 0)) return;
+                if (Math.abs(dx) < 90 || dy * 2.2 > Math.abs(dx) || Date.now() - t0 > 650 || this.session || onRow) return;
                 go(dx);
             },
-            cancel: () => { x0 = -1; if (live && cur) { cur.style.transition = 'transform .2s'; cur.style.transform = ''; cur.style.opacity = ''; } live = false; cur = null; }
+            cancel: () => { x0 = -1; if (live && cur) { cur.style.transition = 'transform .2s'; cur.style.transform = ''; cur.style.opacity = ''; } nbDrop(); nbSide = 0; live = false; cur = null; }
         });
         /* trackpad: two fingers sliding sideways. One slide = one tab: the tail of the slide (its gliding) never counts as another one; a new slide can start while the previous one is still
            gliding only if it is a real new push (the speed fell, then clearly rises again) and some time has passed, so tabs can still be chained quickly */
@@ -356,7 +363,8 @@ Object.assign(SuperAnki.prototype, {
             move: (x, y) => {
                 if (!row) return;
                 const mx = x - x0, my = y - y0;
-                if (!on && Math.abs(mx) > 14 && Math.abs(mx) > Math.abs(my) * 2) { on = true; actions(row); }
+                if (!on && Math.abs(my) > 10 && Math.abs(my) > Math.abs(mx)) { row = null; return; }   // (scrolling up / down always wins)
+                if (!on && Math.abs(mx) > 24 && Math.abs(mx) > Math.abs(my) * 2.6) { on = true; actions(row); }
                 if (!on) return;
                 dx = Math.max(-Wof(row) - 24, Math.min(0, base + mx)); row.style.transform = `translateX(${dx}px)`;
             },
@@ -365,7 +373,7 @@ Object.assign(SuperAnki.prototype, {
                 const r = row, was = on, d = dx; row = null; on = false;
                 if (!was) return;
                 this._rowSwiped = Date.now();
-                if (d < -Wof(r) / 2) open(r); else close(r);
+                if (d < -Wof(r) * 0.6) open(r); else close(r);
             },
             cancel: () => { if (row) { close(row); row = null; on = false; } }
         });
