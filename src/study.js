@@ -295,7 +295,7 @@ Object.assign(SuperAnki.prototype, {
                     if (ne) {
                         if (ne.innerHTML.length < 300) this.tabWarmOne(ORDER[jj]);   // (not drawn yet: drawn now, once)
                         const top = Math.max(0, $('.topbar').getBoundingClientRect().bottom); nbEl = ne; document.body.classList.add('tab-drag'); ne.classList.remove('hidden');
-                        ne.style.cssText = `position:fixed;left:0;right:0;top:${top}px;bottom:0;overflow:hidden;padding:16px 16px 0;pointer-events:none;z-index:2;background:var(--bg);will-change:transform;transition:none;transform:translate3d(${side * innerWidth}px,0,0)`;
+                        ne.style.cssText = `position:fixed;left:0;right:0;top:${top}px;bottom:0;overflow:hidden;padding:16px 16px 0;pointer-events:none;z-index:2;box-shadow:${side > 0 ? '-' : ''}1px 0 0 color-mix(in srgb, var(--text) 9%, transparent), ${side > 0 ? '-' : ''}10px 0 22px -14px color-mix(in srgb, var(--text) 18%, transparent);will-change:transform;transition:none;transform:translate3d(${side * innerWidth}px,0,0)`;
                     }
                 }
                 if (!cur) return; const d = ok ? dx : dx * 0.22;
