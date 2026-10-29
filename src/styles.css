@@ -3042,3 +3042,7 @@ body.tab-drag { overflow-x: hidden; }
 .press-dim.out { opacity: 0; transition: opacity .16s; }
 @keyframes pdIn { from { opacity: 0; } }
 .press-lift { position: relative; z-index: 59 !important; transform: scale(1.025); box-shadow: 0 12px 34px rgba(0,0,0,.35); background: var(--surface) !important; transition: transform .15s; border-radius: 14px; }
+
+/* the browser keeps vertical scrolling, the sideways slide is ours (no fight between the two) */
+#view-dashboard, #view-decks, #view-notes, #view-stats, #view-settings { touch-action: pan-y; }
+.chip-row, .heatmap-scroll, .toolbar, .table-scroll, .set-nav, .recents, .nb-chips, .nb-tablewrap, .nb-pins, .doc-tabs, .pdfr-tw, .tq-tbl-wrap { touch-action: pan-x pan-y; }

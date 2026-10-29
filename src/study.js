@@ -270,7 +270,7 @@ Object.assign(SuperAnki.prototype, {
        Not on a field, a chart, anything that scrolls sideways, or (to the left) a list row: there it shows the row's buttons. */
     initTabSwipe() {
         const ORDER = ['dashboard', 'decks', 'notes', 'stats', 'settings'];
-        let x0 = -1, y0 = 0, t0 = 0, onRow = false, live = false, cur = null, nbEl = null, nbSide = 0;
+        let x0 = -1, y0 = 0, t0 = 0, onRow = false, live = false, cur = null, nbEl = null, nbSide = 0, lastX = 0, ly = 0, hist = [];
         const nbDrop = () => { if (nbEl) { nbEl.classList.add('hidden'); nbEl.style.cssText = ''; document.body.classList.remove('tab-drag'); nbEl = null; } };
         const sideScroll = el => { for (let n = el; n && n !== document.body; n = n.parentElement) { const cs = getComputedStyle(n); if (/(auto|scroll)/.test(cs.overflowX) && n.scrollWidth > n.clientWidth + 2) return true; } return false; };
         const allowed = el => !this.session && !this.modals.length && !this.popover && !this.ui.selMode && ORDER.includes(this.view) && !(this.view === 'notes' && this.ui.note) && el && el.closest
@@ -282,35 +282,48 @@ Object.assign(SuperAnki.prototype, {
                 x0 = ok ? x : -1; y0 = y; t0 = Date.now(); onRow = ok && (!!el.closest('.card-row, .nb-row') || !!this._openRow);   // (on a row — or while a row is open — a slide only shows / hides its buttons, it never changes tab)
                 return ok ? true : false;
             },
-            /* the page follows the finger (like Instagram), then slides away on release if the push was far or fast enough; otherwise it springs back */
+            /* the page follows the finger (like Instagram) and the next page is really there beside it (already drawn); on release it finishes the slide by itself, quickly if you flicked */
             move: (x, y, e, mouse) => {
-                if (x0 < 0 || mouse) return; const dx = x - x0, dy = y - y0;
-                if (!live) { if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.3 && !onRow) { live = true; cur = $(`#view-${this.view}`); if (cur) { cur.style.transition = 'none'; cur.style.willChange = 'transform'; } } else return; }
-                const side = dx < 0 ? 1 : -1, jj = ORDER.indexOf(this.view) + side;
-                if (nbSide !== side) {   // the neighbouring page appears next to this one, as on Instagram (what it showed last time; it is drawn again properly when the slide is done)
-                    nbDrop(); nbSide = side; const ne = jj >= 0 && jj < ORDER.length ? $(`#view-${ORDER[jj]}`) : null;
-                    if (ne && this.view !== ORDER[jj]) { const top = Math.max(0, $('.topbar').getBoundingClientRect().bottom); nbEl = ne; document.body.classList.add('tab-drag'); ne.classList.remove('hidden'); ne.style.cssText = `position:fixed;left:0;right:0;top:${top}px;bottom:0;overflow:hidden;padding:16px 16px 0;pointer-events:none;z-index:2;background:var(--bg);will-change:transform;transition:none`; }
+                if (x0 < 0 || mouse) return; const dx = x - x0, dy = y - y0; lastX = x; ly = y; const tn = performance.now(); if (hist.length > 5) hist.shift(); hist.push([tn, x]);
+                if (!live) {
+                    if (!(Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.15 && !onRow)) return;
+                    live = true; cur = $(`#view-${this.view}`); if (cur) { cur.style.transition = 'none'; cur.style.willChange = 'transform'; }
                 }
-                if (!cur) return; const i = ORDER.indexOf(this.view), j = i + (dx < 0 ? 1 : -1), ok = j >= 0 && j < ORDER.length, d = ok ? dx : dx * 0.22;
-                cur.style.transform = `translate3d(${d}px,0,0)`; if (nbEl) nbEl.style.transform = `translate3d(${d + (dx < 0 ? innerWidth : -innerWidth)}px,0,0)`;
+                const side = dx < 0 ? 1 : -1, jj = ORDER.indexOf(this.view) + side, ok = jj >= 0 && jj < ORDER.length;
+                if (nbSide !== side) {
+                    nbDrop(); nbSide = side; const ne = ok ? $(`#view-${ORDER[jj]}`) : null;
+                    if (ne) {
+                        if (ne.innerHTML.length < 300) this.tabWarmOne(ORDER[jj]);   // (not drawn yet: drawn now, once)
+                        const top = Math.max(0, $('.topbar').getBoundingClientRect().bottom); nbEl = ne; document.body.classList.add('tab-drag'); ne.classList.remove('hidden');
+                        ne.style.cssText = `position:fixed;left:0;right:0;top:${top}px;bottom:0;overflow:hidden;padding:16px 16px 0;pointer-events:none;z-index:2;background:var(--bg);will-change:transform;transition:none;transform:translate3d(${side * innerWidth}px,0,0)`;
+                    }
+                }
+                if (!cur) return; const d = ok ? dx : dx * 0.22;
+                cur.style.transform = `translate3d(${d}px,0,0)`; if (nbEl) nbEl.style.transform = `translate3d(${d + side * innerWidth}px,0,0)`;
             },
             end: (x, y, e, mouse) => {
-                if (x0 < 0) return; const dx = x - x0, dy = Math.abs(y - y0), dt = Math.max(1, Date.now() - t0); x0 = -1;
-                const reset = (anim) => { if (!cur) return; const c = cur, n = nbEl; c.style.transition = anim ? 'transform .2s cubic-bezier(.2,.7,.2,1)' : 'none'; c.style.transform = ''; if (n) { n.style.transition = 'transform .2s cubic-bezier(.2,.7,.2,1)'; n.style.transform = `translate3d(${nbSide > 0 ? innerWidth : -innerWidth}px,0,0)`; } setTimeout(() => { c.style.transition = ''; c.style.willChange = ''; if (nbEl === n) nbDrop(); }, 230); nbSide = 0; };
-                const i = ORDER.indexOf(this.view), j = i + (dx < 0 ? 1 : -1), ok = j >= 0 && j < ORDER.length;
-                const far = Math.abs(dx) > innerWidth * 0.26 || (Math.abs(dx) > 40 && Math.abs(dx) / dt > 0.45), good = ok && far && dy * 1.5 < Math.abs(dx) && !this.session && !onRow;
+                if (x0 < 0) return; if (!mouse && live) { x = lastX; y = ly; } const dx = x - x0, dy = Math.abs(y - y0), dt = Math.max(1, Date.now() - t0); x0 = -1;
+                const i = ORDER.indexOf(this.view), side = dx < 0 ? 1 : -1, j = i + side, ok = j >= 0 && j < ORDER.length;
+                const h0 = hist[0] || [performance.now() - 80, x], vel = (x - h0[1]) / Math.max(16, performance.now() - h0[0]);   // px per ms over the last moments of the gesture
                 if (live) {
-                    live = false; const c = cur; cur = null;
-                    if (!good) { cur = c; reset(true); cur = null; return; }
-                    const n = nbEl; c.style.transition = 'transform .14s ease-out'; c.style.transform = `translate3d(${dx < 0 ? -innerWidth : innerWidth}px,0,0)`; if (n) { n.style.transition = 'transform .14s ease-out'; n.style.transform = 'translate3d(0,0,0)'; } else c.style.opacity = '0';
-                    nbSide = 0;
-                    setTimeout(() => { c.style.transition = 'none'; c.style.transform = ''; c.style.opacity = ''; c.style.willChange = ''; if (n) { n.classList.add('hidden'); n.style.cssText = ''; document.body.classList.remove('tab-drag'); nbEl = null; } this._noAnim = true; go(dx); this._noAnim = false; setTimeout(() => { c.style.transition = ''; }, 50); }, 130);
+                    live = false; const c = cur, n = nbEl, W = innerWidth; cur = null; nbSide = 0; hist = [];
+                    const good = ok && dy * 1.2 < Math.abs(dx) + 40 && !this.session && (Math.abs(dx) > W * 0.25 || (Math.abs(vel) > 0.25 && Math.sign(vel) === Math.sign(dx) && Math.abs(dx) > 24));
+                    const dur = good ? clamp(Math.round((W - Math.abs(dx)) / Math.max(0.9, Math.abs(vel) * 1.4) ), 140, 280) : 220, ease = 'cubic-bezier(.22,.75,.28,1)';
+                    const fin = () => {
+                        if (good) {
+                            this._noAnim = true; go(dx); this._noAnim = false;   // the next page is already drawn: it is simply kept (see tab-warm.js)
+                            requestAnimationFrame(() => { if (n) { n.style.cssText = ''; document.body.classList.remove('tab-drag'); if (nbEl === n) nbEl = null; } c.style.cssText = ''; });
+                        } else { c.style.cssText = ''; if (nbEl === n) nbDrop(); }
+                    };
+                    c.style.transition = `transform ${dur}ms ${ease}`; if (n) n.style.transition = `transform ${dur}ms ${ease}`;
+                    requestAnimationFrame(() => { c.style.transform = good ? `translate3d(${-side * W}px,0,0)` : 'translate3d(0,0,0)'; if (n) n.style.transform = good ? 'translate3d(0,0,0)' : `translate3d(${side * W}px,0,0)`; });
+                    let done = false; const once = () => { if (done) return; done = true; fin(); }; c.addEventListener('transitionend', once, { once: true }); setTimeout(once, dur + 80);
                     return;
                 }
                 if (Math.abs(dx) < 90 || dy * 2.2 > Math.abs(dx) || Date.now() - t0 > 650 || this.session || onRow) return;
                 go(dx);
             },
-            cancel: () => { x0 = -1; if (live && cur) { cur.style.transition = 'transform .2s'; cur.style.transform = ''; cur.style.opacity = ''; } nbDrop(); nbSide = 0; live = false; cur = null; }
+            cancel: () => { x0 = -1; if (live && cur) { cur.style.transition = 'transform .2s'; cur.style.transform = ''; } nbDrop(); nbSide = 0; live = false; cur = null; hist = []; }
         });
         /* trackpad: two fingers sliding sideways. One slide = one tab: the tail of the slide (its gliding) never counts as another one; a new slide can start while the previous one is still
            gliding only if it is a real new push (the speed fell, then clearly rises again) and some time has passed, so tabs can still be chained quickly */

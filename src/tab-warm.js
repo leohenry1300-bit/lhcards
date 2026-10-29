@@ -10,7 +10,7 @@ Object.assign(SuperAnki.prototype, {
         try {
             this.view = view; if (view === 'notes') { this.ui.note = null; this.ui.nbFolder = null; this.ui.nbMem = false; }
             ({ dashboard: () => this.renderDashboard(), decks: () => this.renderDecks(), notes: () => this.renderNotes(), stats: () => this.renderStats(), settings: () => this.renderSettings() })[view]();
-            el._warm = this._ver;
+            el._warm = this._ver; (this._rv = this._rv || {})[view] = { v: this._ver || 0, t: Date.now(), d: dayKey() };   // (go() can then simply keep this page when it is shown)
         } catch (e) { console.warn('warm', view, e); }
         finally { this.view = keep.v; this.ui.note = keep.n; this.ui.nbFolder = keep.f; this.ui.nbMem = keep.m; if (hid) el.classList.add('hidden'); }
     },
@@ -19,10 +19,10 @@ Object.assign(SuperAnki.prototype, {
         clearTimeout(this._warmT);
         this._warmT = setTimeout(() => {
             const ORDER = ['dashboard', 'decks', 'notes', 'stats', 'settings'], i = ORDER.indexOf(this.view); if (i < 0) return;
-            const todo = [ORDER[i + 1], ORDER[i - 1]].filter(Boolean); let k = 0;
+            const todo = [ORDER[i + 1], ORDER[i - 1], ...ORDER].filter((v, k, a) => v && v !== this.view && a.indexOf(v) === k); let k = 0;
             const next = () => { if (k >= todo.length || this.session) return; const v = todo[k++]; (window.requestIdleCallback || (f => setTimeout(f, 60)))(() => { this.tabWarmOne(v); next(); }, { timeout: 1500 }); };
             next();
-        }, 900);
+        }, 1200);
     }
 });
 (() => { const base = SuperAnki.prototype.go; SuperAnki.prototype.go = function (...a) { const r = base.apply(this, a); try { this.tabWarmSoon(); } catch { /* ignore */ } return r; }; })();
