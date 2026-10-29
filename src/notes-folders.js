@@ -135,13 +135,12 @@ Object.assign(SuperAnki.prototype, {
     /* ---------- the side column ---------- */
     nbHomeHtml() {
         const ui = this.ui, due = this.nbDueAll(), today = this.data.notes.find(n => n.daily === dayKey());
-        const pins = (this.data.settings.pinnedDecks || []).map(id => this.deck(id)).filter(Boolean);
-        const pill = (act, ico, t, extra = '', on = false) => `<button class="nb-pill ${on ? 'on' : ''}" data-action="${act}">${ico}<span>${t}</span>${extra}</button>`;
-        return `<div class="nb-pills">
-            ${pill('nb-daily', ic('calendar'), 'Note du jour')}
-            ${pill('nb-mem', ic('copy'), 'Cartes mémoire', due ? `<i class="nb-pill-badge">${due > 99 ? '99+' : due}</i>` : '', ui.nbMem)}
-            ${pill('nb-docs', ic('folder'), 'Dossiers', '', ui.nbFolder === NB_ROOT)}
-        </div>${pins.length ? `<div class="nb-pins"><span class="nb-pins-l">${ic('pin')}Épinglés</span>${pins.map(d => `<button class="chip ${ui.nbFolder === d.id ? 'active' : ''}" data-action="nb-folder" data-id="${esc(d.id)}">${esc(d.emoji)} ${esc(d.name)}</button>`).join('')}</div>` : ''}`;
+        const card = (act, ico, t, sub, cls = '', extra = '') => `<button class="nb-card ${cls}" data-action="${act}"><span class="nb-card-i">${ico}</span><span class="nb-card-t"><b>${t}</b><small>${sub}</small></span>${extra}</button>`;
+        return `<div class="nb-cards">
+            ${card('nb-daily', ic('calendar'), 'Note du jour', today ? 'Continuer ma note d\'aujourd\'hui' : 'Commencer ma note d\'aujourd\'hui', 'big')}
+            ${card('nb-mem', ic('copy'), 'Cartes mémoire', due ? plural(due, 'carte') + ' à revoir' : 'Tout est à jour', ui.nbMem ? 'on' : '', due ? `<i class="nb-pill-badge">${due > 99 ? '99+' : due}</i>` : '')}
+            ${card('nb-docs', ic('folder'), 'Dossiers', 'Tous mes dossiers', ui.nbFolder === NB_ROOT ? 'on' : '')}
+        </div>`;
     },
     nbMainHtml(n) {
         const ui = this.ui;

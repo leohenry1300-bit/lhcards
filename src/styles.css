@@ -3117,7 +3117,6 @@ body.tab-drag .view, body.tab-drag .view * { -webkit-backdrop-filter: none !impo
 
 /* Notes page: one clear column (search, filters, shortcuts, list) — the document opens full width when you tap it */
 @media (min-width: 900px) {
-  .notes-shell:not(.has-open) { grid-template-columns: minmax(0, 820px); justify-content: center; }
   .notes-shell:not(.has-open) .notes-main { display: none; }
   .notes-shell:not(.has-open) .notes-side { position: static; max-height: none; overflow: visible; }
 }
@@ -3138,3 +3137,30 @@ body.tab-drag .view, body.tab-drag .view * { -webkit-backdrop-filter: none !impo
 #nb-list .nb-row-t b { font-size: 1rem; }
 .notes-side-head { flex-wrap: nowrap; }
 @media (max-width: 480px) { .notes-side-head .btn:not(.nb-newbig) span { display: none; } .notes-side-head .btn:not(.nb-newbig) { width: 44px; padding: 0; justify-content: center; } .nb-searchrow .input { min-width: 0; } }
+
+/* Notes page v3: full width, 3 shortcut cards, documents as a grid of cards */
+.nb-cards { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; margin: 4px 0 12px; }
+.nb-card { position: relative; display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 16px; background: var(--surface-2); border: 1px solid var(--border); text-align: left; color: var(--text); min-width: 0; }
+.nb-card.big { background: var(--primary-soft); border-color: var(--primary); }
+.nb-card.on { border-color: var(--primary); background: var(--primary-soft); }
+.nb-card-i { flex: none; width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; background: var(--surface-solid, var(--surface)); color: var(--primary); }
+.nb-card-i .i { width: 22px; height: 22px; }
+.nb-card-t { display: grid; gap: 2px; min-width: 0; }
+.nb-card-t b { font-size: .98rem; }
+.nb-card-t small { color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nb-card .nb-pill-badge { position: absolute; top: 8px; right: 8px; }
+@media (max-width: 640px) { .nb-cards { grid-template-columns: 1fr 1fr; } .nb-card.big { grid-column: 1 / -1; } .nb-card { padding: 12px; } }
+.notes-shell:not(.has-open) #nb-list.nb-tree { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; overflow: visible; }
+.notes-shell:not(.has-open) #nb-list > .nb-headrow, .notes-shell:not(.has-open) #nb-list > .nb-wrap[data-kind="folder"], .notes-shell:not(.has-open) #nb-list > p { grid-column: 1 / -1; }
+.notes-shell:not(.has-open) #nb-list > .nb-wrap[data-kind="note"] { border: 1px solid var(--border); border-radius: 16px; background: var(--surface-2); overflow: hidden; }
+.notes-shell:not(.has-open) #nb-list > .nb-wrap[data-kind="note"] .nb-row { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "ico d" "t t"; align-content: start; gap: 8px; min-height: 150px; padding: 14px; border: 0; }
+.notes-shell:not(.has-open) #nb-list > .nb-wrap[data-kind="note"] .nb-row:hover { background: var(--primary-soft); }
+.notes-shell:not(.has-open) #nb-list .nb-row-ico { grid-area: ico; justify-self: start; width: 42px; height: 42px; border-radius: 12px; background: var(--primary-soft); font-size: 1.3rem; }
+.notes-shell:not(.has-open) #nb-list .nb-row-d { grid-area: d; display: flex; align-items: center; gap: 6px; }
+.notes-shell:not(.has-open) #nb-list .nb-row-t { grid-area: t; align-self: end; gap: 4px; }
+.notes-shell:not(.has-open) #nb-list .nb-row-t b { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.notes-shell:not(.has-open) #nb-list .nb-row-t small { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.notes-shell:not(.has-open) #nb-list .nb-more-row { display: none; }
+.notes-shell:not(.has-open) #nb-list .nb-grip { position: absolute; top: 8px; right: 6px; width: 28px; height: 28px; }
+.notes-shell:not(.has-open) #nb-list .nb-row-d { margin-right: 26px; }
+@media (max-width: 480px) { .notes-shell:not(.has-open) #nb-list.nb-tree { grid-template-columns: 1fr 1fr; gap: 8px; } .notes-shell:not(.has-open) #nb-list > .nb-wrap[data-kind="note"] .nb-row { min-height: 128px; padding: 12px; } }
