@@ -134,13 +134,15 @@ Object.assign(SuperAnki.prototype, {
 
     /* ---------- the side column ---------- */
     nbHomeHtml() {
-        const ui = this.ui, due = this.nbDueAll(), today = this.data.notes.find(n => n.daily === dayKey());
-        const card = (act, ico, t, sub, cls = '', extra = '') => `<button class="nb-card ${cls}" data-action="${act}" title="${t}"><span class="nb-card-i">${ico}</span><span class="nb-card-t"><b>${t}</b><small>${sub}</small></span>${extra}</button>`;
-        return `<div class="nb-cards">
-            ${card('nb-daily', ic('calendar'), 'Note du jour', today ? 'Continuer ma note d\'aujourd\'hui' : 'Commencer ma note d\'aujourd\'hui', 'big')}
-            ${card('nb-mem', ic('copy'), 'Cartes mémoire', due ? plural(due, 'carte') + ' à revoir' : 'Tout est à jour', ui.nbMem ? 'on' : '', due ? `<i class="nb-pill-badge">${due > 99 ? '99+' : due}</i>` : '')}
-            ${card('nb-docs', ic('folder'), 'Dossiers', 'Tous mes dossiers', ui.nbFolder === NB_ROOT ? 'on' : '')}
-        </div>`;
+        const ui = this.ui;
+        return `<button class="btn btn-primary" data-action="nb-new-menu" id="nb-newbtn">${ic('plus')}<span>Nouvelle note</span></button>
+            <button class="btn btn-soft" data-action="nb-daily">${ic('calendar')}<span>Note du jour</span></button>
+            <button class="btn btn-soft" data-action="pdf-import-btn">${ic('pdf')}<span>Importer un PDF</span></button>`;
+    },
+    nbHeadToolsHtml() {
+        const ui = this.ui, due = this.nbDueAll();
+        return `<button class="icon-btn nb-hbtn ${ui.nbMem ? 'on' : ''}" data-action="nb-mem" title="Cartes mémoire${due ? ` (${due} à revoir)` : ''}" aria-label="Cartes mémoire">${ic('copy')}${due ? `<i class="nb-pill-badge">${due > 99 ? '99+' : due}</i>` : ''}</button>
+            <button class="icon-btn nb-hbtn ${ui.nbFolder === NB_ROOT ? 'on' : ''}" data-action="nb-docs" title="Dossiers" aria-label="Dossiers">${ic('folder')}</button>`;
     },
     nbMainHtml(n) {
         const ui = this.ui;

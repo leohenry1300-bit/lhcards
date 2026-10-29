@@ -2585,7 +2585,7 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
 .nb-img { margin: 6px 0; position: relative; display: inline-block; max-width: 100%; }
 .nb-img img { max-width: 100%; max-height: 360px; border-radius: var(--radius-sm); display: block; }
 .nb-img-x { position: absolute; top: 6px; right: 6px; background: var(--surface); box-shadow: var(--shadow); }
-.nb-tail { height: 120px; }
+.nb-tail { height: 56px; }
 .nb-link { color: var(--primary); font-weight: 700; background: var(--primary-soft); border-radius: 6px; padding: 0 5px; cursor: pointer; text-decoration: none; display: inline; }
 .nb-link .i { width: 13px; height: 13px; vertical-align: -2px; margin-right: 3px; }
 .nb-link.miss { background: transparent; border: 1px dashed var(--primary); }
@@ -3182,3 +3182,43 @@ body.tab-drag .view, body.tab-drag .view * { -webkit-backdrop-filter: none !impo
 .notes-shell.has-open .nb-card { padding: 8px; justify-content: center; }
 .notes-shell.has-open .nb-card-t { display: none; }
 .notes-shell.has-open .nb-card .nb-pill-badge { top: 2px; right: 2px; }
+
+/* Notes page v4: same structure as Paquets (title, 3 action buttons, search panel, list panel) */
+.notes-side.nb-page { padding: 0; display: grid; gap: 16px; background: none; border: 0; box-shadow: none; }
+.nb-page .stats-head { margin: 0; }
+.nb-hbtn { position: relative; }
+.nb-hbtn.on { color: var(--primary); background: var(--primary-soft); }
+.nb-hbtn .nb-pill-badge { position: absolute; top: -2px; right: -2px; min-width: 18px; height: 18px; font-size: .66rem; padding: 0 4px; }
+.nb-searchpanel { grid-template-columns: 1fr; gap: 10px; }
+.nb-searchpanel .nb-searchrow { margin: 0; }
+.nb-searchpanel .nb-chips { margin: 0; }
+.nb-lp-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px 6px; }
+.nb-lp-head b { font-size: 1.05rem; }
+.nb-listpanel .nb-bulk, .nb-listpanel #nb-bulk { padding: 0 8px; }
+.nb-listpanel #nb-list { padding: 0 8px 10px; }
+.nb-tools .btn { height: 40px; padding: 0 12px; gap: 6px; flex: none; }
+.nb-tools .btn.on { background: var(--primary); color: var(--on-primary, #fff); }
+@media (max-width: 480px) {
+  .nb-lp-head { padding: 12px 12px 4px; }
+  .nb-tools .btn[data-action=nb-sel-toggle] span { display: none; }
+  .nb-tools .btn { padding: 0 10px; }
+  .nb-listpanel #nb-list { padding: 0 4px 8px; }
+}
+.notes-shell.has-open .nb-tools .btn span, .notes-shell.has-open .nb-tools .btn::before { display: none !important; }
+.notes-shell.has-open .nb-tools .btn { width: 40px; padding: 0; justify-content: center; }
+.notes-shell.has-open .nb-searchrow { flex-wrap: wrap; }
+@media (max-width: 480px) { .nb-head { gap: 4px; } .nb-title { font-size: 1.2rem; min-width: 0; } .nb-emoji { width: 38px; height: 38px; } }
+@media (max-width: 480px) { .nb-head { flex-wrap: wrap; } .nb-head .nb-emoji { margin-right: auto; } .nb-head .nb-title { order: 10; flex: 1 0 100%; font-size: 1.4rem; } }
+.nb-listpanel .nb-bulk { margin-top: 8px; }
+
+.nb-filterrow { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.nb-filterrow .nb-chips { flex: 1; min-width: 0; }
+#nb-bulk { display: contents; }
+.nb-row-d small { font-size: .8rem; }
+.nb-row:has(.row-check) { padding-left: 8px !important; }
+.nb-row .row-check { margin-top: 0; }
+.nb-row:has(.row-check) .nb-fold.none { display: none; }
+@media (max-width: 480px) {
+  .nb-filterrow .nb-tools .btn span, .nb-filterrow .nb-tools #nb-sortbtn span, .nb-filterrow .nb-tools #nb-sortbtn::before { display: none !important; }
+  .nb-filterrow .nb-tools .btn { width: 40px; padding: 0; justify-content: center; }
+}

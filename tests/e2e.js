@@ -1038,7 +1038,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         const fo = await page.evaluate(async () => {
             const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {}, d = a.data, dk = d.decks.find(x => !x.parent).id, n = d.notes[0];
             a.ui.note = null; a.go('notes'); a.renderNotes(); await w(300);
-            out.tiles = ['nb-daily', 'nb-mem', 'nb-docs'].every(x => !!document.querySelector(`#nb-home [data-action=${x}]`));
+            out.tiles = ['nb-daily', 'nb-mem', 'nb-docs'].every(x => !!document.querySelector(`#view-notes [data-action=${x}]`));
             /* moving the note to a folder: its cards follow */
             a.openNoteMove([n.id]); await w(100); document.querySelector(`#nm-list [data-k=deck][data-id="${dk}"]`).click(); await w(300);
             out.follow = d.cards.filter(c => c.src && c.src.n === n.id).every(c => c.deckId === dk) && n.deckId === dk;
@@ -1198,7 +1198,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         /* RemNote-like tools: shapes, arrows, marker, selection of everything at once */
         const rn = await page.evaluate(async () => {
             const a = app, w = ms => new Promise(r => setTimeout(r, ms)), pv = a.pv, out = {}; pv.annotate = true; a.pdfRefreshTools();
-            a.pdfGoto(1, '', true); await w(800); document.querySelector('[data-action=pdf-tool][data-t=pen]').click(); document.querySelector('[data-action=pdf-tool][data-t=pen]').click(); await w(200);
+            a.pdfGoto(1, '', true); await w(800); document.querySelector('[data-action=pdf-tool][data-t=pen]').click(); await w(200);
             out.panel = !!document.querySelector('#pdf-panel .pdfp-grid') && document.querySelectorAll('#pdf-panel .pdfp-o.sw').length === 24 && !!document.querySelector('#pdf-panel input[data-optin=penc]');
             document.querySelector('#pdf-panel [data-k=penc][data-v="#e11d48"]').click(); out.pen = pv.pen.c === '#e11d48';
             const pid = pv.p.pg[0].id; a.pdfEdit(() => { a.pdfAnnAdd(pid, { t: 'sh', k: 's', x: 0.2, y: 0.5, w: 0.2, h: 0.1, c: '#000000', sw: 0.004, f: '#fde047' }); a.pdfAnnAdd(pid, { t: 'ar', k: 'b', x1: 0.1, y1: 0.7, x2: 0.6, y2: 0.72, c: '#e11d48', w: 0.004 }); a.pdfAnnAdd(pid, { t: 'dr', c: '#facc15', w: 0.026, op: 0.4, p: [[0.1, 0.3], [0.5, 0.3]] }); });

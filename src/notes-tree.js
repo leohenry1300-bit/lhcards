@@ -111,7 +111,8 @@ Object.assign(SuperAnki.prototype, {
         const l = $('#nb-list'); if (l) l.innerHTML = this.noteListHtml();
         const c = $('#nb-chips'); if (c) c.innerHTML = this.nbChipsHtml();
         const b = $('#nb-bulk'); if (b) b.innerHTML = this.nbBulkHtml();
-        const hm = $('#nb-home'); if (hm) hm.innerHTML = this.nbHomeHtml();
+        const ht = $('#nb-headtools'); if (ht) ht.innerHTML = this.nbHeadToolsHtml();
+        const lt = $('#nb-lp-title'); if (lt) lt.textContent = this.nbListTitle();
         const sb = $('#nb-sortbtn'); if (sb) sb.innerHTML = this.nbSortLabel();
     },
     nbSortLabel() { const m = this.nbPrefs().sort, s = NB_SORTS.find(x => x[0] === m); return `${ic(s[2])}<span>${s[1].replace(/ \(.*\)/, '')}</span>`; },
@@ -120,22 +121,45 @@ Object.assign(SuperAnki.prototype, {
     renderNotes() {
         const ui = this.ui, n = this.note(ui.note);
         if (ui.note && !n) ui.note = null;
-        $('#view-notes').innerHTML = `
-        <div class="notes-shell ${n || ui.nbFolder || ui.nbMem ? 'has-open' : ''} ${this.nbPrefs().sideOff ? 'side-off' : ''}">
+        const open = !!(n || ui.nbFolder || ui.nbMem);
+        if (open && ui.noteSelMode) { ui.noteSelMode = false; ui.noteSel = new Set(); }
+        const searchRow = `<div class="nb-searchrow"><label class="input-icon">${ic('search')}<input class="input" id="nb-search" type="search" placeholder="Chercher une note, un PDF…" value="${esc(ui.noteQ || '')}" autocomplete="off" enterkeyhint="search"></label></div>`;
+        const tools = `<span class="nb-tools"><button class="btn btn-soft" data-action="nb-sort-menu" id="nb-sortbtn" aria-label="Trier" title="Trier">${this.nbSortLabel()}</button><button class="btn btn-soft ${ui.noteSelMode ? 'on' : ''}" data-action="nb-sel-toggle" aria-label="Sélectionner plusieurs" title="Sélectionner plusieurs">${ic('checkSq')}<span>Sélection</span></button></span>`;
+        const side = open ? `
             <aside class="notes-side panel">
                 <div class="notes-side-head"><h2 class="page-title" style="margin:0">Notes</h2>
                     <span class="row-gap"><button class="btn btn-soft" data-action="pdf-import-btn" title="Importer un PDF">${ic('pdf')}<span>PDF</span></button><button class="btn btn-primary nb-newbig" data-action="nb-new-menu" id="nb-newbtn">${ic('plus')}<span>Nouveau</span>${ic('chevronDown')}</button></span></div>
-                <div class="nb-searchrow"><label class="input-icon">${ic('search')}<input class="input" id="nb-search" type="search" placeholder="Chercher une note, un PDF…" value="${esc(ui.noteQ || '')}" autocomplete="off" enterkeyhint="search"></label>
-                    <span class="nb-tools"><button class="icon-btn" data-action="nb-sort-menu" id="nb-sortbtn" aria-label="Trier" title="Trier">${this.nbSortLabel()}</button><button class="icon-btn ${ui.noteSelMode ? 'on' : ''}" data-action="nb-sel-toggle" aria-label="Sélectionner plusieurs" title="Sélectionner plusieurs">${ic('checkSq')}</button></span></div>
+                <div class="nb-searchrow"><label class="input-icon">${ic('search')}<input class="input" id="nb-search" type="search" placeholder="Chercher une note, un PDF…" value="${esc(ui.noteQ || '')}" autocomplete="off" enterkeyhint="search"></label>${tools}</div>
                 <div class="chip-row nb-chips" id="nb-chips">${this.nbChipsHtml()}</div>
-                <div id="nb-home">${this.nbHomeHtml()}</div>
                 <div id="nb-bulk">${this.nbBulkHtml()}</div>
                 <div id="nb-list" class="nb-tree">${this.noteListHtml()}</div>
-            </aside>
+            </aside>` : `
+            <aside class="notes-side nb-page">
+                <div class="stats-head">
+                    <div><h2 class="page-title">Notes</h2><p class="page-sub">Tes cours, tes PDF et tes cartes au même endroit.</p></div>
+                    <div class="head-tools" id="nb-headtools">${this.nbHeadToolsHtml()}</div>
+                </div>
+                <div class="decks-toolbar" id="nb-home">${this.nbHomeHtml()}</div>
+                <div class="panel search-bar nb-searchpanel">${searchRow}<div class="nb-filterrow"><div class="chip-row nb-chips" id="nb-chips">${this.nbChipsHtml()}</div>${tools}</div></div>
+                <div class="panel nb-listpanel">
+                    <div class="nb-lp-head"><b id="nb-lp-title">${this.nbListTitle()}</b></div>
+                    <div id="nb-bulk">${this.nbBulkHtml()}</div>
+                    <div id="nb-list" class="nb-tree">${this.noteListHtml()}</div>
+                </div>
+            </aside>`;
+        $('#view-notes').innerHTML = `
+        <div class="notes-shell ${open ? 'has-open' : ''} ${this.nbPrefs().sideOff ? 'side-off' : ''}">${side}
             <section class="notes-main">${this.nbMainHtml(n)}</section>
         </div>`;
         this.nbBind(); this.nbBarEnsure(!!n);
         if (n) { this.resolveMedia($('#nb-blocks')); this.nbFindUpdate(); }
+    },
+    nbListTitle() {
+        const ui = this.ui, nn = this.data.notes.length, np = this.data.pdfs.length;
+        if (ui.noteQ) return 'Résultats';
+        if (ui.noteFav) return 'Favoris';
+        if (ui.noteTag) return '#' + ui.noteTag;
+        return ui.noteType === 'pdf' ? plural(np, 'PDF') : ui.noteType === 'note' ? plural(nn - np, 'note') : 'Mes documents';
     },
     noteEditorHtml(n) {
         const back = this.nb && this.nb.back.length ? this.note(this.nb.back[this.nb.back.length - 1]) : null, bl = this.noteBacklinks(n), kids = this.noteKids(n.id);
