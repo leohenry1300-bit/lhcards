@@ -97,7 +97,7 @@ Object.assign(SuperAnki.prototype, {
         const pv = this.pv, box = $('#pdf-pages'); if (!box) return;
         const sizes = new Map(), nums = [...new Set(pv.p.pg.filter(g => g.k === 'p').map(g => g.n))];
         const first = await pv.doc.getPage(nums[0] || 1); let v = first.getViewport({ scale: 1 }); pv.base = { w: v.width, h: v.height }; sizes.set(nums[0] || 1, pv.base);
-        for (let i = 0; i < Math.min(nums.length, 400); i += 25) await Promise.all(nums.slice(i, i + 25).map(async n => { if (sizes.has(n)) return; try { const pg = await pv.doc.getPage(n), vv = pg.getViewport({ scale: 1 }); sizes.set(n, { w: vv.width, h: vv.height }); } catch { sizes.set(n, pv.base); } }));
+        for (let i = 0; i < (nums.length > 30 ? 0 : nums.length); i += 25) await Promise.all(nums.slice(i, i + 25).map(async n => { if (sizes.has(n)) return; try { const pg = await pv.doc.getPage(n), vv = pg.getViewport({ scale: 1 }); sizes.set(n, { w: vv.width, h: vv.height }); } catch { sizes.set(n, pv.base); } }));
         pv.pages = pv.p.pg.map((g, i) => ({ g, i, w: (g.k === 'p' && sizes.get(g.n) || pv.base).w, h: (g.k === 'p' && sizes.get(g.n) || pv.base).h, el: null, state: 0 }));
         box.innerHTML = pv.pages.map(pg => `<div class="pdfp ${pg.g.k === 'b' ? 'blank' : ''}" data-i="${pg.i}" data-pid="${esc(pg.g.id)}"><canvas></canvas><svg class="pdfa" xmlns="http://www.w3.org/2000/svg"></svg><div class="pdft"></div><div class="pdfx"></div><div class="pdfo"></div><span class="pdfn">${pg.i + 1}</span></div>`).join('');
         $$('.pdfp', box).forEach((el, i) => { pv.pages[i].el = el; });
@@ -120,7 +120,8 @@ Object.assign(SuperAnki.prototype, {
         try {
             if (pg.g.k === 'p') {
                 const page = await pv.doc.getPage(pg.g.n); if (this.pv !== pv || pg.tok !== token) { pg.state = 0; return; }
-                const cssW = pg.cw, vp1 = page.getViewport({ scale: 1 }), scaleCss = cssW / vp1.width, dpr = Math.min(window.devicePixelRatio || 1, 3);
+                const vp1 = page.getViewport({ scale: 1 }); if (Math.abs(vp1.width - pg.w) > 1 || Math.abs(vp1.height - pg.h) > 1) { pg.w = vp1.width; pg.h = vp1.height; pg.ch = pg.cw * pg.h / pg.w; pg.el.style.height = `${pg.ch}px`; }
+                const cssW = pg.cw, scaleCss = cssW / vp1.width, dpr = Math.min(window.devicePixelRatio || 1, 3);
                 const out = Math.max(scaleCss, Math.min(scaleCss * dpr, Math.sqrt(7e6 / (vp1.width * vp1.height))));   // never more than ~7 million pixels per page (iPhone memory)
                 const cv = $('canvas', el), vp = page.getViewport({ scale: out }); cv.width = Math.floor(vp.width); cv.height = Math.floor(vp.height);
                 pg.task = page.render({ canvasContext: cv.getContext('2d', { alpha: false }), viewport: vp }); await pg.task.promise;
