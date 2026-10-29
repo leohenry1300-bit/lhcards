@@ -3222,3 +3222,20 @@ body.tab-drag .view, body.tab-drag .view * { -webkit-backdrop-filter: none !impo
   .nb-filterrow .nb-tools .btn span, .nb-filterrow .nb-tools #nb-sortbtn span, .nb-filterrow .nb-tools #nb-sortbtn::before { display: none !important; }
   .nb-filterrow .nb-tools .btn { width: 40px; padding: 0; justify-content: center; }
 }
+
+/* v5: stats bar full width, profile spacing and bigger hero text, home sort as wide as the search */
+.stats-scope { min-width: 0; width: 100%; flex: 1 1 100%; }
+.stats-scope .select { width: 100%; }
+.set-group-title, .set-group-title { margin-top: 0 !important; }
+.set-nav { margin-bottom: 0; }
+.ph-info h2 { font-size: 1.9rem; }
+.ph-info p { font-size: 1.02rem; margin-bottom: 12px; }
+.ph-tile { padding: 14px 4px 12px; }
+.ph-tile .i { width: 22px; height: 22px; }
+.ph-tile b { font-size: 1.55rem; }
+.ph-tile span { font-size: .82rem; }
+.ph-hint { font-size: .95rem; }
+@media (max-width: 520px) { .ph-info h2 { font-size: 1.55rem; } .ph-info p { font-size: .95rem; } .ph-tile b { font-size: 1.35rem; } .ph-tile span { font-size: .78rem; } }
+.dash-tools { flex-direction: column; align-items: stretch; gap: 10px; }
+.dash-tools .dash-find, .dash-tools .sort-pick { width: 100%; flex: none; }
+.dash-tools .sort-pick .select { width: 100%; max-width: none; }

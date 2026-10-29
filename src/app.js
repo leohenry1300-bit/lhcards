@@ -1947,15 +1947,14 @@ class SuperAnki {
             <div>
                 <div class="section-head">
                     <h3 class="section-title">Tes paquets</h3>
-                    <span class="deck-head-links"><button class="link" data-action="open-library">${ic('layers')}Bibliothèque</button><button class="link" data-nav="decks">Gérer ${ic('chevronRight')}</button></span>
+                    <span class="deck-head-links"><button class="link" data-action="tool-trash">${ic('trash')}Corbeille</button><button class="link" data-nav="decks">Gérer ${ic('chevronRight')}</button></span>
                 </div>
                 ${d.decks.length ? `<div class="dash-tools"><label class="input-icon dash-find">${ic('search')}<span class="sr-only">Rechercher un paquet</span><input class="input" type="search" placeholder="Rechercher un paquet..." data-input="dash-find" autocomplete="off" spellcheck="false"></label>
-                <label class="sort-pick"><span class="sr-only">Trier</span><select class="select select-sm" aria-label="Trier les paquets" data-input="deck-sort">${[['recent', 'Plus récents'], ['due', 'À revoir d\'abord'], ['studied', 'Révisés récemment'], ['alpha', 'A → Z'], ['size', 'Plus de cartes']].map(([v, l]) => `<option value="${v}" ${(d.settings.deckSort || 'recent') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
+                <label class="sort-pick"><span class="sr-only">Trier</span><select class="select" aria-label="Trier les paquets" data-input="deck-sort">${[['recent', 'Plus récents'], ['due', 'À revoir d\'abord'], ['studied', 'Révisés récemment'], ['alpha', 'A → Z'], ['size', 'Plus de cartes']].map(([v, l]) => `<option value="${v}" ${(d.settings.deckSort || 'recent') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
                 <div id="dash-find-res" class="panel dl-results hidden"></div>
                 <div id="dash-decks" class="deck-grid ${this.deckCompact() ? 'compact' : ''}">${this.dashboardDeckCards()}</div>`
                     : `<div class="panel empty"><div class="empty-mascot">${leoSvg('ready', { state: 's0', intro: 'hello0', amb: 'aha0,read0,talk0' })}</div><p>Aucun paquet pour l'instant.</p><button class="btn btn-primary" style="margin-top:14px" data-action="new-deck">${ic('folderPlus')}Créer un paquet</button></div>`}
             </div>
-            ${libBanner}
             ${this.tipsHtml()}
         </div>`;
         const fresh = $('#view-dashboard .hero .leo3d');
@@ -2052,7 +2051,7 @@ class SuperAnki {
                 <div><h2 class="page-title">Paquets &amp; Cartes</h2>
                 <p class="page-sub">Choisis un paquet pour gérer tes fiches et lancer une révision.</p></div>
                 <div class="head-tools">
-                    <button class="icon-btn" data-action="open-library" title="Bibliothèque de paquets" aria-label="Bibliothèque de paquets">${ic('layers')}</button>
+                    <button class="icon-btn" data-action="tool-trash" title="Corbeille (gardée 30 jours)" aria-label="Corbeille">${ic('trash')}</button>
                     <button class="icon-btn" data-action="undo-global" title="Annuler la dernière modification (Ctrl+Z)" ${this.undoStack.length ? '' : 'disabled style="opacity:.35"'}>${ic('undo')}</button>
                     <button class="icon-btn" data-action="redo-global" title="Rétablir (Ctrl+Maj+Z)" ${this.redoStack.length ? '' : 'disabled style="opacity:.35"'}>${ic('redo')}</button>
                 </div>
