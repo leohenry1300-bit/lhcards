@@ -101,7 +101,7 @@ Object.assign(SuperAnki.prototype, {
         const ui = this.ui; if (!ui.noteSelMode) return '';
         const n = ui.noteSel ? ui.noteSel.size : 0;
         return `<div class="bulk-bar nb-bulk"><span><b>${n}</b> sélectionnée${n > 1 ? 's' : ''}</span>
-            <button class="btn btn-soft btn-sm" data-action="nb-sel-all">Tout</button>
+            <button class="btn btn-soft btn-sm" data-action="nb-sel-all">${(() => { const all = this.nbRows().filter(r => r.kind === 'note'); return all.length && ui.noteSel && all.every(r => ui.noteSel.has(r.n.id)) ? 'Aucune' : 'Tout'; })()}</button>
             <button class="btn btn-soft btn-sm" data-action="nb-bulk" data-act="move" ${n ? '' : 'disabled'}>${ic('folder')}Déplacer</button>
             <button class="btn btn-soft btn-sm" data-action="nb-bulk" data-act="pin" ${n ? '' : 'disabled'}>${ic('pin')}Épingler</button>
             <button class="btn btn-danger-soft btn-sm" data-action="nb-bulk" data-act="del" ${n ? '' : 'disabled'}>${ic('trash')}Supprimer</button>
@@ -121,7 +121,7 @@ Object.assign(SuperAnki.prototype, {
         const ui = this.ui, n = this.note(ui.note);
         if (ui.note && !n) ui.note = null;
         $('#view-notes').innerHTML = `
-        <div class="notes-shell ${n || ui.nbFolder || ui.nbMem ? 'has-open' : ''}">
+        <div class="notes-shell ${n || ui.nbFolder || ui.nbMem ? 'has-open' : ''} ${this.nbPrefs().sideOff ? 'side-off' : ''}">
             <aside class="notes-side panel">
                 <div class="notes-side-head"><h2 class="page-title" style="margin:0">Notes</h2>
                     <span class="row-gap"><button class="btn btn-soft" data-action="pdf-import-btn" title="Importer un PDF">${ic('pdf')}<span>PDF</span></button><button class="btn btn-primary nb-newbig" data-action="nb-new-menu" id="nb-newbtn">${ic('plus')}<span>Nouveau</span>${ic('chevronDown')}</button></span></div>
@@ -145,6 +145,7 @@ Object.assign(SuperAnki.prototype, {
                 <button class="icon-btn" data-action="nb-close" title="${back ? `Retour à « ${esc(this.noteName(back))} »` : 'Retour à la liste'}" aria-label="Retour">${ic('arrowLeft')}</button>
                 <button class="nb-emoji" data-action="nb-emoji" title="Choisir l'emoji de la note" aria-label="Emoji de la note">${n.emoji ? esc(n.emoji) : ic('notebook')}</button>
                 <input class="nb-title" id="nb-title" maxlength="120" placeholder="Titre de la note" title="Double-clique (ou double-tape) pour renommer" value="${esc(n.title)}" ${n.title ? 'readonly' : ''} autocomplete="off" enterkeyhint="next">
+                <button class="icon-btn nb-sidebtn ${this.nbPrefs().sideOff ? '' : 'on'}" data-action="nb-side" title="${this.nbPrefs().sideOff ? 'Afficher la liste des notes' : 'Masquer la liste des notes'}" aria-label="Liste des notes">${ic('sidebar')}</button>
                 <button class="icon-btn" data-action="nb-find" title="Chercher dans la note (Ctrl+F)" aria-label="Chercher dans la note">${ic('search')}</button>
                 <button class="icon-btn ${n.fav ? 'nb-fav on' : 'nb-fav'}" data-action="nb-fav" title="Favori" aria-label="Favori">${ic('star', n.fav ? 'i-fill' : '')}</button>
                 <button class="icon-btn" data-action="nb-more" title="Plus d'actions" aria-label="Plus d'actions">${ic('more')}</button>
@@ -452,6 +453,7 @@ Object.assign(SuperAnki.prototype, {
             this.noteOpen(ds.id);
         }
         else if (action === 'nb-fold') { const P = this.nbPrefs(); if (P.closed[ds.id]) delete P.closed[ds.id]; else P.closed[ds.id] = 1; this.nbPrefSave(); this.nbRefreshList(); }
+        else if (action === 'nb-side') { const P = this.nbPrefs(); P.sideOff = !P.sideOff; this.nbPrefSave(); const sh = $('.notes-shell'); if (sh) sh.classList.toggle('side-off', !!P.sideOff); const b = $('.nb-sidebtn'); if (b) { b.classList.toggle('on', !P.sideOff); b.title = P.sideOff ? 'Afficher la liste des notes' : 'Masquer la liste des notes'; } }
         else if (action === 'nb-close') {
             this.nbIdle(true); const back = this.nb && this.nb.back.pop();
             if (back && this.note(back)) { ui.note = back; this.nb.hist = []; this.nb.redo = []; } else ui.note = null;
@@ -462,7 +464,7 @@ Object.assign(SuperAnki.prototype, {
         else if (action === 'nb-sort-menu') this.nbSortMenu(el);
         else if (action === 'nb-sel-toggle') { ui.noteSelMode = !ui.noteSelMode; ui.noteSel = new Set(); this.nbRefreshList(); const b = $('[data-action=nb-sel-toggle]'); if (b) { b.classList.toggle('btn-primary', ui.noteSelMode); b.classList.toggle('btn-soft', !ui.noteSelMode); } }
         else if (action === 'nb-sel-exit') { ui.noteSelMode = false; ui.noteSel = new Set(); this.nbRefreshList(); const b = $('[data-action=nb-sel-toggle]'); if (b) { b.classList.remove('btn-primary'); b.classList.add('btn-soft'); } }
-        else if (action === 'nb-sel-all') { ui.noteSel = new Set(this.nbRows().filter(r => r.kind === 'note').map(r => r.n.id)); this.nbRefreshList(); }
+        else if (action === 'nb-sel-all') { const all = this.nbRows().filter(r => r.kind === 'note').map(r => r.n.id); ui.noteSel = ui.noteSel && all.length && all.every(i => ui.noteSel.has(i)) ? new Set() : new Set(all); this.nbRefreshList(); }
         else if (action === 'nb-bulk') {
             const ids = [...(ui.noteSel || [])]; if (!ids.length) return;
             if (ds.act === 'del') this.noteDeleteMany(ids).then(() => { ui.noteSelMode = false; this.nbRefreshList(); });

@@ -135,7 +135,7 @@ Object.assign(SuperAnki.prototype, {
     /* ---------- the side column ---------- */
     nbHomeHtml() {
         const ui = this.ui, due = this.nbDueAll(), today = this.data.notes.find(n => n.daily === dayKey());
-        const card = (act, ico, t, sub, cls = '', extra = '') => `<button class="nb-card ${cls}" data-action="${act}"><span class="nb-card-i">${ico}</span><span class="nb-card-t"><b>${t}</b><small>${sub}</small></span>${extra}</button>`;
+        const card = (act, ico, t, sub, cls = '', extra = '') => `<button class="nb-card ${cls}" data-action="${act}" title="${t}"><span class="nb-card-i">${ico}</span><span class="nb-card-t"><b>${t}</b><small>${sub}</small></span>${extra}</button>`;
         return `<div class="nb-cards">
             ${card('nb-daily', ic('calendar'), 'Note du jour', today ? 'Continuer ma note d\'aujourd\'hui' : 'Commencer ma note d\'aujourd\'hui', 'big')}
             ${card('nb-mem', ic('copy'), 'Cartes mémoire', due ? plural(due, 'carte') + ' à revoir' : 'Tout est à jour', ui.nbMem ? 'on' : '', due ? `<i class="nb-pill-badge">${due > 99 ? '99+' : due}</i>` : '')}

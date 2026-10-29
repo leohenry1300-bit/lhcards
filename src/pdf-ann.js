@@ -356,7 +356,7 @@ Object.assign(SuperAnki.prototype, {
         const pv = this.pv, ds = el.dataset || {}; if (!pv) return;
         const box = el.closest && el.closest('.pdfa-box'), pgEl = box && box.closest('.pdfp'), pg = pgEl && pv.pages[Number(pgEl.dataset.i)], a = box && pg && this.pdfAnnOf(pg.g.id, box.dataset.i);
         const A = {
-            'pdf-tool': () => { if (pv.tool === ds.t) { if (pv.panel === ds.t) this.pdfPanelClose(); else this.pdfPanelOpen(ds.t, el); return; } pv.prevTool = pv.tool; pv.tool = ds.t; this.pdfPanelClose(); this.pdfRefreshTools(); if (ds.t !== 'pick') this.pdfSelSet(null); },
+            'pdf-tool': () => { if (pv.tool === ds.t) { if (pv.panel === ds.t) this.pdfPanelClose(); else this.pdfPanelOpen(ds.t, el); return; } pv.prevTool = pv.tool; pv.tool = ds.t; this.pdfPanelClose(); this.pdfRefreshTools(); if (ds.t !== 'pick') this.pdfSelSet(null); if (this.pdfPanelHtml(ds.t)) this.pdfPanelOpen(ds.t); },
             'pdf-opt': () => this.pdfOptSet(ds.k, ds.v),
             'pdf-selall': () => this.pdfSelAll(ds.s),
             'pdf-sel-do': () => this.pdfSelDo(ds.d),

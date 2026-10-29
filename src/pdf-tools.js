@@ -52,7 +52,7 @@ Object.assign(SuperAnki.prototype, {
     },
     pdfPanelOpen(t, anchor) {
         const pv = this.pv, old = $('#pdf-panel'); if (old) old.remove(); if (!t || !this.pdfPanelHtml(t)) { pv.panel = ''; return; }
-        pv.panel = t; const box = document.createElement('div'); box.id = 'pdf-panel'; box.className = 'pdf-panel'; box.innerHTML = this.pdfPanelHtml(t); $('.pdfv').appendChild(box);
+        pv.panel = t; pv.panelAt = Date.now(); const box = document.createElement('div'); box.id = 'pdf-panel'; box.className = 'pdf-panel'; box.innerHTML = this.pdfPanelHtml(t); $('.pdfv').appendChild(box);
         const a = (anchor || $(`.pdft-b[data-t="${t}"]`)); if (!a) return; const r = a.getBoundingClientRect(), v = $('.pdfv').getBoundingClientRect(), w = box.offsetWidth, h = box.offsetHeight;
         const pos = this.pdfPrefs().pos; let left = clamp(r.left - v.left, 8, v.width - w - 8), top = r.bottom - v.top + 6;
         if (pos === 'left') { left = r.right - v.left + 8; top = clamp(r.top - v.top, 8, v.height - h - 8); } else if (pos === 'right') { left = r.left - v.left - w - 8; top = clamp(r.top - v.top, 8, v.height - h - 8); } else if (pos === 'bottom' || top + h > v.height - 8) top = Math.max(8, r.top - v.top - h - 6);
@@ -147,7 +147,7 @@ Object.assign(SuperAnki.prototype, {
 Object.assign(SuperAnki.prototype, {
     pdfBindTools() {
         if (document._pdfTools) return; document._pdfTools = true;
-        document.addEventListener('pointerdown', e => { if (this.view !== 'pdf' || !this.pv) return; const p = $('#pdf-panel'); if (p && !p.contains(e.target) && !e.target.closest('#pdf-tools')) this.pdfPanelClose(); }, true);
+        document.addEventListener('pointerdown', e => { if (this.view !== 'pdf' || !this.pv) return; const p = $('#pdf-panel'); if (p && !p.contains(e.target) && !e.target.closest('#pdf-tools') && Date.now() - (this.pv.panelAt || 0) > 700) this.pdfPanelClose(); }, true);
         document.addEventListener('change', e => { const i = e.target.closest && e.target.closest('[data-optin]'); if (!i || !this.pv) return; const v = i.value.trim().replace('#', ''); if (/^[0-9a-f]{6}$/i.test(v)) this.pdfOptSet(i.dataset.optin, '#' + v.toLowerCase()); else this.toast('Code couleur : 6 caractères (ex. 4B73FF).', 'warning'); });
         document.addEventListener('keydown', e => {
             if (this.view !== 'pdf' || !this.pv || this.modals.length) return; const typing = e.target.closest && e.target.closest('input, textarea, [contenteditable], .nb-t'); if (typing) return;
