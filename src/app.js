@@ -4459,12 +4459,7 @@ class SuperAnki {
                 this.renderDeckSidebar(); this.renderDeckPanel();
                 break;
             }
-            case 'global-search': {
-                if (this.view !== 'decks') this.go('decks');
-                const inp = $('#card-search');
-                if (inp) { inp.focus(); inp.select(); }
-                break;
-            }
+            case 'global-search': this.quickOpen(); break;
             case 'new-card-from-search': this.openCardModal(null, this.ui.deck !== 'all' && this.ui.deck !== 'errors' ? this.ui.deck : null, this.ui.search.trim()); break;
             case 'stats-opt': {
                 const v = ds.value;

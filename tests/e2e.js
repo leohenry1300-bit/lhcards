@@ -1329,6 +1329,17 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         ok('PDF on a phone: opens in "PDF fidèle", note in a bottom drawer (half / full / hidden), floating "Annoter" button opens the tools, nothing wider than the screen, tab bars come back after leaving', ph.narrow && ph.mode && ph.fab && ph.drawer && ph.tools && ph.fit && ph.topFits && ph.full && ph.hideNote && ph.nav && ph.back, JSON.stringify(ph));
     }
 
+    {   /* quick search (Ctrl+K): notes, PDF, cards, actions in one place, keyboard driven */
+        await page.setViewportSize({ width: 1280, height: 800 }); await go('dashboard'); await wait(300);
+        await page.keyboard.press('Control+k'); await wait(400);
+        const q0 = await page.evaluate(() => ({ box: !!document.getElementById('quick-q'), acts: [...document.querySelectorAll('.quick-i b')].some(b => /Nouvelle note/.test(b.textContent)) }));
+        await page.keyboard.type('droit'); await wait(400);
+        const q1 = await page.evaluate(() => [...document.querySelectorAll('.quick-g')].map(g => g.textContent).join());
+        await page.keyboard.press('Enter'); await wait(2500);
+        const q2 = await page.evaluate(() => ({ view: app.view, modal: app.modals.length > 0 }));
+        ok('Quick search (Ctrl+K): suggestions at once, results grouped (PDF, notes, cards…), Enter opens the first result', q0.box && q0.acts && /PDF|Notes|Cartes/.test(q1) && !q2.modal && q2.view !== 'dashboard', JSON.stringify({ q0, q1, q2 }));
+    }
+
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));
     console.log(R.join('\n') + `\n\n${R.length - failed}/${R.length} checks passed`);
     await browser.close(); server.close(); process.exit(failed ? 1 : 0);

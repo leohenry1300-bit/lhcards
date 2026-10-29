@@ -3016,3 +3016,16 @@ body.pdf-open.nb-open.nb-editing #nb-bar { display: flex; }
 .pdfr-table { border-collapse: collapse; width: 100%; font-size: .92em; }
 .pdfr-table th, .pdfr-table td { border: 1px solid var(--border-strong, var(--border)); padding: 6px 9px; text-align: left; vertical-align: top; }
 .pdfr-table th { background: var(--surface-2); font-weight: 700; }
+
+.modal.quick { padding: 10px; }
+.modal.quick .modal-head { display: none; }
+.quick-list { max-height: 55vh; overflow: auto; margin-top: 8px; display: grid; gap: 2px; }
+.quick-g { padding: 8px 10px 2px; font-size: .68rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--text-faint); }
+.quick-i { display: flex; align-items: center; gap: 10px; text-align: left; padding: 9px 10px; border-radius: 10px; min-height: 44px; }
+.quick-i .i { color: var(--primary); flex: none; }
+.quick-i span { min-width: 0; display: grid; }
+.quick-i b, .quick-i small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.quick-i small { color: var(--text-faint); font-size: .76rem; }
+.quick-i.on, .quick-i:hover { background: var(--primary-soft); }
+
+@media (pointer: coarse) { .dt-x { width: 32px; height: 32px; } .pdft-c { width: 32px; height: 32px; } .pdfv-tools .pdft-c { margin: 0 2px; } .nb-link { padding: 6px 2px; } }
