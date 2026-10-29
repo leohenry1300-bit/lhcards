@@ -3114,3 +3114,27 @@ body.tab-drag .view, body.tab-drag .view * { -webkit-backdrop-filter: none !impo
 .pdf-selbar .i { width: 16px; height: 16px; }
 .pdf-selbox { fill: rgba(79,70,229,.06); stroke: #4f46e5; stroke-width: .002; stroke-dasharray: .008 .006; pointer-events: none; }
 .pdf-lasso { fill: rgba(79,70,229,.1); stroke: #4f46e5; stroke-width: .002; stroke-dasharray: .008 .006; }
+
+/* Notes page: one clear column (search, filters, shortcuts, list) — the document opens full width when you tap it */
+@media (min-width: 900px) {
+  .notes-shell:not(.has-open) { grid-template-columns: minmax(0, 820px); justify-content: center; }
+  .notes-shell:not(.has-open) .notes-main { display: none; }
+  .notes-shell:not(.has-open) .notes-side { position: static; max-height: none; overflow: visible; }
+}
+.nb-newbig { height: 40px; padding: 0 16px; font-weight: 800; }
+.notes-side-head .btn { height: 40px; }
+.nb-searchrow { display: flex; align-items: center; gap: 8px; margin: 12px 0 10px; }
+.nb-searchrow .input-icon { flex: 1; min-width: 0; display: block; }
+.nb-searchrow .nb-tools { margin: 0; flex-wrap: nowrap; }
+.nb-tools .icon-btn { width: 44px; height: 44px; border-radius: 12px; background: var(--surface-2); }
+.nb-tools .icon-btn span { display: none; }
+.nb-tools .icon-btn.on { background: var(--primary); color: var(--on-primary, #fff); }
+.nb-pills { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 10px; }
+.nb-pill { position: relative; display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 14px; border-radius: 20px; background: var(--surface-2); border: 1px solid var(--border); font-weight: 700; font-size: .86rem; color: var(--text); }
+.nb-pill .i { width: 17px; height: 17px; color: var(--primary); }
+.nb-pill.on { background: var(--primary-soft); border-color: var(--primary); }
+.nb-pill-badge { font-style: normal; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; display: grid; place-items: center; background: var(--again, #dc2626); color: #fff; font-size: .72rem; font-weight: 800; }
+#nb-list .nb-row { min-height: 64px; }
+#nb-list .nb-row-t b { font-size: 1rem; }
+.notes-side-head { flex-wrap: nowrap; }
+@media (max-width: 480px) { .notes-side-head .btn:not(.nb-newbig) span { display: none; } .notes-side-head .btn:not(.nb-newbig) { width: 44px; padding: 0; justify-content: center; } .nb-searchrow .input { min-width: 0; } }

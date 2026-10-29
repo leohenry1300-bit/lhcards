@@ -136,12 +136,11 @@ Object.assign(SuperAnki.prototype, {
     nbHomeHtml() {
         const ui = this.ui, due = this.nbDueAll(), today = this.data.notes.find(n => n.daily === dayKey());
         const pins = (this.data.settings.pinnedDecks || []).map(id => this.deck(id)).filter(Boolean);
-        const tile = (act, ico, t, sub, extra = '', on = false) => `<button class="nb-tile ${on ? 'on' : ''}" data-action="${act}"><span class="nb-tile-i">${ico}</span><span class="nb-tile-t"><b>${t}</b><small>${sub}</small></span>${extra}</button>`;
-        return `<div class="nb-tiles">
-            ${tile('nb-daily', ic('calendar'), 'Note du jour', today ? 'Reprendre' : 'Commencer')}
-            ${tile('nb-mem', ic('copy'), 'Cartes mémoire', due ? `${due} à réviser` : 'À jour', due ? `<i class="nb-tile-badge">${due > 99 ? '99+' : due}</i>` : '', ui.nbMem)}
-            ${tile('nb-docs', ic('layers'), 'Documents', `${plural(this.data.notes.length, 'note')}`, '', ui.nbFolder === NB_ROOT)}
-            ${tile('nb-favs', ic('star'), 'Favoris', `${this.data.notes.filter(n => n.fav).length}`, '', ui.noteFav)}
+        const pill = (act, ico, t, extra = '', on = false) => `<button class="nb-pill ${on ? 'on' : ''}" data-action="${act}">${ico}<span>${t}</span>${extra}</button>`;
+        return `<div class="nb-pills">
+            ${pill('nb-daily', ic('calendar'), 'Note du jour')}
+            ${pill('nb-mem', ic('copy'), 'Cartes mémoire', due ? `<i class="nb-pill-badge">${due > 99 ? '99+' : due}</i>` : '', ui.nbMem)}
+            ${pill('nb-docs', ic('folder'), 'Dossiers', '', ui.nbFolder === NB_ROOT)}
         </div>${pins.length ? `<div class="nb-pins"><span class="nb-pins-l">${ic('pin')}Épinglés</span>${pins.map(d => `<button class="chip ${ui.nbFolder === d.id ? 'active' : ''}" data-action="nb-folder" data-id="${esc(d.id)}">${esc(d.emoji)} ${esc(d.name)}</button>`).join('')}</div>` : ''}`;
     },
     nbMainHtml(n) {

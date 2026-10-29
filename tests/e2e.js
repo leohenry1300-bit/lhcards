@@ -825,10 +825,10 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         ok('Notes v2: tree (pinned on top, folders = decks, sub-notes indented), fold, sorts, filters (favourites, tag, search)', t1.tree && t1.foldBtn && t1.folded && t1.unfolded && t1.sortCreated && t1.sortManual && t1.fav && t1.tag && t1.search, JSON.stringify(t1));
         const ids = t1.ids;
         /* long press / right click on a row: the screen dims, the row lifts and a menu offers the actions (no sliding any more) */
-        await wait(900); const row = await page.$(`#nb-list .nb-row[data-id="${ids.REV}"]`); await row.scrollIntoViewIfNeeded(); await wait(200); const bb = await row.boundingBox();
+        await wait(900); const row = await page.$(`#nb-list .nb-row[data-id="${ids.REV}"]`); await row.evaluate(el => el.scrollIntoView({ block: 'center' })); await wait(300); const bb = await row.boundingBox();
         await page.evaluate(() => document.querySelectorAll('.toast').forEach(t => t.remove()));
-        await page.mouse.click(bb.x + 200, bb.y + bb.height / 2, { button: 'right' }); await wait(500);
-        const sw1 = await page.evaluate(id => ({ dim: !!document.querySelector('.press-dim'), lift: document.querySelector(`#nb-list .nb-row[data-id="${id}"]`).classList.contains('press-lift'), items: [...document.querySelectorAll('.popover .menu-item')].map(b => b.textContent.trim()) }), ids.REV);
+        await page.mouse.click(bb.x + 120, bb.y + bb.height / 2, { button: 'right' }); await wait(500);
+        const sw1 = await page.evaluate(id => ({ dbg: [app.ui.noteSelMode, app.ui.selMode, app.modals.length, !!app.popover, document.querySelector(`#nb-list .nb-row[data-id="${id}"]`) && document.querySelector(`#nb-list .nb-row[data-id="${id}"]`).className].join('|'), dim: !!document.querySelector('.press-dim'), lift: document.querySelector(`#nb-list .nb-row[data-id="${id}"]`).classList.contains('press-lift'), items: [...document.querySelectorAll('.popover .menu-item')].map(b => b.textContent.trim()) }), ids.REV);
         await page.evaluate(() => { const b = [...document.querySelectorAll('.popover .menu-item')].find(x => /^Supprimer/.test(x.textContent.trim())); if (b) b.click(); }); await wait(500);
         const sw2 = await page.evaluate(id => ({ gone: !app.note(id), trash: app.data.trash.some(x => x.k === 'note' && x.c.id === id), dim: !!document.querySelector('.press-dim:not(.out)') }), ids.REV);
         await page.evaluate(() => { const b = document.querySelector('.toast button'); if (b) b.click(); }); await wait(300);
@@ -1038,7 +1038,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         const fo = await page.evaluate(async () => {
             const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {}, d = a.data, dk = d.decks.find(x => !x.parent).id, n = d.notes[0];
             a.ui.note = null; a.go('notes'); a.renderNotes(); await w(300);
-            out.tiles = ['nb-daily', 'nb-mem', 'nb-docs', 'nb-favs'].every(x => !!document.querySelector(`#nb-home [data-action=${x}]`));
+            out.tiles = ['nb-daily', 'nb-mem', 'nb-docs'].every(x => !!document.querySelector(`#nb-home [data-action=${x}]`));
             /* moving the note to a folder: its cards follow */
             a.openNoteMove([n.id]); await w(100); document.querySelector(`#nm-list [data-k=deck][data-id="${dk}"]`).click(); await w(300);
             out.follow = d.cards.filter(c => c.src && c.src.n === n.id).every(c => c.deckId === dk) && n.deckId === dk;
