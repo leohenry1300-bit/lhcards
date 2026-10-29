@@ -287,7 +287,7 @@ Object.assign(SuperAnki.prototype, {
                 if (x0 < 0 || mouse) return; const dx = x - x0, dy = y - y0; lastX = x; ly = y; const tn = performance.now(); if (hist.length > 5) hist.shift(); hist.push([tn, x]);
                 if (!live) {
                     if (!(Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.15 && !onRow)) return;
-                    live = true; cur = $(`#view-${this.view}`); if (cur) { cur.style.transition = 'none'; cur.style.willChange = 'transform'; }
+                    live = true; document.body.classList.add('tab-drag'); cur = $(`#view-${this.view}`); if (cur) { cur.style.transition = 'none'; cur.style.willChange = 'transform'; }
                 }
                 const side = dx < 0 ? 1 : -1, jj = ORDER.indexOf(this.view) + side, ok = jj >= 0 && jj < ORDER.length;
                 if (nbSide !== side) {
@@ -312,8 +312,8 @@ Object.assign(SuperAnki.prototype, {
                     const fin = () => {
                         if (good) {
                             this._noAnim = true; go(dx); this._noAnim = false;   // the next page is already drawn: it is simply kept (see tab-warm.js)
-                            requestAnimationFrame(() => { if (n) { n.style.cssText = ''; document.body.classList.remove('tab-drag'); if (nbEl === n) nbEl = null; } c.style.cssText = ''; });
-                        } else { c.style.cssText = ''; if (nbEl === n) nbDrop(); }
+                            requestAnimationFrame(() => { if (n) { n.style.cssText = ''; if (nbEl === n) nbEl = null; } c.style.cssText = ''; document.body.classList.remove('tab-drag'); });
+                        } else { c.style.cssText = ''; if (nbEl === n) nbDrop(); document.body.classList.remove('tab-drag'); }
                     };
                     c.style.transition = `transform ${dur}ms ${ease}`; if (n) n.style.transition = `transform ${dur}ms ${ease}`;
                     requestAnimationFrame(() => { c.style.transform = good ? `translate3d(${-side * W}px,0,0)` : 'translate3d(0,0,0)'; if (n) n.style.transform = good ? 'translate3d(0,0,0)' : `translate3d(${side * W}px,0,0)`; });
@@ -323,7 +323,7 @@ Object.assign(SuperAnki.prototype, {
                 if (Math.abs(dx) < 90 || dy * 2.2 > Math.abs(dx) || Date.now() - t0 > 650 || this.session || onRow) return;
                 go(dx);
             },
-            cancel: () => { x0 = -1; if (live && cur) { cur.style.transition = 'transform .2s'; cur.style.transform = ''; } nbDrop(); nbSide = 0; live = false; cur = null; hist = []; }
+            cancel: () => { x0 = -1; if (live && cur) { cur.style.transition = 'transform .2s'; cur.style.transform = ''; } nbDrop(); document.body.classList.remove('tab-drag'); nbSide = 0; live = false; cur = null; hist = []; }
         });
         /* trackpad: two fingers sliding sideways. One slide = one tab: the tail of the slide (its gliding) never counts as another one; a new slide can start while the previous one is still
            gliding only if it is a real new push (the speed fell, then clearly rises again) and some time has passed, so tabs can still be chained quickly */
