@@ -1030,7 +1030,7 @@ class SuperAnki {
         this.initRipple();
         this.initScrollShadow();
         leoInit();
-        this.initPull(); setInterval(() => this.beachSky(), 300000); document.addEventListener('visibilitychange', () => { if (!document.hidden) this.beachSky(); this.heroVideo(); }); this.initSwipeBack(); this.initRowSwipe(); this.initTabSwipe();
+        this.initPull(); setInterval(() => this.beachSky(), 300000); document.addEventListener('visibilitychange', () => { if (!document.hidden) this.beachSky(); this.heroVideo(); }); this.initSwipeBack(); this.initPressMenu(); this.initTabSwipe();
         this.focusInit();
         this.extrasInit();
         this.ambInit();

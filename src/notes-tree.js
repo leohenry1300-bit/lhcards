@@ -261,10 +261,11 @@ Object.assign(SuperAnki.prototype, {
     },
 
     /* ---------- menus ---------- */
-    nbNoteMenu(anchor, id) {
+    nbNoteMenu(anchor, id, extra = []) {
         const n = this.note(id); if (!n) return;
         const pf = this.pdfOfNote(n.id);
         this.showMenu(anchor, [
+            ...extra,
             ...(pf ? [{ icon: 'pdf', label: 'Ouvrir le PDF', fn: () => this.pdfOpen(pf.id, { from: 'notes' }) }, { icon: 'export', label: 'Exporter le PDF annoté', fn: () => this.pdfExportAnnotated(pf) }, { icon: 'export', label: 'Exporter l\'original', fn: () => this.pdfExportOriginal(pf) }, { sep: true }] : []),
             { icon: 'pin', label: n.pin ? 'Désépingler' : 'Épingler en haut', fn: () => { n.pin = !n.pin; this.save(); this.renderNotes(); } },
             { icon: 'star', label: n.fav ? 'Retirer des favoris' : 'Ajouter aux favoris', fn: () => { n.fav = !n.fav; this.save(); this.renderNotes(); } },

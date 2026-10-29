@@ -527,16 +527,6 @@ Object.assign(SuperAnki.prototype, {
             if (g) { const w = g.closest('.nb-wrap'); if (w) { e.preventDefault(); this.nbListDrag(e, w); } return; }
             const bul = e.target.closest('.nb-bul');
             if (bul && this.note(this.ui.note)) { const row = bul.closest('.nb'); if (row) this.nbBlockDrag(e, Number(row.dataset.i)); return; }
-            const row = e.target.closest('.nb-row[data-kind=note]');
-            if (row && e.pointerType === 'touch' && !this.ui.noteSelMode && !e.target.closest('button')) {
-                const x0 = e.clientX, y0 = e.clientY; let t = setTimeout(() => {
-                    cancel(); this.ui.noteSelMode = true; this.ui.noteSel = new Set([row.dataset.id]); this._nbDragEnd = Date.now(); if (navigator.vibrate) navigator.vibrate(10); this.nbRefreshList();
-                    const b = $('[data-action=nb-sel-toggle]'); if (b) { b.classList.add('btn-primary'); b.classList.remove('btn-soft'); }
-                }, 500);
-                const mv = ev => { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 8) cancel(); };
-                const cancel = () => { clearTimeout(t); window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', cancel); window.removeEventListener('pointercancel', cancel); };
-                window.addEventListener('pointermove', mv); window.addEventListener('pointerup', cancel); window.addEventListener('pointercancel', cancel);
-            }
         });
         document.addEventListener('touchmove', e => { if (this._dragging) e.preventDefault(); }, { passive: false });
         const place = () => this.nbPlaceBar();

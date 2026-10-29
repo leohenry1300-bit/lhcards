@@ -824,17 +824,16 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         });
         ok('Notes v2: tree (pinned on top, folders = decks, sub-notes indented), fold, sorts, filters (favourites, tag, search)', t1.tree && t1.foldBtn && t1.folded && t1.unfolded && t1.sortCreated && t1.sortManual && t1.fav && t1.tag && t1.search, JSON.stringify(t1));
         const ids = t1.ids;
-        /* swipe a row to the left with the mouse: pin / favourite / delete, then undo */
+        /* long press / right click on a row: the screen dims, the row lifts and a menu offers the actions (no sliding any more) */
         await wait(900); const row = await page.$(`#nb-list .nb-row[data-id="${ids.REV}"]`); await row.scrollIntoViewIfNeeded(); await wait(200); const bb = await row.boundingBox();
         await page.evaluate(() => document.querySelectorAll('.toast').forEach(t => t.remove()));
-        const diag = await page.evaluate(([x, y]) => ({ sel: app.ui.selMode, nsel: app.ui.noteSelMode, drag: app._dragging, theme: app.data.settings.theme, mods: app.modals.length, pop: !!app.popover, hit: (document.elementFromPoint(x, y) || {}).className, vp: innerWidth + 'x' + innerHeight, lite: document.documentElement.dataset.lite || '' }), [bb.x + 200, bb.y + bb.height / 2]);
-        await page.mouse.move(bb.x + 200, bb.y + bb.height / 2); await page.mouse.down(); await page.mouse.move(bb.x + 120, bb.y + bb.height / 2, { steps: 8 }); await page.mouse.move(bb.x + 40, bb.y + bb.height / 2, { steps: 8 }); await page.mouse.up(); await wait(350);
-        const sw1 = await page.evaluate(id => { const r = document.querySelector(`#nb-list .nb-row[data-id="${id}"]`); return { open: r.classList.contains('sw-open'), btns: [...r.querySelectorAll('.row-actions button')].map(b => b.dataset.act) }; }, ids.REV);
-        await page.evaluate(id => { const b = document.querySelector(`#nb-list .nb-row[data-id="${id}"] [data-act=del]`); if (b) b.click(); }, ids.REV); await wait(300);
-        const sw2 = await page.evaluate(id => ({ gone: !app.note(id), trash: app.data.trash.some(x => x.k === 'note' && x.c.id === id) }), ids.REV);
+        await page.mouse.click(bb.x + 200, bb.y + bb.height / 2, { button: 'right' }); await wait(500);
+        const sw1 = await page.evaluate(id => ({ dim: !!document.querySelector('.press-dim'), lift: document.querySelector(`#nb-list .nb-row[data-id="${id}"]`).classList.contains('press-lift'), items: [...document.querySelectorAll('.popover .menu-item')].map(b => b.textContent.trim()) }), ids.REV);
+        await page.evaluate(() => { const b = [...document.querySelectorAll('.popover .menu-item')].find(x => /^Supprimer/.test(x.textContent.trim())); if (b) b.click(); }); await wait(500);
+        const sw2 = await page.evaluate(id => ({ gone: !app.note(id), trash: app.data.trash.some(x => x.k === 'note' && x.c.id === id), dim: !!document.querySelector('.press-dim:not(.out)') }), ids.REV);
         await page.evaluate(() => { const b = document.querySelector('.toast button'); if (b) b.click(); }); await wait(300);
         const sw3 = await page.evaluate(id => !!app.note(id), ids.REV);
-        ok('Notes v2: swipe a note to the left shows Épingler / Favori / Supprimer; delete goes to the trash and "Annuler" brings it back', sw1.open && sw1.btns.join() === 'pin,fav,del' && sw2.gone && sw2.trash && sw3, JSON.stringify({ sw1, sw2, sw3, diag, bb }));
+        ok('Notes v2: long press / right click on a note dims the screen, lifts the row and shows a menu (Sélectionner, Épingler, Favori, Supprimer…); delete goes to the trash and can be undone', sw1.dim && sw1.lift && ['Sélectionner', 'Épingler en haut', 'Ajouter aux favoris', 'Supprimer'].every(l => sw1.items.some(i => i.includes(l))) && sw2.gone && sw2.trash && !sw2.dim && sw3, JSON.stringify({ sw1, sw2, sw3 }));
         /* drag and drop with the grip: onto a note = sub-note, onto a folder = into the folder, between = order */
         const drag = async (fromId, toSel, fy) => {
             await page.evaluate(() => document.querySelectorAll('.toast').forEach(t => t.remove()));

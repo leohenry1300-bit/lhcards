@@ -3036,3 +3036,9 @@ body.tab-drag { overflow-x: hidden; }
 .ex-top.ex-link { cursor: pointer; margin: -14px -16px; padding: 14px 16px; border-radius: inherit; }
 .ex-top.ex-link:active { background: var(--primary-soft); }
 .exam-row:has(.ex-link) .ex-top + * { margin-top: 22px; }
+
+.card-row, #nb-list .nb-row { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.press-dim { position: fixed; inset: 0; z-index: 58; background: rgba(0,0,0,.38); animation: pdIn .16s ease-out; }
+.press-dim.out { opacity: 0; transition: opacity .16s; }
+@keyframes pdIn { from { opacity: 0; } }
+.press-lift { position: relative; z-index: 59 !important; transform: scale(1.025); box-shadow: 0 12px 34px rgba(0,0,0,.35); background: var(--surface) !important; transition: transform .15s; border-radius: 14px; }
