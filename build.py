@@ -341,6 +341,7 @@ const LAZY = {json.dumps(LAZY)};   /* files loaded when needed (see loadLazy) */
 {read("pdf.js")}
 {read("pdf-view.js")}
 {read("pdf-ann.js")}
+{read("pdf-tools.js")}
 {read("doc-tabs.js")}
 {read("quick.js")}
 {read("press-menu.js")}

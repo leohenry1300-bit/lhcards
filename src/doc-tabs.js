@@ -15,11 +15,11 @@ Object.assign(SuperAnki.prototype, {
     },
     tabActive(t) { return t.k === 'pdf' ? this.view === 'pdf' && this.pv && this.pv.p.id === t.id : this.view === 'notes' && this.ui.note === t.id; },
     tabsHtml() {
-        const t = this.tabsGet(); if (t.length < 2) return '';
+        const t = this.tabsGet(); if (t.length < 2 && !(t.length && (this.view === 'pdf' || (this.view === 'notes' && this.ui.note)))) return '';
         return `<div class="doc-tabs" id="doc-tabs" role="tablist"><button class="dt-home" data-action="tab-list" title="Liste des notes" aria-label="Liste des notes">${ic('list')}</button>${t.map(x => {
             const nm = x.k === 'pdf' ? this.pdf(x.id).name : this.noteName(this.note(x.id));
             return `<div class="dt ${this.tabActive(x) ? 'on' : ''}" role="tab" data-action="tab-open" data-k="${x.k}" data-id="${esc(x.id)}" title="${esc(nm)}">${x.k === 'pdf' ? ic('pdf') : ic('notebook')}<span>${esc(truncate(nm, 26))}</span><button class="dt-x" data-action="tab-close" data-k="${x.k}" data-id="${esc(x.id)}" aria-label="Fermer l'onglet">${ic('x')}</button></div>`;
-        }).join('')}</div>`;
+        }).join('')}<button class="dt-new" data-action="tab-new" title="Ouvrir un autre document dans un nouvel onglet" aria-label="Nouvel onglet">${ic('plus')}</button></div>`;
     },
     tabsRender() {
         const old = $('#doc-tabs'); if (old) old.remove();
@@ -30,6 +30,7 @@ Object.assign(SuperAnki.prototype, {
     },
     tabAction(action, el) {
         const k = el.dataset.k, id = el.dataset.id;
+        if (action === 'tab-new') { this.quickOpen(); return; }
         if (action === 'tab-list') { this.ui.note = null; this.ui.nbFolder = null; this.ui.nbMem = false; if (this.view === 'notes') this.renderNotes(); else this.go('notes'); return; }
         if (action === 'tab-open') { if (this.tabActive({ k, id })) return; if (k === 'pdf') this.pdfOpen(id, { from: 'notes' }); else this.noteOpen(id, { push: false }); return; }
         if (action === 'tab-close') {

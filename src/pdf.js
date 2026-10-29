@@ -26,12 +26,14 @@ const PDF_PEN = ['#111827', '#dc2626', '#2563eb', '#16a34a', '#f59e0b', '#9333ea
 
 function normalizePdfAnn(a) {
     if (!a || typeof a !== 'object') return null;
-    const t = ['hl', 'tx', 'nt', 'dr'].includes(a.t) ? a.t : null; if (!t) return null;
+    const t = ['hl', 'tx', 'nt', 'dr', 'sh', 'ar'].includes(a.t) ? a.t : null; if (!t) return null;
     const o = { i: String(a.i || uid('a')), t, c: /^#[0-9a-f]{6}$/i.test(String(a.c || '')) ? String(a.c) : '#fde047', m: num(a.m, 0) };
     const r4 = v => Math.round(num(v, 0) * 10000) / 10000;
     if (t === 'hl') { o.r = toArray(a.r).slice(0, 60).map(r => toArray(r).slice(0, 4).map(r4)).filter(r => r.length === 4); o.s = String(a.s || '').slice(0, 2000); if (!o.r.length) return null; }
     else if (t === 'tx' || t === 'nt') { o.x = r4(a.x); o.y = r4(a.y); o.w = Math.max(0.05, r4(a.w || 0.4)); o.s = String(a.s || '').slice(0, 2000); o.fs = clamp(num(a.fs, 14), 8, 60); o.b = !!a.b; o.f = ['s', 'r', 'm'].includes(a.f) ? a.f : 's'; o.bg = /^#[0-9a-f]{6}$/i.test(String(a.bg || '')) ? String(a.bg) : ''; }
-    else { o.w = clamp(num(a.w, 0.004), 0.0008, 0.05); o.p = toArray(a.p).slice(0, 4000).map(p => toArray(p).slice(0, 2).map(r4)).filter(p => p.length === 2); if (o.p.length < 1) return null; }
+    else if (t === 'sh') { o.k = ['r', 'o', 't', 'd', 's', 'h'].includes(a.k) ? a.k : 'r'; o.x = r4(a.x); o.y = r4(a.y); o.h = r4(a.h); o.w = Math.max(0.003, r4(a.w)); o.sw = clamp(num(a.sw, 0.004), 0.0008, 0.05); o.f = /^#[0-9a-f]{6}$/i.test(String(a.f || '')) ? String(a.f) : ''; }
+    else if (t === 'ar') { o.k = ['a', 'b', 'l'].includes(a.k) ? a.k : 'a'; o.x1 = r4(a.x1); o.y1 = r4(a.y1); o.x2 = r4(a.x2); o.y2 = r4(a.y2); o.w = clamp(num(a.w, 0.004), 0.0008, 0.05); }
+    else { o.w = clamp(num(a.w, 0.004), 0.0008, 0.05); o.op = clamp(num(a.op, 1), 0.1, 1); o.p = toArray(a.p).slice(0, 4000).map(p => toArray(p).slice(0, 2).map(r4)).filter(p => p.length === 2); if (o.p.length < 1) return null; }
     return o;
 }
 function normalizePdf(x) {
@@ -299,7 +301,12 @@ Object.assign(SuperAnki.prototype, {
             const map = (x, y) => { const vx = x * Vw, vy = y * Vh; return rot === 90 ? [vy, vx] : rot === 180 ? [Wu - vx, vy] : rot === 270 ? [Wu - vy, Hu - vx] : [vx, Hu - vy]; };
             for (const a of (p.ann[g.id] || [])) {
                 if (a.t === 'hl') a.r.forEach(([x, y, w, h]) => { const [x1, y1] = map(x, y), [x2, y2] = map(x + w, y + h); pg.drawRectangle({ x: Math.min(x1, x2), y: Math.min(y1, y2), width: Math.abs(x2 - x1), height: Math.abs(y2 - y1), color: col(a.c), opacity: 0.42, blendMode: BlendMode.Multiply, borderWidth: 0 });});
-                else if (a.t === 'dr') { for (let k = 1; k < a.p.length; k++) { const [x1, y1] = map(...a.p[k - 1]), [x2, y2] = map(...a.p[k]); pg.drawLine({ start: { x: x1, y: y1 }, end: { x: x2, y: y2 }, thickness: Math.max(0.6, a.w * Vw), color: col(a.c), lineCap: LineCapStyle.Round }); } if (a.p.length === 1) { const [x1, y1] = map(...a.p[0]); pg.drawCircle({ x: x1, y: y1, size: Math.max(0.5, a.w * Vw / 2), color: col(a.c) }); } }
+                else if (a.t === 'sh' || a.t === 'ar') {
+                    const th = Math.max(0.6, (a.t === 'sh' ? a.sw : a.w) * Vw), seg = (A, B) => { const [x1, y1] = map(A[0], A[1]), [x2, y2] = map(B[0], B[1]); pg.drawLine({ start: { x: x1, y: y1 }, end: { x: x2, y: y2 }, thickness: th, color: col(a.c), lineCap: LineCapStyle.Round }); };
+                    if (a.t === 'sh') { const P = pdfShapePts(a); if (a.f) { const d = P.map((q, k) => { const [mx, my] = map(q[0], q[1]); return `${k ? 'L' : 'M'}${mx} ${Hu - my}`; }).join('') + 'Z'; pg.drawSvgPath(d, { x: 0, y: Hu, color: col(a.f), borderWidth: 0 }); } for (let k = 0; k < P.length; k++) seg(P[k], P[(k + 1) % P.length]); }
+                    else { const r0 = Vh / Vw; pdfArrowSegs(a, r0).forEach(([A, B]) => seg(A, B)); }
+                }
+                else if (a.t === 'dr') { for (let k = 1; k < a.p.length; k++) { const [x1, y1] = map(...a.p[k - 1]), [x2, y2] = map(...a.p[k]); pg.drawLine({ start: { x: x1, y: y1 }, end: { x: x2, y: y2 }, thickness: Math.max(0.6, a.w * Vw), color: col(a.c), opacity: a.op || 1, lineCap: LineCapStyle.Round }); } if (a.p.length === 1) { const [x1, y1] = map(...a.p[0]); pg.drawCircle({ x: x1, y: y1, size: Math.max(0.5, a.w * Vw / 2), color: col(a.c) }); } }
                 else if (a.t === 'tx' || a.t === 'nt') {
                     const [x1, y1] = map(a.x, a.y), size = a.fs * (Vw / 600), maxW = Math.max(40, a.w * Vw), font = await fontOf(a);
                     if (a.t === 'tx' && a.bg) { const hh = size * 1.25 * Math.max(1, Math.ceil(font.widthOfTextAtSize(safe(a.s), size) / maxW)); pg.drawRectangle({ x: x1 - 2, y: y1 - hh - 2, width: maxW + 4, height: hh + 4, color: col(a.bg) }); }
@@ -341,3 +348,20 @@ document.addEventListener('drop', e => {
     e.preventDefault(); const fp = document.querySelector('.nb-folderpage[data-deck]'), deckId = fp ? fp.dataset.deck : '';
     (async () => { for (const f of fs) await app.pdfImport(f, { deckId, open: fs.length === 1 }); })();
 });
+
+/* geometry of shapes and arrows (page coordinates 0 → 1; the arrow heads are computed with the real aspect ratio r = height / width) */
+function pdfShapePts(a) {
+    const { x, y, w, h } = a, cx = x + w / 2, cy = y + h / 2;
+    if (a.k === 'o') return Array.from({ length: 28 }, (_, i) => [cx + w / 2 * Math.cos(i / 28 * 2 * Math.PI), cy + h / 2 * Math.sin(i / 28 * 2 * Math.PI)]);
+    if (a.k === 't') return [[cx, y], [x + w, y + h], [x, y + h]];
+    if (a.k === 'd') return [[cx, y], [x + w, cy], [cx, y + h], [x, cy]];
+    if (a.k === 'h') return [[x + w * 0.25, y], [x + w * 0.75, y], [x + w, cy], [x + w * 0.75, y + h], [x + w * 0.25, y + h], [x, cy]];
+    if (a.k === 's') return Array.from({ length: 10 }, (_, i) => { const rr = i % 2 ? 0.2 : 0.5, an = -Math.PI / 2 + i * Math.PI / 5; return [cx + w * rr * 2 * Math.cos(an) / 2 * 1, cy + h * rr * 2 * Math.sin(an) / 2 * 1]; });
+    return [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+}
+function pdfArrowSegs(a, r) {
+    const segs = [[[a.x1, a.y1], [a.x2, a.y2]]]; if (a.k === 'l') return segs;
+    const head = (x1, y1, x2, y2) => { const dx = x2 - x1, dy = (y2 - y1) * r, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, hs = Math.max(0.018, a.w * 5), ang = 0.45; return [-1, 1].map(s => { const c = Math.cos(ang * s), sn = Math.sin(ang * s), vx = -(ux * c - uy * sn) * hs, vy = -(ux * sn + uy * c) * hs; return [[x2, y2], [x2 + vx, y2 + vy / r]]; }); };
+    segs.push(...head(a.x1, a.y1, a.x2, a.y2)); if (a.k === 'b') segs.push(...head(a.x2, a.y2, a.x1, a.y1));
+    return segs;
+}

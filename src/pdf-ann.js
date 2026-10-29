@@ -19,11 +19,17 @@ Object.assign(SuperAnki.prototype, {
         const t = pv.tool, pen = t === 'pen';
         const tb = ([id, ico, label, tip]) => `<button class="pdft-b ${t === id ? 'on' : ''}" data-action="pdf-tool" data-t="${id}" title="${tip}" aria-label="${label}" aria-pressed="${t === id}">${ic(ico)}<span>${label}</span></button>`;
         const cols = (pen ? PDF_PEN : PDF_COLORS).map(c => `<button class="pdft-c ${(pen ? pv.pen.c : pv.color) === c ? 'on' : ''}" data-action="pdf-color" data-c="${c}" style="--c:${c}" aria-label="Couleur ${c}"></button>`).join('');
-        const widths = pen ? PDF_WIDTHS.map(([w, l]) => `<button class="pdft-w ${pv.pen.w === w ? 'on' : ''}" data-action="pdf-width" data-w="${w}" title="${l}" aria-label="Trait ${l.toLowerCase()}"><i style="height:${Math.round(w * 600) + 1}px"></i></button>`).join('') : '';
-        return `<div class="pdft-group">${PDF_TOOLS.map(tb).join('')}</div><span class="pdft-sep"></span><div class="pdft-group pdft-colors">${cols}${widths}</div><span class="pdft-sep"></span>
+        const er = pv.er || (pv.er = { size: 0.016, mode: 'part' }), erUi = t === 'eraser' ? [[0.008, 'Fine'], [0.016, 'Moyenne'], [0.034, 'Grosse']].map(([w, l]) => `<button class="pdft-w ${er.size === w ? 'on' : ''}" data-action="pdf-ersize" data-w="${w}" title="Gomme ${l.toLowerCase()}" aria-label="Gomme ${l.toLowerCase()}"><i style="height:${Math.round(w * 400) + 3}px;width:${Math.round(w * 400) + 3}px;border-radius:50%"></i></button>`).join('') + `<button class="pdft-seg ${er.mode === 'part' ? 'on' : ''}" data-action="pdf-ermode" data-m="part" title="Efface seulement l'endroit touché">Précis</button><button class="pdft-seg ${er.mode === 'all' ? 'on' : ''}" data-action="pdf-ermode" data-m="all" title="Efface le trait entier">Trait entier</button>` : '', widths = pen ? PDF_WIDTHS.map(([w, l]) => `<button class="pdft-w ${pv.pen.w === w ? 'on' : ''}" data-action="pdf-width" data-w="${w}" title="${l}" aria-label="Trait ${l.toLowerCase()}"><i style="height:${Math.round(w * 600) + 1}px"></i></button>`).join('') : '';
+        return `<div class="pdft-group">${PDF_TOOLS.map(tb).join('')}</div><span class="pdft-sep"></span><div class="pdft-group pdft-colors">${t === 'eraser' ? erUi : cols}${widths}</div><span class="pdft-sep"></span>
             <div class="pdft-group"><button class="pdft-i" data-action="pdf-undo" title="Annuler (Ctrl+Z)" aria-label="Annuler" ${pv.undo.length ? '' : 'disabled'}>${ic('undo')}</button><button class="pdft-i" data-action="pdf-redo" title="Rétablir (Ctrl+Maj+Z)" aria-label="Rétablir" ${pv.redo.length ? '' : 'disabled'}>${ic('redo')}</button></div><span class="pdft-sep"></span>
             <div class="pdft-group"><button class="pdft-i" data-action="pdf-zoom" data-d="-1" aria-label="Zoom arrière" title="Zoom arrière">${ic('minus')}</button><b class="pdft-z" id="pdf-zoomv">${Math.round(pv.zoom * 100)} %</b><button class="pdft-i" data-action="pdf-zoom" data-d="1" aria-label="Zoom avant" title="Zoom avant">${ic('plus')}</button></div><span class="pdft-sep"></span>
-            <div class="pdft-group"><button class="pdft-i" data-action="pdf-blank" title="Ajouter une page blanche" aria-label="Ajouter une page blanche">${ic('pageadd')}</button><button class="pdft-i" data-action="pdf-pos" title="Barre d'outils en ${pr.pos === 'top' ? 'bas' : 'haut'}" aria-label="Placer la barre ${pr.pos === 'top' ? 'en bas' : 'en haut'}">${ic(pr.pos === 'top' ? 'arrowDown' : 'arrowUp')}</button>${pv.narrowClose ? '' : `<button class="pdft-i pdft-close" data-action="pdf-annotate" title="Fermer les outils" aria-label="Fermer les outils">${ic('x')}</button>`}</div>`;
+            <div class="pdft-group"><button class="pdft-i" data-action="pdf-blank" title="Ajouter une page blanche" aria-label="Ajouter une page blanche">${ic('pageadd')}</button><button class="pdft-i" data-action="pdf-pos" title="Placer la barre d'outils (haut, bas, gauche, droite)" aria-label="Placer la barre d'outils">${ic('columns')}</button>${pv.narrowClose ? '' : `<button class="pdft-i pdft-close" data-action="pdf-annotate" title="Fermer les outils" aria-label="Fermer les outils">${ic('x')}</button>`}</div>`;
+    },
+    /* the bar of tools: above, below, or along the left / right side of the pages */
+    pdfPlaceTools() {
+        const v = $('.pdfv'), tools = $('#pdf-tools'), body = $('.pdfv-body'), pr = this.pdfPrefs(); if (!v || !tools || !body) return;
+        v.classList.remove('pos-top', 'pos-bottom', 'pos-left', 'pos-right'); v.classList.add('pos-' + pr.pos);
+        if (pr.pos === 'left' || pr.pos === 'right') body.appendChild(tools); else v.insertBefore(tools, body);
     },
     pdfRefreshTools() {
         const pv = this.pv; if (!pv) return; const box = $('#pdf-tools'), v = $('.pdfv');
@@ -71,8 +77,10 @@ Object.assign(SuperAnki.prototype, {
         let h = '';
         list.forEach(a => {
             if (a.t === 'hl') h += `<g class="hl" data-i="${esc(a.i)}">${a.r.map(([x, y, w, hh]) => `<rect x="${x}" y="${y * r}" width="${w}" height="${hh * r}" fill="${esc(a.c)}" rx="0.002"/>`).join('')}</g>`;
-            else if (a.t === 'dr') h += `<path class="dr" data-i="${esc(a.i)}" d="${this.pdfPath(a.p, r)}" stroke="${esc(a.c)}" stroke-width="${a.w}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+            else if (a.t === 'dr') h += `<path class="dr" data-i="${esc(a.i)}" d="${this.pdfPath(a.p, r)}" stroke="${esc(a.c)}" stroke-width="${a.w}" stroke-opacity="${a.op || 1}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+            else if (a.t === 'sh' || a.t === 'ar') h += this.pdfAnnSvg(a, r);
         });
+        const sl = pv.sel && pv.sel[pg.g.id]; if (sl) list.forEach(a => { if (sl.has(a.i)) { const b = this.pdfAnnBox(a, r); h += `<rect class="pdf-selbox" x="${b[0] - 0.004}" y="${(b[1] - 0.004) * r}" width="${b[2] - b[0] + 0.008}" height="${(b[3] - b[1] + 0.008) * r}"/>`; } });
         svg.innerHTML = h;
         const x = $('.pdfx', el), have = new Map($$('.pdfa-box', x).map(b => [b.dataset.i, b]));
         list.filter(a => a.t === 'tx' || a.t === 'nt').forEach(a => {
@@ -165,6 +173,7 @@ Object.assign(SuperAnki.prototype, {
         this._pdfSelT = setTimeout(() => {
             const pv = this.pv; if (!pv || this.view !== 'pdf' || pv.tool !== 'select' || pv.mode === 'text') return;
             const sel = this.pdfSelection(); if (!sel) { if (!pv.areaPop) this.pdfPopClose(); return; }
+            if (pv.auto) { this.pdfHighlight(sel, pv.color); window.getSelection().removeAllRanges(); return; }
             const g = sel.groups[sel.groups.length - 1], gf = sel.groups[0];
             this.pdfPop({ left: gf.left, right: g.right, top: gf.top, bottom: g.bottom }, { sel });
         }, 260);
@@ -230,37 +239,59 @@ Object.assign(SuperAnki.prototype, {
                 const P = pv(); if (!P || !P.annotate) return;
                 const ov = e.target.closest('.pdfo'); if (!ov) return;
                 const pgEl = ov.closest('.pdfp'), pg = P.pages[Number(pgEl.dataset.i)], pid = pg.g.id, t = P.tool;
-                if (!['pen', 'eraser', 'area', 'text', 'note'].includes(t)) return;
-                e.preventDefault(); this.pdfPopClose(); const r = pg.ch / pg.cw, start = this.pdfPt(e, pgEl);
+                if (!['pen', 'marker', 'eraser', 'area', 'text', 'note', 'shape', 'arrow', 'pick'].includes(t)) return;
+                e.preventDefault(); this.pdfPopClose(); this.pdfPanelClose();
+                if (['shape', 'arrow', 'pick'].includes(t) && this.pdfShapeDown(e, ov, pgEl, pg, pid, t)) return; const r = pg.ch / pg.cw, start = this.pdfPt(e, pgEl);
                 try { ov.setPointerCapture(e.pointerId); } catch { /* ignore */ }
                 if (t === 'text' || t === 'note') {
                     this.pdfEdit(() => this.pdfAnnAdd(pid, { t: t === 'text' ? 'tx' : 'nt', c: t === 'text' ? '#111827' : '#fde047', x: clamp(start[0], 0, 0.8), y: clamp(start[1], 0, 0.94), w: t === 'text' ? 0.34 : 0.3, s: '', fs: 14 }));
                     const a = (P.p.ann[pid] || []).slice(-1)[0]; P.tool = 'select'; this.pdfRefreshTools();
                     setTimeout(() => { const b = $(`.pdfa-box[data-i="${a.i}"] .pdfa-t`, pgEl); if (b) b.focus(); }, 30); return;
                 }
-                if (t === 'pen') {
-                    const pts = [start], svg = $('svg.pdfa', pgEl), path = document.createElementNS('http://www.w3.org/2000/svg', 'path'), pen = P.pen;
-                    path.setAttribute('stroke', pen.c); path.setAttribute('stroke-width', pen.w); path.setAttribute('fill', 'none'); path.setAttribute('stroke-linecap', 'round'); path.setAttribute('stroke-linejoin', 'round'); svg.appendChild(path);
+                if (t === 'pen' || t === 'marker') {
+                    const pts = [start], svg = $('svg.pdfa', pgEl), path = document.createElementNS('http://www.w3.org/2000/svg', 'path'), pen = t === 'pen' ? P.pen : P.mk;
+                    path.setAttribute('stroke', pen.c); path.setAttribute('stroke-opacity', pen.op || 1); path.setAttribute('stroke-width', pen.w); path.setAttribute('fill', 'none'); path.setAttribute('stroke-linecap', 'round'); path.setAttribute('stroke-linejoin', 'round'); svg.appendChild(path);
                     const mv = ev => { (ev.getCoalescedEvents ? ev.getCoalescedEvents() : [ev]).forEach(c => { const q = this.pdfPt(c, pgEl), l = pts[pts.length - 1]; if (Math.hypot(q[0] - l[0], (q[1] - l[1]) * r) > 0.0012) pts.push(q); }); path.setAttribute('d', this.pdfPath(pts, r)); };
                     const up = () => {
                         ov.removeEventListener('pointermove', mv); ov.removeEventListener('pointerup', up); ov.removeEventListener('pointercancel', up); path.remove();
                         if (this.pv !== P) return;
-                        this.pdfEdit(() => this.pdfAnnAdd(pid, { t: 'dr', c: pen.c, w: pen.w, p: pts }));
+                        this.pdfEdit(() => this.pdfAnnAdd(pid, { t: 'dr', c: pen.c, w: pen.w, p: pts, op: pen.op || 1 }));
                     };
                     ov.addEventListener('pointermove', mv); ov.addEventListener('pointerup', up); ov.addEventListener('pointercancel', up); mv(e); return;
                 }
                 if (t === 'eraser') {
-                    const before = this.pdfSnap(); let any = false;
+                    const before = this.pdfSnap(), er = this.pdfOpts().er, born = new Set(); let any = false;
+                    const del = a => { const l = P.p.ann[pid] || [], k = l.findIndex(x => x.i === a.i); if (k < 0) return; if (born.has(a.i)) { l.splice(k, 1); if (!l.length) delete P.p.ann[pid]; } else this.pdfAnnDel(pid, a.i); };
+                    const add = o => { this.pdfAnnAdd(pid, o); const l = P.p.ann[pid]; born.add(l[l.length - 1].i); };
                     const hit = ev => {
-                        const q = this.pdfPt(ev, pgEl), list = P.p.ann[pid] || [];
-                        list.filter(a => a.t === 'dr').forEach(a => {
-                            const th = 0.014 + a.w / 2; let near = false;
-                            for (let k = 0; k < a.p.length && !near; k++) { const A = a.p[k], B = a.p[k + 1] || A; const dx = B[0] - A[0], dy = (B[1] - A[1]) * r, l2 = dx * dx + dy * dy, qx = q[0] - A[0], qy = (q[1] - A[1]) * r, u = l2 ? clamp((qx * dx + qy * dy) / l2, 0, 1) : 0; near = Math.hypot(qx - u * dx, qy - u * dy) < th; }
-                            if (near) { this.pdfAnnDel(pid, a.i); any = true; }
+                        const q = this.pdfPt(ev, pgEl), th = er.size, list = (P.p.ann[pid] || []).slice();
+                        list.forEach(a => {
+                            if (a.t === 'hl') {
+                                const touched = x => q[0] >= x[0] - th && q[0] <= x[0] + x[2] + th && q[1] * r >= x[1] * r - th && q[1] * r <= (x[1] + x[3]) * r + th;
+                                const rest = a.r.filter(x => !touched(x)); if (rest.length === a.r.length) return;
+                                if (er.mode === 'part' && rest.length) { del(a); add({ t: 'hl', c: a.c, r: rest, s: '' }); } else del(a); any = true; return;
+                            }
+                            if (a.t === 'sh' || a.t === 'ar') {
+                                const P2 = a.t === 'sh' ? pdfShapePts(a) : null, segs = a.t === 'sh' ? P2.map((p0, k) => [p0, P2[(k + 1) % P2.length]]) : [[[a.x1, a.y1], [a.x2, a.y2]]]; let near = a.t === 'sh' && a.f && P2.length && q[0] >= a.x && q[0] <= a.x + a.w && q[1] >= a.y && q[1] <= a.y + a.h;
+                                segs.forEach(([A, B]) => { const dx = B[0] - A[0], dy = (B[1] - A[1]) * r, l2 = dx * dx + dy * dy, qx = q[0] - A[0], qy = (q[1] - A[1]) * r, u = l2 ? clamp((qx * dx + qy * dy) / l2, 0, 1) : 0; if (Math.hypot(qx - u * dx, qy - u * dy) < th + 0.004) near = true; });
+                                if (near) { del(a); any = true; } return;
+                            }
+                            if (a.t !== 'dr') return;
+                            const rad = th + a.w / 2;
+                            if (er.mode === 'all') {
+                                let near = false;
+                                for (let k = 0; k < a.p.length && !near; k++) { const A = a.p[k], B = a.p[k + 1] || A; const dx = B[0] - A[0], dy = (B[1] - A[1]) * r, l2 = dx * dx + dy * dy, qx = q[0] - A[0], qy = (q[1] - A[1]) * r, u = l2 ? clamp((qx * dx + qy * dy) / l2, 0, 1) : 0; near = Math.hypot(qx - u * dx, qy - u * dy) < rad; }
+                                if (near) { del(a); any = true; } return;
+                            }
+                            /* precise: the stroke is cut where the eraser passes, the rest stays */
+                            const pts = []; for (let k = 0; k < a.p.length; k++) { const A = a.p[k], B = a.p[k + 1]; pts.push(A); if (B) { const L = Math.hypot(B[0] - A[0], (B[1] - A[1]) * r), n = Math.floor(L / (rad * 0.5)); for (let m = 1; m <= n; m++) pts.push([A[0] + (B[0] - A[0]) * m / (n + 1), A[1] + (B[1] - A[1]) * m / (n + 1)]); } }
+                            const keep = pts.map(p => Math.hypot(p[0] - q[0], (p[1] - q[1]) * r) > rad); if (keep.every(Boolean)) return;
+                            const runs = []; let cur = []; keep.forEach((kp, k) => { if (kp) cur.push(pts[k]); else { if (cur.length > 1) runs.push(cur); cur = []; } }); if (cur.length > 1) runs.push(cur);
+                            del(a); runs.forEach(rn => add({ t: 'dr', c: a.c, w: a.w, p: rn })); any = true;
                         });
                         if (any) this.pdfDrawAnn(pg);
                     };
-                    const mv = ev => hit(ev), up = () => { ov.removeEventListener('pointermove', mv); ov.removeEventListener('pointerup', up); ov.removeEventListener('pointercancel', up); if (any && this.pv === P) { this.pdfCommit(before); this.toast('Dessin effacé · retrouve-le dans « Annotations effacées »', 'success', ic('trash')); } };
+                    const mv = ev => { (ev.getCoalescedEvents ? ev.getCoalescedEvents() : [ev]).forEach(hit); }, up = () => { ov.removeEventListener('pointermove', mv); ov.removeEventListener('pointerup', up); ov.removeEventListener('pointercancel', up); if (any && this.pv === P) { this.pdfCommit(before); if (er.back && P.prevTool) { P.tool = P.prevTool; this.pdfRefreshTools(); } } };
                     ov.addEventListener('pointermove', mv); ov.addEventListener('pointerup', up); ov.addEventListener('pointercancel', up); hit(e); return;
                 }
                 if (t === 'area') {
@@ -319,18 +350,19 @@ Object.assign(SuperAnki.prototype, {
             });
             $('#pdf-scroll').addEventListener('scroll', () => { if (!$('#pdf-pop')) return; this.pdfPopClose(); }, { passive: true });
         }
-        this.pdfRefreshTools();
+        this.pdfBindTools(); this.pdfPlaceTools(); this.pdfRefreshTools();
     },
     pdfAnnAction(action, el) {
         const pv = this.pv, ds = el.dataset || {}; if (!pv) return;
         const box = el.closest && el.closest('.pdfa-box'), pgEl = box && box.closest('.pdfp'), pg = pgEl && pv.pages[Number(pgEl.dataset.i)], a = box && pg && this.pdfAnnOf(pg.g.id, box.dataset.i);
         const A = {
-            'pdf-tool': () => { pv.tool = ds.t; this.pdfRefreshTools(); },
-            'pdf-color': () => { if (pv.tool === 'pen') pv.pen.c = ds.c; else pv.color = ds.c; this.pdfRefreshTools(); },
-            'pdf-width': () => { pv.pen.w = Number(ds.w); this.pdfRefreshTools(); },
+            'pdf-tool': () => { if (pv.tool === ds.t) { if (pv.panel === ds.t) this.pdfPanelClose(); else this.pdfPanelOpen(ds.t, el); return; } pv.prevTool = pv.tool; pv.tool = ds.t; this.pdfPanelClose(); this.pdfRefreshTools(); if (ds.t !== 'pick') this.pdfSelSet(null); },
+            'pdf-opt': () => this.pdfOptSet(ds.k, ds.v),
+            'pdf-selall': () => this.pdfSelAll(ds.s),
+            'pdf-sel-do': () => this.pdfSelDo(ds.d),
             'pdf-undo': () => this.pdfUndo(false), 'pdf-redo': () => this.pdfUndo(true),
             'pdf-zoom': () => this.pdfSetZoom(pv.zoom + 0.15 * Number(ds.d)),
-            'pdf-pos': () => { const pr = this.pdfPrefs(); pr.pos = pr.pos === 'top' ? 'bottom' : 'top'; this.pdfPrefSave(); const v = $('.pdfv'); v.classList.remove('pos-top', 'pos-bottom'); v.classList.add('pos-' + pr.pos); this.pdfRefreshTools(); },
+            'pdf-pos': () => { const pr = this.pdfPrefs(); this.showMenu(el, [{ head: 'BARRE D\'OUTILS' }, ...[['top', 'arrowUp', 'En haut'], ['bottom', 'arrowDown', 'En bas'], ['left', 'arrowLeft', 'À gauche'], ['right', 'arrowRight', 'À droite']].map(([k, ic2, l]) => ({ icon: pr.pos === k ? 'check' : ic2, label: l, fn: () => { pr.pos = k; this.pdfPrefSave(); this.pdfPlaceTools(); setTimeout(() => { this.pdfSizePages(); pv.pages.forEach(g => { if (g.state) { this.pdfUnrender(g); this.pdfRenderPage(g); } }); }, 60); } }))]); },
             'pdf-blank': () => this.pdfBlankMenu(el),
             'pdf-bsize': () => { if (a) this.pdfEdit(() => { a.fs = clamp(a.fs + 2 * Number(ds.d), 8, 60); a.m = Date.now(); }); },
             'pdf-bdel': () => { if (a) this.pdfEdit(() => this.pdfAnnDel(pg.g.id, a.i)); },

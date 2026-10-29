@@ -1166,7 +1166,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         await page.click('[data-action=pdf-tool][data-t=pen]'); await page.mouse.move(box.x + 100, box.y + 450); await page.mouse.down();
         for (let i = 0; i < 20; i++) await page.mouse.move(box.x + 100 + i * 12, box.y + 450 + Math.sin(i / 2) * 20); await page.mouse.up(); await wait(300);
         const pen = await page.evaluate(() => { const l = app.pv.p.ann.p1.filter(x => x.t === 'dr'); return { n: l.length, pts: l[0] && l[0].p.length, c: l[0] && l[0].c, svg: !!document.querySelector('.pdfp[data-i="0"] path.dr') }; });
-        await page.click('[data-action=pdf-tool][data-t=eraser]'); await page.mouse.move(box.x + 160, box.y + 450 + Math.sin(3) * 20); await page.mouse.down(); await page.mouse.move(box.x + 196, box.y + 450 + Math.sin(5) * 20, { steps: 4 }); await page.mouse.up(); await wait(300);
+        await page.click('[data-action=pdf-tool][data-t=eraser]'); await page.evaluate(() => { app.pdfOpts().er.mode = 'all'; }); await page.mouse.move(box.x + 160, box.y + 450 + Math.sin(3) * 20); await page.mouse.down(); await page.mouse.move(box.x + 196, box.y + 450 + Math.sin(5) * 20, { steps: 4 }); await page.mouse.up(); await wait(300);
         const era = await page.evaluate(() => ({ dr: app.pv.p.ann.p1.filter(x => x.t === 'dr').length, trash: app.pv.p.trash.length, kind: app.pv.p.trash[0] && app.pv.p.trash[0].a.t }));
         await page.click('[data-action=pdf-undo]'); await wait(200);
         const und = await page.evaluate(() => ({ dr: app.pv.p.ann.p1.filter(x => x.t === 'dr').length, trash: app.pv.p.trash.length }));
@@ -1182,6 +1182,35 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         const txt = await page.evaluate(() => { const l = app.pv.p.ann.p1 || []; return { tx: l.filter(x => x.t === 'tx' && x.s === 'Ma remarque').length, nt: l.filter(x => x.t === 'nt' && x.s === 'Note en marge').length, dom: document.querySelectorAll('.pdfp[data-i="0"] .pdfa-box').length, pages: app.pv.p.pg.length, blank: app.pv.p.pg[3].k, blankEl: !!document.querySelector('.pdfp.blank') }; });
         ok('PDF: erased drawings can be put back from the trash panel; text box and margin note typed on the page; blank page added at the end', tr.rows === 1 && tr2.dr === 1 && tr2.trash === 0 && txt.tx === 1 && txt.nt === 1 && txt.dom === 2 && txt.pages === 4 && txt.blank === 'b' && txt.blankEl, JSON.stringify({ tr, tr2, txt }));
 
+        /* precise eraser: only the touched part of a stroke goes, the rest stays; the bar of tools can sit on a side; tabs have a "+" */
+        await page.evaluate(() => app.pdfGoto(1, '', true)); await wait(900); const box2 = await page.locator('.pdfp[data-i="0"]').boundingBox();
+        await page.evaluate(() => { app.pv.tool = 'pen'; app.pdfRefreshTools(); });
+        await page.click('[data-action=pdf-tool][data-t=pen]'); await page.mouse.move(box2.x + 100, box2.y + 440); await page.mouse.down();
+        for (let i = 0; i < 20; i++) await page.mouse.move(box2.x + 100 + i * 12, box2.y + 440 + Math.sin(i / 2) * 10); await page.mouse.up(); await wait(200);
+        await page.click('[data-action=pdf-tool][data-t=eraser]'); await page.evaluate(() => { app.pdfOpts().er.mode = 'part'; });
+        const nb0 = await page.evaluate(() => app.pv.p.ann.p1.filter(x => x.t === 'dr').length);
+        await page.mouse.move(box2.x + 100 + 8 * 12, box2.y + 400); await page.mouse.down(); await page.mouse.move(box2.x + 100 + 8 * 12, box2.y + 480, { steps: 6 }); await page.mouse.up(); await wait(300);
+        const pe = await page.evaluate(() => ({ n: app.pv.p.ann.p1.filter(x => x.t === 'dr').length, pts: app.pv.p.ann.p1.filter(x => x.t === 'dr').map(x => x.p.length) }));
+        await page.evaluate(() => { app.pdfPrefs().pos = 'left'; app.pdfPlaceTools(); }); await wait(300);
+        const side = await page.evaluate(() => { const t = document.getElementById('pdf-tools').getBoundingClientRect(), m = document.getElementById('pdf-scroll').getBoundingClientRect(); return { left: t.left < 120 && t.height > 300, ok: m.left >= t.right - 1 }; });
+        await page.evaluate(() => { app.pdfPrefs().pos = 'top'; app.pdfPlaceTools(); });
+        ok('PDF: precise eraser cuts a stroke in two and keeps the rest (the whole stroke only in "Trait entier" mode); the bar of tools can sit on the left; the tab bar has a "+" button', pe.n > nb0 && pe.pts.every(k => k >= 2) && side.left && side.ok, JSON.stringify({ nb0, pe, side }));
+        /* RemNote-like tools: shapes, arrows, marker, selection of everything at once */
+        const rn = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), pv = a.pv, out = {}; pv.annotate = true; a.pdfRefreshTools();
+            a.pdfGoto(1, '', true); await w(800); document.querySelector('[data-action=pdf-tool][data-t=pen]').click(); document.querySelector('[data-action=pdf-tool][data-t=pen]').click(); await w(200);
+            out.panel = !!document.querySelector('#pdf-panel .pdfp-grid') && document.querySelectorAll('#pdf-panel .pdfp-o.sw').length === 24 && !!document.querySelector('#pdf-panel input[data-optin=penc]');
+            document.querySelector('#pdf-panel [data-k=penc][data-v="#e11d48"]').click(); out.pen = pv.pen.c === '#e11d48';
+            const pid = pv.p.pg[0].id; a.pdfEdit(() => { a.pdfAnnAdd(pid, { t: 'sh', k: 's', x: 0.2, y: 0.5, w: 0.2, h: 0.1, c: '#000000', sw: 0.004, f: '#fde047' }); a.pdfAnnAdd(pid, { t: 'ar', k: 'b', x1: 0.1, y1: 0.7, x2: 0.6, y2: 0.72, c: '#e11d48', w: 0.004 }); a.pdfAnnAdd(pid, { t: 'dr', c: '#facc15', w: 0.026, op: 0.4, p: [[0.1, 0.3], [0.5, 0.3]] }); });
+            await w(300); out.svg = !!document.querySelector('.pdfp[data-i="0"] polygon.sh') && !!document.querySelector('.pdfp[data-i="0"] path.ar') && !!document.querySelector('.pdfp[data-i="0"] path.dr[stroke-opacity="0.4"]');
+            const n = normalizeState(a.serialize()).pdfs[0]; out.kept = n.ann[pid].some(x => x.t === 'sh' && x.k === 's' && x.f === '#fde047') && n.ann[pid].some(x => x.t === 'ar' && x.k === 'b');
+            const { bytes } = await a.pdfAnnotatedBytes(pv.p); out.exp = bytes.byteLength > 1000;
+            pv.tool = 'pick'; a.pdfRefreshTools(); a.pdfSelAll('all'); out.sel = a.pdfSelCount() > 3 && !!document.getElementById('pdf-selbar');
+            a.pdfSelDo('del'); await w(200); out.del = Object.values(pv.p.ann).flat().length === 0 && a.pdfSelCount() === 0;
+            a.pdfUndo(false); await w(200); out.undo = Object.values(pv.p.ann).flat().length > 3;
+            return out;
+        });
+        ok('PDF tools à la RemNote: option panels (24 colours + HEX), shapes, arrows and translucent marker are saved and exported, "select everything" + delete in one go (undoable)', rn.panel && rn.pen && rn.svg && rn.kept && rn.exp && rn.sel && rn.del && rn.undo, JSON.stringify(rn));
         /* the annotated PDF is a real PDF: opened again with pdf.js, highlight pixel + text + extra page */
         const ex = await page.evaluate(async () => {
             const a = app, p = a.pv.p, { bytes } = await a.pdfAnnotatedBytes(p), out = {};

@@ -5,7 +5,7 @@
    ============================================================ */
 Object.assign(SuperAnki.prototype, {
     pdfPrefs() {
-        if (!this._pdfp) { try { this._pdfp = JSON.parse(localStorage.getItem('lh_pdfui') || '{}') || {}; } catch { this._pdfp = {}; } const o = this._pdfp; o.side = o.side === 'left' ? 'left' : 'right'; o.pos = o.pos === 'bottom' ? 'bottom' : 'top'; o.notes = o.notes !== false; o.split = clamp(num(o.split, 0.4), 0.2, 0.7); o.rate = clamp(num(o.rate, 1), 0.6, 2); o.voice = String(o.voice || ''); o.fs = clamp(num(o.fs, 1), 0.8, 1.8); o.drawer = ['closed', 'half', 'full'].includes(o.drawer) ? o.drawer : 'half'; }
+        if (!this._pdfp) { try { this._pdfp = JSON.parse(localStorage.getItem('lh_pdfui') || '{}') || {}; } catch { this._pdfp = {}; } const o = this._pdfp; o.side = o.side === 'left' ? 'left' : 'right'; o.pos = ['top', 'bottom', 'left', 'right'].includes(o.pos) ? o.pos : 'top'; o.notes = o.notes !== false; o.split = clamp(num(o.split, 0.4), 0.2, 0.7); o.rate = clamp(num(o.rate, 1), 0.6, 2); o.voice = String(o.voice || ''); o.fs = clamp(num(o.fs, 1), 0.8, 1.8); o.drawer = ['closed', 'half', 'full'].includes(o.drawer) ? o.drawer : 'half'; }
         return this._pdfp;
     },
     pdfPrefSave() { try { localStorage.setItem('lh_pdfui', JSON.stringify(this._pdfp)); } catch { /* ignore */ } },

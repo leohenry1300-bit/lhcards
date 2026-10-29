@@ -2919,8 +2919,8 @@ body.pdf-open .main { max-width: none; padding: 0; }
 .pdfx { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
 .pdfo { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
 .pdfn { position: absolute; right: 6px; top: 4px; z-index: 5; font-size: .62rem; color: #6b7280; background: rgba(255,255,255,.75); border-radius: 6px; padding: 1px 6px; pointer-events: none; }
-.pdf-pages[data-tool=hand] .pdft, .pdf-pages[data-tool=pen] .pdft, .pdf-pages[data-tool=eraser] .pdft, .pdf-pages[data-tool=area] .pdft, .pdf-pages[data-tool=text] .pdft, .pdf-pages[data-tool=note] .pdft { pointer-events: none; -webkit-user-select: none; user-select: none; }
-.pdf-pages[data-tool=pen] .pdfo, .pdf-pages[data-tool=eraser] .pdfo, .pdf-pages[data-tool=area] .pdfo, .pdf-pages[data-tool=text] .pdfo, .pdf-pages[data-tool=note] .pdfo { pointer-events: auto; touch-action: none; }
+.pdf-pages[data-tool=marker] .pdft, .pdf-pages[data-tool=shape] .pdft, .pdf-pages[data-tool=arrow] .pdft, .pdf-pages[data-tool=pick] .pdft, .pdf-pages[data-tool=hand] .pdft, .pdf-pages[data-tool=pen] .pdft, .pdf-pages[data-tool=eraser] .pdft, .pdf-pages[data-tool=area] .pdft, .pdf-pages[data-tool=text] .pdft, .pdf-pages[data-tool=note] .pdft { pointer-events: none; -webkit-user-select: none; user-select: none; }
+.pdf-pages[data-tool=marker] .pdfo, .pdf-pages[data-tool=shape] .pdfo, .pdf-pages[data-tool=arrow] .pdfo, .pdf-pages[data-tool=pick] .pdfo, .pdf-pages[data-tool=pen] .pdfo, .pdf-pages[data-tool=eraser] .pdfo, .pdf-pages[data-tool=area] .pdfo, .pdf-pages[data-tool=text] .pdfo, .pdf-pages[data-tool=note] .pdfo { pointer-events: auto; touch-action: none; }
 .pdf-pages[data-tool=pen] .pdfo { cursor: crosshair; }
 .pdf-pages[data-tool=eraser] .pdfo { cursor: cell; }
 .pdf-pages[data-tool=area] .pdfo, .pdf-pages[data-tool=text] .pdfo, .pdf-pages[data-tool=note] .pdfo { cursor: crosshair; }
@@ -3049,3 +3049,68 @@ body.tab-drag { overflow-x: hidden; }
 /* during a slide between tabs: no animation replays when the next page appears, and nothing heavy to repaint (blur) while the pages move */
 body.tab-drag .view, body.tab-drag .view * { animation: none !important; }
 body.tab-drag .view, body.tab-drag .view * { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+
+.dt-new { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; color: var(--primary); }
+.dt-new:hover { background: var(--surface-3); }
+/* solid backgrounds for everything that floats over a PDF or a note (the themed translucent surfaces let the text underneath show through) */
+.pdf-pop, .pdf-sheet, .pdfa-pal, .pdfa-tb, .pdfa-grip, .nb-menu, .nb-suggest, .nb-bar, .pdfv-top, .quick-list { background: var(--surface-solid, var(--surface)); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.pdfv-tools, .doc-tabs { background: linear-gradient(var(--surface-2), var(--surface-2)), var(--surface-solid, var(--surface)); }
+.pdfv-notes, .pdfn-head { background: var(--surface-solid, var(--surface)) !important; }
+.pdft-seg { flex: none; height: 30px; padding: 0 10px; border-radius: 9px; font-size: .76rem; font-weight: 700; background: var(--surface-3); color: var(--text); }
+.pdft-seg.on { background: var(--primary); color: var(--on-primary, #fff); }
+/* tool bar along a side */
+.pdfv.pos-left .pdfv-body, .pdfv.pos-right .pdfv-body { position: relative; }
+.pdfv.pos-left .pdfv-tools, .pdfv.pos-right .pdfv-tools { display: none; }
+.pdfv.ann-on.pos-left .pdfv-tools, .pdfv.ann-on.pos-right .pdfv-tools { display: flex; position: absolute; top: 0; bottom: 0; width: 56px; z-index: 20; flex-direction: column; align-items: center; overflow-x: hidden; overflow-y: auto; padding: 8px 4px; border-bottom: 0; }
+.pdfv.ann-on.pos-left .pdfv-tools { left: 0; border-right: 1px solid var(--border); }
+.pdfv.ann-on.pos-right .pdfv-tools { right: 0; border-left: 1px solid var(--border); }
+.pdfv.ann-on.pos-left .pdfv-main { margin-left: 56px; }
+.pdfv.ann-on.pos-right .pdfv-main { margin-right: 56px; }
+.pdfv.ann-on.pos-left.narrow .pdfv-notes, .pdfv.ann-on.pos-left.wide.side-left .pdfv-notes { margin-left: 56px; }
+.pdfv.ann-on.pos-right.narrow .pdfv-notes, .pdfv.ann-on.pos-right.wide.side-right .pdfv-notes { margin-right: 56px; }
+.pdfv.ann-on.pos-left.wide.side-left .pdfv-main { margin-left: 0; }
+.pdfv.ann-on.pos-right.wide.side-right .pdfv-main { margin-right: 0; }
+.pdfv.pos-left .pdft-group, .pdfv.pos-right .pdft-group { flex-direction: column; }
+.pdfv.pos-left .pdft-sep, .pdfv.pos-right .pdft-sep { width: 26px; height: 1px; margin: 4px 0; }
+.pdfv.pos-left .pdft-b span, .pdfv.pos-right .pdft-b span { display: none; }
+.pdfv.pos-left .pdft-seg, .pdfv.pos-right .pdft-seg { height: auto; padding: 4px 2px; font-size: .62rem; }
+.pdfv.ann-on.pos-left .pdfv-body .pdfv-split, .pdfv.ann-on.pos-right .pdfv-split { }
+
+/* RemNote-like tool bar: icons, a caret for tools with options, a dot with the current colour */
+.pdft-b { position: relative; }
+.pdft-b span { display: none !important; }
+@media (min-width: 1500px) { .pdfv.pos-top .pdft-b span, .pdfv.pos-bottom .pdft-b span { display: inline !important; } }
+.pdft-caret { width: 0; height: 0; border-left: 3px solid transparent; border-right: 3px solid transparent; border-top: 4px solid currentColor; opacity: .55; margin-left: 1px; align-self: flex-end; margin-bottom: 8px; }
+.pdft-dot { position: absolute; right: 3px; top: 4px; width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--surface-solid, #fff); }
+.pdft-b { min-width: 40px; padding: 0 6px; }
+.pdf-panel { position: absolute; z-index: 65; width: 268px; overflow-y: auto; padding: 12px; display: grid; gap: 8px; background: var(--surface-solid, var(--surface)); border: 1px solid var(--border-strong, var(--border)); border-radius: 14px; box-shadow: 0 10px 34px rgba(0,0,0,.28); }
+.pdfp-h { font-size: .7rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--text-faint); margin-top: 2px; }
+.pdfp-row, .pdfp-seg { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.pdfp-seg { background: var(--surface-3); border-radius: 12px; padding: 4px; }
+.pdfp-seg .pdfp-o { flex: 1; height: 38px; border-radius: 9px; font-weight: 700; font-size: .85rem; }
+.pdfp-seg .pdfp-o.on { background: var(--surface-solid, #fff); box-shadow: 0 0 0 2px var(--primary); }
+.pdfp-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+.pdfp-o.sw { width: 30px; height: 30px; border-radius: 50%; background: var(--c); border: 2px solid transparent; box-shadow: inset 0 0 0 1px rgba(0,0,0,.15); display: grid; place-items: center; font-size: .8rem; color: var(--text-muted); }
+.pdfp-o.sw.none { background: repeating-linear-gradient(45deg, #fff, #fff 3px, #e5e7eb 3px, #e5e7eb 5px); }
+.pdfp-o.sw.on { border-color: var(--text); box-shadow: 0 0 0 2px var(--surface-solid, #fff) inset; }
+.pdfp-o.th { flex: 1; min-width: 44px; height: 44px; border-radius: 10px; background: var(--surface-3); display: grid; place-items: center; }
+.pdfp-o.th.on { box-shadow: 0 0 0 2px var(--primary); background: var(--surface-solid, #fff); }
+.pdfp-o.th i { display: block; width: 22px; background: var(--text); border-radius: 6px; }
+.pdfp-o.sp { width: 44px; height: 44px; border-radius: 10px; display: grid; place-items: center; font-size: 1.1rem; color: var(--text); background: var(--surface-3); }
+.pdfp-o.sp.on { box-shadow: 0 0 0 2px var(--primary); background: var(--surface-solid, #fff); }
+.pdfp-o.sp svg { width: 22px; height: 22px; }
+.pdfp-hex { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--border); font-size: .85rem; }
+.pdfp-hex input { flex: 1; min-width: 0; border: 0; background: none; font: inherit; font-family: ui-monospace, Menlo, monospace; text-transform: uppercase; color: var(--text); outline: none; }
+.pdfp-hex i { width: 20px; height: 20px; border-radius: 6px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.2); }
+.pdfp-tg { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 2px; text-align: left; font-size: .86rem; font-weight: 600; }
+.pdfp-tg i { flex: none; width: 40px; height: 24px; border-radius: 12px; background: var(--border-strong, #ccc); position: relative; transition: background .15s; }
+.pdfp-tg i::after { content: ''; position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+.pdfp-tg i.on { background: var(--primary); } .pdfp-tg i.on::after { transform: translateX(16px); }
+.pdfp-col { display: grid; gap: 8px; }
+.pdf-selbar { position: absolute; z-index: 62; left: 50%; bottom: 74px; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-radius: 14px; background: var(--surface-solid, var(--surface)); border: 1px solid var(--border-strong, var(--border)); box-shadow: 0 8px 26px rgba(0,0,0,.3); font-size: .85rem; }
+.pdf-selbar b { padding: 0 8px; }
+.pdf-selbar button { display: flex; align-items: center; gap: 5px; height: 34px; padding: 0 10px; border-radius: 9px; font-weight: 600; color: var(--text); }
+.pdf-selbar button:hover { background: var(--surface-3); } .pdf-selbar .danger { color: var(--danger, #dc2626); }
+.pdf-selbar .i { width: 16px; height: 16px; }
+.pdf-selbox { fill: rgba(79,70,229,.06); stroke: #4f46e5; stroke-width: .002; stroke-dasharray: .008 .006; pointer-events: none; }
+.pdf-lasso { fill: rgba(79,70,229,.1); stroke: #4f46e5; stroke-width: .002; stroke-dasharray: .008 .006; }
