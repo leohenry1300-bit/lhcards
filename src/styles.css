@@ -3117,6 +3117,7 @@ body.tab-drag .view, body.tab-drag .view * { -webkit-backdrop-filter: none !impo
 
 /* Notes page: one clear column (search, filters, shortcuts, list) — the document opens full width when you tap it */
 @media (min-width: 900px) {
+  .notes-shell:not(.has-open) { grid-template-columns: minmax(0, 1fr); }
   .notes-shell:not(.has-open) .notes-main { display: none; }
   .notes-shell:not(.has-open) .notes-side { position: static; max-height: none; overflow: visible; }
 }
@@ -3164,3 +3165,7 @@ body.tab-drag .view, body.tab-drag .view * { -webkit-backdrop-filter: none !impo
 .notes-shell:not(.has-open) #nb-list .nb-grip { position: absolute; top: 8px; right: 6px; width: 28px; height: 28px; }
 .notes-shell:not(.has-open) #nb-list .nb-row-d { margin-right: 26px; }
 @media (max-width: 480px) { .notes-shell:not(.has-open) #nb-list.nb-tree { grid-template-columns: 1fr 1fr; gap: 8px; } .notes-shell:not(.has-open) #nb-list > .nb-wrap[data-kind="note"] .nb-row { min-height: 128px; padding: 12px; } }
+
+.nb-card { overflow: hidden; }
+.nb-card-t b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 1000px) { .nb-cards { grid-template-columns: 1fr 1fr 1fr; } }
