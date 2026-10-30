@@ -138,8 +138,9 @@ Object.assign(SuperAnki.prototype, {
                     <div class="head-tools" id="nb-headtools">${this.nbHeadToolsHtml()}</div>
                 </div>
                 <div class="decks-toolbar" id="nb-home">${this.nbHomeHtml()}</div>
-                <div class="panel search-bar nb-searchpanel">${searchRow}<div class="chip-row nb-chips" id="nb-chips">${this.nbChipsHtml()}</div></div>
+                <div class="panel search-bar nb-searchpanel">${searchRow}</div>
                 <div class="panel nb-listpanel">
+                    <div class="chip-row nb-chips nb-lp-chips" id="nb-chips">${this.nbChipsHtml()}</div>
                     <div class="nb-lp-head"><b id="nb-lp-title">${this.nbListTitle()}</b>${tools}</div>
                     <div id="nb-bulk">${this.nbBulkHtml()}</div>
                     <div id="nb-list" class="nb-tree">${this.noteListHtml()}</div>

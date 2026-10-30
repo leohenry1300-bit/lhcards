@@ -3157,7 +3157,7 @@ body.tab-drag .view, body.tab-drag .view * { -webkit-backdrop-filter: none !impo
 @media (max-width: 1000px) { .nb-cards { grid-template-columns: 1fr 1fr 1fr; } }
 
 #nb-sortbtn { width: auto; padding: 0 12px; gap: 6px; font-weight: 700; font-size: .85rem; }
-#nb-sortbtn span { display: inline !important; }
+#nb-sortbtn .sb-t { display: inline !important; }
 #nb-sortbtn::before { content: "Trier :"; color: var(--text-faint); font-weight: 600; }
 @media (max-width: 480px) { #nb-sortbtn::before { display: none; } }
 .nb-sidebtn { display: none; }
@@ -3176,7 +3176,7 @@ body.tab-drag .view, body.tab-drag .view * { -webkit-backdrop-filter: none !impo
 .notes-shell.has-open .notes-side-head .btn:not(.nb-newbig) { width: 40px; padding: 0; justify-content: center; }
 .notes-shell.has-open .nb-newbig span { display: none; }
 .notes-shell.has-open .nb-newbig { padding: 0 12px; }
-.notes-shell.has-open #nb-sortbtn span, .notes-shell.has-open #nb-sortbtn::before { display: none !important; }
+.notes-shell.has-open #nb-sortbtn .sb-t, .notes-shell.has-open #nb-sortbtn::before { display: none !important; }
 .notes-shell.has-open #nb-sortbtn { width: 44px; padding: 0; justify-content: center; }
 .notes-shell.has-open .nb-cards { grid-template-columns: repeat(3, 1fr); }
 .notes-shell.has-open .nb-card { padding: 8px; justify-content: center; }
@@ -3287,3 +3287,25 @@ body.tab-drag .view, body.tab-drag .view * { -webkit-backdrop-filter: none !impo
 .dash-tools .sort-pick .sort-btn { height: 100%; min-height: 44px; }
 .dash-tools .sort-pick .select { display: none; }
 .search-more .sort-pick { display: flex; }
+
+/* one size scale: controls beside a search field = 46 px (like the field), buttons inside a panel header = 36 px, filter chips = 36 px, page action buttons = 52 px */
+.sort-btn { height: 46px; }
+.nb-lp-head .btn, .nb-lp-head .sort-btn, .nbf-listhead .sort-btn { height: 36px; padding: 0 12px; font-size: .85rem; }
+.nb-lp-head .nb-tools .btn { width: auto; }
+.chip { min-height: 36px; }
+.quick-q .chip, .search-more .chip { min-height: 36px; }
+@media (max-width: 480px) { .nb-lp-head .nb-tools .btn[data-action=nb-sel-toggle] { width: 36px; padding: 0; justify-content: center; } }
+.nb-listpanel .nb-lp-head .btn, .nb-listpanel .nb-lp-head .sort-btn, .nbf-listhead .sort-btn { height: 36px; min-height: 36px; }
+/* the sort button shows text only (the icons live in its menu); in the narrow side list of an open note it shrinks to its icon */
+.sort-btn .sb-ico { display: none !important; }
+.notes-shell.has-open .sort-btn .sb-ico { display: inline-flex !important; }
+.notes-shell.has-open .sort-btn .sb-t { display: none !important; }
+.notes-shell.has-open .nb-tools .btn span.sb-ico { display: inline-flex !important; }
+.nb-searchpanel .nb-chips { justify-content: flex-start; }
+.nb-lp-chips { padding: 14px 16px 0; margin: 0; justify-content: flex-start; }
+.nb-lp-head { padding-top: 10px; }
+@media (max-width: 480px) { .nb-lp-chips { padding: 12px 12px 0; } }
+.notes-side.nb-page { grid-template-columns: minmax(0, 1fr); }
+.nb-page > * { min-width: 0; }
+.nb-listpanel { overflow: hidden; }
+.nb-lp-chips { overflow-x: auto; }
