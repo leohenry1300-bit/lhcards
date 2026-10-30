@@ -3777,6 +3777,7 @@ class SuperAnki {
             };
             let made = 0;
             if (aiGen) rows.forEach(r => { r.tags = [...(r.tags || []), AI_TAG]; });
+            if (opts.tags && opts.tags.length) rows.forEach(r => { r.tags = [...new Set([...(r.tags || []), ...opts.tags])]; });
             this.change('import', [], () => {
                 const ids = [];
                 rows.forEach((r, i) => {

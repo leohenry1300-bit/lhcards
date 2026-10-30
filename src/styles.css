@@ -3348,3 +3348,14 @@ mark.nb-hl-p{background:color-mix(in srgb,#f472b6 50%,transparent)}
 .lp-t{display:grid;gap:2px;min-width:0;flex:1}.lp-t b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lp-t small{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 .pdf-textbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 14px;background:var(--primary-soft);border-bottom:1px solid var(--border);font-size:.9rem}
+
+/* Étude du PDF */
+.st-h{margin:18px 0 6px;font-size:1rem}.st-h small{font-weight:500;margin-left:6px}
+.st-lv{margin-bottom:4px}
+.st-ask{display:grid;gap:8px}.st-ask h4{margin:0}
+.st-opt{display:grid;gap:2px;text-align:left;padding:12px 14px;border:1px solid var(--border);border-radius:14px;background:var(--surface);color:var(--text);font:inherit;cursor:pointer}.st-opt span{color:var(--muted);font-size:.88rem}.st-opt:hover{background:var(--primary-soft)}
+.st-ch{border:1px solid var(--border);border-radius:16px;padding:12px;margin-bottom:10px;background:var(--surface)}
+.st-ch-h{display:flex;align-items:center;gap:10px}.st-ch-h>div{flex:1;min-width:0}.st-ch-h b{display:block;overflow:hidden;text-overflow:ellipsis}.st-ch-h small{color:var(--muted)}
+.st-pct{font-weight:800;font-size:1.1rem}
+.st-bar{height:8px;border-radius:8px;background:var(--surface-2);overflow:hidden;margin-top:8px}.st-bar i{display:block;height:100%;background:var(--primary);border-radius:8px}
+.st-weak{display:grid;gap:8px;border:1px solid var(--border);border-radius:14px;padding:10px 12px;margin-bottom:8px}.st-weak small{display:block;color:var(--muted)}

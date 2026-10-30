@@ -417,6 +417,7 @@ Object.assign(SuperAnki.prototype, {
     pdfMoreMenu(anchor) {
         const pv = this.pv, p = pv.p, pr = this.pdfPrefs(), n = Object.values(p.ann).flat().length;
         this.showMenu(anchor, [
+            { icon: 'brain', label: 'Étude du PDF (chapitres, progression)…', fn: () => this.stPanel() },
             { icon: 'pencil', label: 'Renommer le PDF', fn: () => this.pdfRenameDialog(p) },
             { icon: 'note', label: 'Extraire mes annotations dans la note', fn: () => this.pdfExtract() },
             { icon: pv.mode === 'text' ? 'file' : 'typeT', label: pv.mode === 'text' ? 'Revenir au PDF fidèle' : 'Lecteur de texte (réaffiche le texte)', fn: () => this.pdfAction('pdf-mode', anchor) },

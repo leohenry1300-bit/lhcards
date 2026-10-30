@@ -350,6 +350,7 @@ const LAZY = {json.dumps(LAZY)};   /* files loaded when needed (see loadLazy) */
 {read("deck-order.js")}
 {read("link-picker.js")}
 {read("ai.js")}
+{read("pdf-study.js")}
 {read("boot.js")}
 if ("serviceWorker" in navigator && /^https?:/.test(location.protocol)) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {{}}));
 </script>

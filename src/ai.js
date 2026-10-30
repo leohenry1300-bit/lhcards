@@ -165,13 +165,13 @@ Object.assign(SuperAnki.prototype, {
             .filter(l => l && l !== 'NONE' && (/>>|<>/.test(l) || /\{\{[^}]+\}\}/.test(l))).map(l => l.replace(/\{\{c\d+::/g, '{{'));
     },
     /* the whole flow: confirm → send → lines. `text` is the course text, `label` says where it comes from. Resolves with the lines (or null). */
-    async aiCardsFrom(text, { label = 'Texte', pages = 0, count = 20 } = {}) {
+    async aiCardsFrom(text, { label = 'Texte', pages = 0, count = 20, hint = '' } = {}) {
         if (!this.aiReady()) { this.aiNeedKey(); return null; }
         const { chunks, cut, chars } = this.aiChunks(text);
         if (chars < 40) { this.toast('Pas assez de texte pour créer des fiches.', 'warning'); return null; }
         const per = Math.max(3, Math.ceil(count / chunks.length));
         const system = 'Tu crées des fiches de révision pour un étudiant. Réponds UNIQUEMENT par des lignes, une fiche par ligne, sans titre ni commentaire. Formats permis : "question >> réponse" ou une phrase avec le mot clé entre doubles accolades, par exemple "Le {{trou}} est…" (texte à trous). Règles : une seule idée par fiche, question précise, réponse courte, uniquement ce qui est dit dans le texte (n\'invente rien), même langue que le texte. Si le texte ne contient rien d\'utile à retenir, réponds exactement NONE.';
-        const jobs = chunks.map(ch => ({ system, prompt: `Crée au maximum ${per} fiches à partir de ce texte :\n\n${ch}`, maxTokens: 2500 }));
+        const jobs = chunks.map(ch => ({ system, prompt: `Crée au maximum ${per} fiches à partir de ce texte :${hint ? '\n(' + hint + ')' : ''}\n\n${ch}`, maxTokens: 2500 }));
         const out = await this.aiRun({ title: 'Cartes avec l\'IA', what: label, chars, pages, preview: chunks[0], jobs, note: cut ? `Le texte est très long : seuls les ${AI_MAX_CHARS.toLocaleString('fr-FR')} premiers caractères sont envoyés.` : '' });
         if (!out) return null;
         const lines = [...new Set(out.flatMap(o => this.aiCleanLines(o)))];
@@ -180,7 +180,7 @@ Object.assign(SuperAnki.prototype, {
     },
     /* choose the pages of the open PDF, read their text. Resolves { a, b, pages, text, vals } or null.
        `extra` is html with controls carrying data-v="name" (their values come back in `vals`). */
-    aiPdfRange({ title, extra = '', all = false, cta = 'Continuer', noText = false }) {
+    aiPdfRange({ title, extra = '', all = false, cta = 'Continuer', noText = false, range = null }) {
         return new Promise(resolve => {
             const pv = this.pv; if (!pv) { resolve(null); return; }
             if (!this.aiReady()) { this.aiNeedKey(); resolve(null); return; }
@@ -188,7 +188,7 @@ Object.assign(SuperAnki.prototype, {
             let fin = false;
             const m = this.openModal({ title: `${ic('sparkle')} ${esc(title)}`, size: 'narrow',
                 body: `<p style="margin:0 0 10px">Choisis les pages à lire. Tu verras ce qui part avant l'envoi.</p>
-                    <div class="row-gap"><label class="field" style="flex:1"><span class="label">De la page</span><input class="input" id="aipg-a" type="number" min="1" max="${total}" value="${all ? 1 : cur}"></label><label class="field" style="flex:1"><span class="label">à la page</span><input class="input" id="aipg-b" type="number" min="1" max="${total}" value="${all ? total : Math.min(total, cur + 4)}"></label></div>
+                    <div class="row-gap"><label class="field" style="flex:1"><span class="label">De la page</span><input class="input" id="aipg-a" type="number" min="1" max="${total}" value="${range ? range[0] : all ? 1 : cur}"></label><label class="field" style="flex:1"><span class="label">à la page</span><input class="input" id="aipg-b" type="number" min="1" max="${total}" value="${range ? Math.min(total, range[1]) : all ? total : Math.min(total, cur + 4)}"></label></div>
                     ${extra}<p class="help" id="aipg-st"></p>`,
                 foot: `<button class="btn btn-soft" data-close>Annuler</button><button class="btn btn-primary" id="aipg-go">${esc(cta)}</button>`,
                 onClose: () => { if (!fin) { fin = true; resolve(null); } } });
@@ -205,12 +205,13 @@ Object.assign(SuperAnki.prototype, {
         });
     },
     /* PDF menu → fiches */
-    async aiPdfCards() {
+    async aiPdfCards(st = {}) {
         if (!this.pv) return;
-        const r = await this.aiPdfRange({ title: 'Cartes avec l\'IA', extra: `<label class="field"><span class="label">Nombre de fiches</span><select class="select" data-v="n"><option value="10">Environ 10</option><option value="20" selected>Environ 20</option><option value="40">Environ 40</option></select></label>` });
+        const lv = this.stLevelInfo(this.pv.p), dn = st.n || lv.cards;
+        const r = await this.aiPdfRange({ title: 'Cartes avec l\'IA', range: st.range, extra: `<label class="field"><span class="label">Nombre de fiches</span><select class="select" data-v="n">${[10, 20, 40].map(v => `<option value="${v}" ${v === dn ? 'selected' : ''}>Environ ${v}</option>`).join('')}</select></label>` });
         if (!r) return;
-        const p = this.pv.p, lines = await this.aiCardsFrom(r.text, { label: `PDF « ${p.name} »`, pages: r.pages, count: Number(r.vals.n) });
-        if (lines) this.openImportModal({ text: lines.join('\n'), ai: true, deckId: p.pdeck || '' });
+        const p = this.pv.p, lines = await this.aiCardsFrom(r.text, { label: `PDF « ${p.name} »`, pages: r.pages, count: Number(r.vals.n), hint: lv.cardsHint });
+        if (lines) this.openImportModal({ text: lines.join('\n'), ai: true, deckId: p.pdeck || '', tags: st.ch ? [`ch-${st.ch}`] : [] });
     },
     /* ---------- summary → written in the note, with [[page N]] links ---------- */
     aiBlocksFromSummary(raw, p) {
@@ -236,9 +237,9 @@ Object.assign(SuperAnki.prototype, {
         else { if (last && !last.x && n.b.length > 1) n.b.splice(n.b.length - 1, 1, ...add); else n.b.push(...add); n.mod = Date.now(); this.save(); if (this.ui.note === n.id) this.renderNotes(); }
         return true;
     },
-    async aiSummary(noteId) {
+    async aiSummary(noteId, st = {}) {
         const sys = k => `Tu résumes un cours pour un étudiant, en français, en puces courtes (une idée par puce). Écris les titres de section en lignes commençant par "## " et chaque puce en ligne commençant par "- ". ${noteId ? '' : 'À la fin de chaque puce, indique la page source entre crochets, par exemple [p.12]. '}N'invente rien : uniquement ce qui est dans le texte. ${k === 'short' ? 'Résumé très court : 6 à 10 puces au total, lisible en 2 minutes.' : 'Résumé détaillé, organisé par sections.'}`;
-        const opt = `<label class="field"><span class="label">Type de résumé</span><select class="select" data-v="k"><option value="short" selected>Court (2 minutes)</option><option value="full">Détaillé</option></select></label>`;
+        const opt = `<label class="field"><span class="label">Type de résumé</span><select class="select" data-v="k"><option value="short" ${(st.k || (this.pv && !noteId ? this.stLevelInfo(this.pv.p).summary : 'short')) === 'short' ? 'selected' : ''}>Court (2 minutes)</option><option value="full" ${(st.k || (this.pv && !noteId ? this.stLevelInfo(this.pv.p).summary : 'short')) === 'full' ? 'selected' : ''}>Détaillé</option></select></label>`;
         let text, label, pages = 0, k = 'short', p = null, target;
         if (noteId) {
             const n = this.note(noteId); if (!n) return;
@@ -247,7 +248,7 @@ Object.assign(SuperAnki.prototype, {
             if (!k) return;
             text = n.b.map(b => this.nbPlain(b.x)).filter(Boolean).join('\n'); label = `Note « ${n.title || 'Sans titre'} »`; target = n;
         } else {
-            const r = await this.aiPdfRange({ title: 'Résumé avec l\'IA', all: true, extra: opt }); if (!r) return;
+            const r = await this.aiPdfRange({ title: 'Résumé avec l\'IA', all: true, range: st.range, extra: opt }); if (!r) return;
             text = r.text; pages = r.pages; k = r.vals.k; p = this.pv.p; label = `PDF « ${p.name} »`; target = this.pdfNoteOf(p);
         }
         const { chunks, cut, chars } = this.aiChunks(text);
@@ -306,24 +307,25 @@ Object.assign(SuperAnki.prototype, {
         setTimeout(() => $('#aic-in', m).focus(), 50);
     },
     /* ---------- quiz (QCM outside the schedule) ---------- */
-    async aiQuizFrom(text, { label, pages = 0, count = 10, deckId = '' }) {
+    async aiQuizFrom(text, { label, pages = 0, count = 10, deckId = '', hint = '', ch = '' }) {
         if (!this.aiReady()) { this.aiNeedKey(); return; }
         const { chunks, cut, chars } = this.aiChunks(text);
         if (chars < 80) { this.toast('Pas assez de texte pour un quiz.', 'warning'); return; }
         const per = Math.max(2, Math.ceil(count / chunks.length));
         const system = 'Tu crées des QCM de révision pour un étudiant, en français. Format strict, un QCM par bloc, blocs séparés par une ligne vide : la première ligne est la question, puis 4 réponses, une par ligne, au format "a) texte". Ajoute " *" à la fin de la ou des bonnes réponses. Puis une ligne "=> explication courte". Les mauvaises réponses doivent être plausibles. Base-toi uniquement sur le texte, sans rien inventer. Aucun titre ni commentaire. Si le texte ne permet pas de faire de QCM, réponds exactement NONE.';
-        const jobs = chunks.map(ch => ({ system, prompt: `Crée ${per} QCM à partir de ce texte :\n\n${ch}`, maxTokens: 3000 }));
+        const jobs = chunks.map(chk => ({ system, prompt: `Crée ${per} QCM à partir de ce texte :${hint ? '\n(' + hint + ')' : ''}\n\n${chk}`, maxTokens: 3000 }));
         const out = await this.aiRun({ title: 'Quiz avec l\'IA', what: label, chars, pages, preview: chunks[0], jobs, note: cut ? `Le texte est très long : seuls les ${AI_MAX_CHARS.toLocaleString('fr-FR')} premiers caractères sont envoyés.` : '' });
         if (!out) return;
         const txt = out.map(o => o.replace(/```[a-z]*/gi, '').replace(/^NONE$/gm, '').trim()).filter(Boolean).join('\n\n');
         if (!parseQcmBlocks(txt).items.length) { this.toast('L\'IA n\'a pas pu faire de QCM avec ce texte.', 'warning'); return; }
-        this.openQcmBulk(deckId, { text: txt, ai: true });
+        this.openQcmBulk(deckId, { text: txt, ai: true, ch });
     },
-    async aiPdfQuiz() {
+    async aiPdfQuiz(st = {}) {
         if (!this.pv) return;
-        const r = await this.aiPdfRange({ title: 'Quiz avec l\'IA', extra: `<label class="field"><span class="label">Nombre de questions</span><select class="select" data-v="n"><option value="5">Environ 5</option><option value="10" selected>Environ 10</option><option value="20">Environ 20</option></select></label>` });
+        const lv = this.stLevelInfo(this.pv.p), dn = st.n || 10;
+        const r = await this.aiPdfRange({ title: 'Quiz avec l\'IA', range: st.range, extra: `<label class="field"><span class="label">Nombre de questions</span><select class="select" data-v="n">${[5, 10, 20].map(v => `<option value="${v}" ${v === dn ? 'selected' : ''}>Environ ${v}</option>`).join('')}</select></label>` });
         if (!r) return;
-        const p = this.pv.p; await this.aiQuizFrom(r.text, { label: `PDF « ${p.name} »`, pages: r.pages, count: Number(r.vals.n), deckId: p.pdeck || '' });
+        const p = this.pv.p; await this.aiQuizFrom(r.text, { label: `PDF « ${p.name} »`, pages: r.pages, count: Number(r.vals.n), deckId: p.pdeck || '', hint: lv.quizHint, ch: st.ch || '' });
     },
     async aiNoteQuiz(id) {
         const n = this.note(id); if (!n) return;

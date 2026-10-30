@@ -36,6 +36,12 @@ function normalizePdfAnn(a) {
     else { o.w = clamp(num(a.w, 0.004), 0.0008, 0.05); o.op = clamp(num(a.op, 1), 0.1, 1); o.p = toArray(a.p).slice(0, 4000).map(p => toArray(p).slice(0, 2).map(r4)).filter(p => p.length === 2); if (o.p.length < 1) return null; }
     return o;
 }
+/* « Étude du PDF » : niveau choisi et chapitres (titre + pages) ; la progression est calculée à partir des cartes et des QCM réels */
+function normalizePdfStudy(s, pages) {
+    s = s && typeof s === 'object' ? s : {};
+    const ch = toArray(s.ch).slice(0, 80).map(c => { if (!c || typeof c !== 'object') return null; const a = clamp(Math.round(num(c.a, 1)), 1, pages), b = clamp(Math.round(num(c.b, a)), a, pages); return { id: String(c.id || uid('h')).slice(0, 40), t: String(c.t || 'Chapitre').slice(0, 120), a, b }; }).filter(Boolean);
+    return { level: ['new', 'basic', 'review'].includes(s.level) ? s.level : '', ch, src: ['toc', 'ai', 'hand'].includes(s.src) ? s.src : '' };
+}
 function normalizePdf(x) {
     if (!x || typeof x !== 'object' || !x.hash) return null;
     const pages = Math.max(1, Math.round(num(x.pages, 1)));
@@ -50,10 +56,11 @@ function normalizePdf(x) {
         last: clamp(Math.round(num(x.last, 0)), 0, pg.length - 1), zoom: clamp(num(x.zoom, 1), 0.4, 4), mode: x.mode === 'text' ? 'text' : 'pdf',
         pg, ann, trash, up: !!x.up, toc: toArray(x.toc).slice(0, 300).map(t => ({ t: String(t && t.t || '').slice(0, 120), n: Math.max(1, Math.round(num(t && t.n, 1))), d: clamp(Math.round(num(t && t.d, 0)), 0, 4) })).filter(t => t.t),
         prio: ['none', 'high', 'normal', 'low'].includes(x.prio) ? x.prio : 'none',
+        study: normalizePdfStudy(x.study, pages),
         ocr: (o => { const r = {}; if (o && typeof o === 'object') Object.entries(o).slice(0, 800).forEach(([k, v]) => { if (/^\d+$/.test(k) && typeof v === 'string' && v.trim()) r[k] = v.slice(0, 20000); }); return r; })(x.ocr)
     };
 }
-const pdfSig = p => JSON.stringify([p.name, p.deckId, p.pdeck, p.noteId, p.last, p.zoom, p.mode, p.pg, p.ann, p.trash.length, p.up, p.prio, Object.keys(p.ocr || {}).length]);
+const pdfSig = p => JSON.stringify([p.name, p.deckId, p.pdeck, p.noteId, p.last, p.zoom, p.mode, p.pg, p.ann, p.trash.length, p.up, p.prio, Object.keys(p.ocr || {}).length, p.study]);
 /* two devices annotated the same PDF: the lines are united (a line erased on one side stays erased), the rest follows the newer copy */
 function mergePdfList(la, ra, tomb, mark) {
     const lm = new Map(la.map(x => [x.id, x])), rm = new Map(ra.map(x => [x.id, x])), out = [];

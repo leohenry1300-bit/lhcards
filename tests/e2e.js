@@ -1584,6 +1584,49 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         ok('PDF: any pages can be deleted (and brought back with undo); the whole PDF can be read aloud page after page', pd.del && pd.undo && pd.read, JSON.stringify(pd));
     }
 
+
+    {   /* IA lot 4 : panneau « Étude du PDF » (niveau, chapitres, progression réelle, sujets à revoir) */
+        await page.route('https://api.anthropic.com/**', r => {
+            const body = r.request().postData() || '';
+            if (/Voici le début de chaque page/.test(body)) r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ content: [{ type: 'text', text: 'Introduction | 1 | 1\nLa suite | 2 | 9999' }] }) });
+            else r.fallback();
+        });
+        const sp = await page.evaluate(async () => {
+            const out = {}, a = app, w = ms => new Promise(r => setTimeout(r, ms));
+            localStorage.setItem('lh_ai', JSON.stringify({ provider: 'anthropic', keys: { anthropic: 'sk-x' }, models: {} }));
+            if (!a.pv) { await a.pdfOpen(a.data.pdfs[0].id); await w(2000); }
+            const p = a.pv.p; p.study = { level: '', ch: [], src: '' };
+            a.stPanel(); await w(300);
+            out.ask = !!document.querySelector('.st-ask') && /À quel point connais-tu/.test(document.querySelector('.modal').textContent);
+            document.querySelector('[data-st="lvl:basic"]').click(); await w(300);
+            out.level = p.study.level === 'basic' && !!document.querySelector('[data-st="aiplan"]') && !!document.querySelector('[data-st="add"]');
+            // un chapitre à la main, avec de vrais chiffres : 1 carte maîtrisée sur 2, 1 QCM réussi sur 1
+            document.querySelector('[data-st="add"]').click(); await w(300);
+            document.getElementById('ste-t').value = 'Les marchés'; document.getElementById('ste-a').value = '1'; document.getElementById('ste-b').value = '1'; document.getElementById('ste-ok').click(); await w(300);
+            a.data.cards = a.data.cards.filter(c => !(c.src && c.src.pdf === p.id));
+            a.stPanel(); await w(200); document.querySelectorAll('.modal [data-close]').forEach(b => b.click()); await w(100);
+            const ch = p.study.ch[0]; out.added = p.study.ch.length === 1 && ch.t === 'Les marchés';
+            const d = a.pdfDeckOf(p), now = Date.now();
+            const ids = [1, 2].flatMap(i => a.createNote({ type: 'basic', deckId: d.id, front: 'q' + i, back: 'r' + i, hint: '', detail: '', tags: ['ch-' + ch.id] }));
+            const c1 = a.card(ids[0]), c2 = a.card(ids[1]);
+            c1.state = 'review'; c1.interval = 40; c1.due = now + 40 * 864e5; c1.reps = 5; c2.lapses = 3; c2.state = 'learning'; c2.reps = 4;
+            a.data.qcms.push(normalizeQcm({ id: uid('q'), deckId: d.id, q: 'Test ?', o: [{ t: 'a', ok: true }, { t: 'b', ok: false }], ch: ch.id, right: 2, wrong: 0 }));
+            document.querySelectorAll('.modal [data-close]').forEach(b => b.click()); await w(200); a.stPanel(); await w(300);
+            const txt = document.getElementById('st-root').textContent;
+            out.real = /1 carte maîtrisée sur 2/.test(txt) && /1 QCM réussi sur 1/.test(txt) && /75%/.test(txt);
+            out.weak = /1 carte difficile/.test(txt) && !!document.querySelector('.st-weak');
+            document.querySelectorAll('.modal [data-close]').forEach(b => b.click()); await w(200);
+            // plan proposé par l'IA quand il n'y a pas de sommaire
+            p.study.ch = []; a.stAiPlan(); await w(500);
+            out.aiPreview = !!document.getElementById('ai-send'); document.getElementById('ai-send').click(); await w(1200);
+            out.plan = p.pages < 2 ? true : p.study.ch.length === 2 && p.study.src === 'ai' && p.study.ch[1].b === p.pages;
+            const saved = JSON.parse(a.serialize()).pdfs.find(x => x.id === p.id); out.saved = saved.study && saved.study.level === 'basic';
+            localStorage.removeItem('lh_ai');
+            return out;
+        });
+        ok('IA: "Étude du PDF" asks the level first, chapters by hand or AI plan, progress from real cards/QCM (75%), weak topics listed, all saved', sp.ask && sp.level && sp.added && sp.real && sp.weak && sp.aiPreview && sp.plan && sp.saved, JSON.stringify(sp));
+    }
+
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));
     console.log(R.join('\n') + `\n\n${R.length - failed}/${R.length} checks passed`);
     await browser.close(); server.close(); process.exit(failed ? 1 : 0);

@@ -12,7 +12,7 @@ function normalizeQcm(x) {
     if (!q || o.length < 2 || !o.some(a => a.ok)) return null;
     return {
         id: String(x.id || uid('q')), deckId: String(x.deckId || ''), q, o, multi: o.filter(a => a.ok).length > 1 || !!x.multi,
-        expl: String(x.expl || '').trim().slice(0, 600), created: num(x.created, 0), mod: num(x.mod, 0), right: num(x.right, 0), wrong: num(x.wrong, 0), off: !!x.off
+        expl: String(x.expl || '').trim().slice(0, 600), created: num(x.created, 0), mod: num(x.mod, 0), right: num(x.right, 0), wrong: num(x.wrong, 0), off: !!x.off, ch: x.ch ? String(x.ch).slice(0, 40) : ''
     };
 }
 const qcmSig = q => JSON.stringify([q.deckId, q.q, q.o, q.multi, q.expl, q.right, q.wrong, q.off]);
@@ -181,7 +181,7 @@ Object.assign(SuperAnki.prototype, {
         go.addEventListener('click', () => {
             const rows = refresh(); if (!rows.length) return;
             const now = Date.now(), did = sel.value;
-            this.change('QCM ajoutés', [], () => { rows.forEach((it, i) => this.data.qcms.push(normalizeQcm({ id: uid('q'), deckId: did, q: it.q, o: it.o, multi: it.multi, expl: it.expl, created: now + i }))); }, { qcms: true });
+            this.change('QCM ajoutés', [], () => { rows.forEach((it, i) => this.data.qcms.push(normalizeQcm({ id: uid('q'), deckId: did, q: it.q, o: it.o, multi: it.multi, expl: it.expl, created: now + i, ch: opts.ch || '' }))); }, { qcms: true });
             this.closeModal(m); this.qcmRefresh();
             this.toast(`${plural(rows.length, 'QCM ajouté', 'QCM ajoutés')}`, 'success', ic('check'));
         });

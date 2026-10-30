@@ -50,6 +50,7 @@ Object.assign(SuperAnki.prototype, {
                 <button class="icon-btn" data-action="pdf-toc" aria-label="Table des matières" title="Table des matières et pages">${ic('toc')}</button>
                 <button class="icon-btn hide-n ${pv.mode === 'text' ? 'on' : ''}" data-action="pdf-mode" aria-label="Lecteur de texte" title="Basculer entre le PDF fidèle et le texte réaffiché">${ic(pv.mode === 'text' ? 'file' : 'typeT')}</button>
                 <button class="icon-btn hide-n" data-action="pdf-read" aria-label="Lire à voix haute" title="Lire à voix haute">${ic('volume')}</button>
+                <button class="icon-btn hide-n" data-action="pdf-study" aria-label="Étude du PDF" title="Étude du PDF : niveau, chapitres, progression">${ic('brain')}</button>
                 <button class="btn btn-primary btn-sm pdfv-prac" data-action="pdf-train" title="S'entraîner avec les cartes de ce PDF">${ic('play')}<span>Pratique</span></button>
                 <button class="icon-btn hide-n" data-action="pdf-side" aria-label="Note à gauche ou à droite" title="Mettre la note à gauche / à droite">${ic('columns')}</button>
                 <button class="icon-btn ${pv.notes ? 'on' : ''}" data-action="pdf-notes" aria-label="Notes" title="Afficher / masquer la note du PDF">${ic('note')}</button>
@@ -442,7 +443,7 @@ Object.assign(SuperAnki.prototype, {
             'pdf-read': () => this.pdfReadMenu(),
             'pdf-notes': () => this.pdfToggleNotes(),
             'pdf-focus': () => this.pdfFocus(),
-            'pdf-more': () => this.pdfMoreMenu(el),
+            'pdf-more': () => this.pdfMoreMenu(el), 'pdf-study': () => this.stPanel(),
             'pdf-train': () => this.pdfTrainMenu(el),
             'pdf-annotate': () => { pv.annotate = !pv.annotate; if (pv.annotate && pv.tool === 'hand') pv.tool = 'select'; if (!pv.annotate) pv.tool = 'hand'; this.pdfRefreshTools(); },
             'pdf-note-open': () => { const n = this.pdfNoteOf(pv.p); this.pdfFlushNotes(); this.noteOpen(n.id, { push: false }); },
