@@ -92,7 +92,7 @@ Object.assign(SuperAnki.prototype, {
         const arrow = ico => `<button class="nbc-arrow" data-nbk="cmenu" aria-label="Réglages de la carte" title="Réglages de la carte (type, direction…)">${ico}</button>`;
         const mid = k === 'basic' ? arrow(ic(cd.dir === 'both' ? 'swap' : 'arrowRight', cd.dir === 'back' ? 'nb-flip-h' : '')) + `<div class="nbc-a"><input class="nbc-ain" data-nbf="a" value="${esc(cd.a)}" placeholder="Verso de la carte" autocomplete="off" spellcheck="true" enterkeyhint="done"></div>`
             : k === 'cloze' ? arrow(ic('brackets')) : arrow(ic('arrowDown'));
-        return `<div class="nbc nbc-${k} st-${st.cls}"><div class="nbc-line"><div class="nbc-q"><div class="nb-view" data-ph="${ph}">${view}</div><div class="nb-t" data-ph="${ph}" contenteditable="${NB_CE}" role="textbox" aria-multiline="false" spellcheck="true" autocapitalize="sentences"></div></div>${mid}<button class="nbc-prev" data-nbk="cprev" title="${esc(st.label)} · Aperçu de la carte mémoire">${ic('eye')}<span>Aperçu</span><i class="nbc-dot st-${st.cls}"></i></button></div>${st.cls === 'draft' ? `<div class="nbc-draft"><span>Pas encore une carte</span><button class="nbc-ok" data-nbk="cvalid">${ic('check')}Créer la carte</button></div>` : ''}</div>`;
+        return `<div class="nbc nbc-${k} st-${st.cls}"><div class="nbc-line"><div class="nbc-q"><div class="nb-view" data-ph="${ph}">${view}</div><div class="nb-t" data-ph="${ph}" contenteditable="${NB_CE}" role="textbox" aria-multiline="false" spellcheck="true" autocapitalize="sentences"></div></div>${mid}<button class="nbc-prev" data-nbk="cprev" title="${esc(st.label)} · Aperçu de la carte mémoire">${ic('eye')}<span>Aperçu</span><i class="nbc-dot st-${st.cls}"></i></button></div>${st.cls === 'draft' ? `<div class="nbc-draft"><span>Pas encore une carte</span><button class="nbc-ok" data-nbk="cvalid">${ic('check')}Créer la carte</button><button class="nbc-no" data-nbk="cdel" aria-label="Retirer la carte">${ic('x')}Retirer</button></div>` : ''}</div>`;
     },
 
     /* ---------- keeping the real cards in step with the line ---------- */
@@ -380,7 +380,11 @@ Object.assign(SuperAnki.prototype, {
 
     /* ---------- tables ---------- */
     nbTableHtml(b) {
-        return `<div class="nb-tablewrap"><table class="nb-table">${b.rows.map((r, ri) => `<tr>${r.map((cell, ci) => `<${ri === 0 && b.hdr ? 'th' : 'td'}><input data-nbt="${ri},${ci}" value="${esc(cell)}" autocomplete="off" aria-label="Ligne ${ri + 1}, colonne ${ci + 1}"></${ri === 0 && b.hdr ? 'th' : 'td'}>`).join('')}</tr>`).join('')}</table></div>`;
+        const fl = (ri, ci) => (b.fill || {})[`${ri},${ci}`] || (b.fill || {})[`${ri},*`] || '';
+        return `<div class="nb-tablewrap"><table class="nb-table ${b.tc ? 'tc-' + b.tc : ''}">${b.rows.map((r, ri) => `<tr>${r.map((cell, ci) => `<${ri === 0 && b.hdr ? 'th' : 'td'}${fl(ri, ci) ? ` class="fc-${fl(ri, ci)}"` : ''}><input data-nbt="${ri},${ci}" value="${esc(cell)}" autocomplete="off" aria-label="Ligne ${ri + 1}, colonne ${ci + 1}"></${ri === 0 && b.hdr ? 'th' : 'td'}>`).join('')}</tr>`).join('')}</table></div>`;
+    },
+    nbColorMenu(anchor, head, pick, cur, withNone = false) {
+        this.nbMenu([{ head: head.toUpperCase() }, ...NB_COLORS.map(([k, l, hex]) => ({ ico: 'palette', label: `<span class="tdot" style="background:${hex}"></span>${l}`, on: cur === k, fn: () => pick(k) })), ...(withNone ? [{ sep: true }, { ico: 'eraser', label: 'Aucune couleur', fn: () => pick('') }] : [])], anchor);
     },
     nbTableMenu(anchor, i) {
         const n = this.note(this.ui.note), b = n.b[i], cell = this.nb.cell && this.nb.cell.i === i ? this.nb.cell : { i, r: 0, c: 0 };
@@ -391,6 +395,10 @@ Object.assign(SuperAnki.prototype, {
                 { ico: 'trash', label: 'Supprimer cette ligne', danger: true, fn: () => { if (b.rows.length > 1) this.nbOp(() => { b.rows.splice(cell.r, 1); }, null); else this.toast('Il faut au moins une ligne.', 'warning'); } },
                 { ico: 'trash', label: 'Supprimer cette colonne', danger: true, fn: () => { if (b.rows[0].length > 1) this.nbOp(() => { b.rows.forEach(r => r.splice(cell.c, 1)); }, null); else this.toast('Il faut au moins une colonne.', 'warning'); } },
                 { ico: 'file', label: b.hdr ? 'Sans ligne d\'en-tête' : 'Avec ligne d\'en-tête', fn: () => this.nbOp(() => { b.hdr = !b.hdr; }, null) },
+                { sep: true },
+                { ico: 'palette', label: 'Couleur du tableau…', fn: () => setTimeout(() => this.nbColorMenu(anchor, 'Couleur du tableau', k => this.nbOp(() => { b.tc = k; }, null), b.tc), 30) },
+                { ico: 'palette', label: 'Colorer cette cellule…', fn: () => setTimeout(() => this.nbColorMenu(anchor, 'Colorer la cellule', k => this.nbOp(() => { b.fill = b.fill || {}; if (k) b.fill[`${cell.r},${cell.c}`] = k; else delete b.fill[`${cell.r},${cell.c}`]; }, null), (b.fill || {})[`${cell.r},${cell.c}`], true), 30) },
+                { ico: 'palette', label: 'Colorer cette ligne…', fn: () => setTimeout(() => this.nbColorMenu(anchor, 'Colorer la ligne', k => this.nbOp(() => { b.fill = b.fill || {}; Object.keys(b.fill).filter(z => z.startsWith(`${cell.r},`)).forEach(z => delete b.fill[z]); if (k) b.fill[`${cell.r},*`] = k; }, null), (b.fill || {})[`${cell.r},*`], true), 30) },
                 { sep: true },
                 { ico: 'copy', label: 'Cartes depuis des colonnes…', fn: () => this.nbTableCards(i) },
                 { sep: true },

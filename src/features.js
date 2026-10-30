@@ -130,7 +130,7 @@ Object.assign(SuperAnki.prototype, {
     },
     undoGlobal() {
         const e = this.undoStack.pop();
-        if (!e) { this.toast('Rien à annuler', 'warning'); return; }
+        if (!e) return;
         this.applyEntry(e, 'undo');
         this.redoStack.push(e);
         this.toast(`Annulé : ${e.label}`, 'success', ic('undo'), { label: 'Rétablir', fn: () => this.redoGlobal() });
@@ -154,7 +154,7 @@ Object.assign(SuperAnki.prototype, {
         return null;
     },
     async sensitiveUndo() {
-        const info = this.sensitiveInfo(); if (!info) { this.toast('Rien à annuler.', 'warning'); return; }
+        const info = this.sensitiveInfo(); if (!info) return;
         let json = this.lastSens && this.lastSens.at === info.at ? this.lastSens.json : null;
         if (!json && info.key) json = await Storage.backupLoad(info.key);
         const data = json && normalizeState(json);

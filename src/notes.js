@@ -16,7 +16,7 @@ const NB_LINK = /\[\[([^\[\]\n]{1,160})\]\]/g;
 function normalizeNoteBlock(x) {
     if (!x || typeof x !== 'object') return null;
     const t = NB_TYPES.includes(x.t) ? x.t : 'p', b = { t, x: t === 'hr' || t === 'img' || t === 'table' ? '' : String(x.x == null ? '' : x.x).replace(/\n+/g, ' ').slice(0, 4000), d: clamp(Math.round(num(x.d, 0)), 0, NB_MAX_DEPTH) };
-    if (t === 'table') { b.rows = toArray(x.rows).slice(0, 40).map(r => toArray(r).slice(0, 8).map(c => String(c == null ? '' : c).replace(/\n+/g, ' ').slice(0, 300))).filter(r => r.length); if (!b.rows.length) b.rows = [['', ''], ['', '']]; const w = Math.max(...b.rows.map(r => r.length)); b.rows.forEach(r => { while (r.length < w) r.push(''); }); b.hdr = x.hdr !== false; b.id = String(x.id || uid('b')); }
+    if (t === 'table') { b.rows = toArray(x.rows).slice(0, 40).map(r => toArray(r).slice(0, 8).map(c => String(c == null ? '' : c).replace(/\n+/g, ' ').slice(0, 300))).filter(r => r.length); if (!b.rows.length) b.rows = [['', ''], ['', '']]; const w = Math.max(...b.rows.map(r => r.length)); b.rows.forEach(r => { while (r.length < w) r.push(''); }); b.hdr = x.hdr !== false; b.id = String(x.id || uid('b')); b.tc = NB_COLORS.some(c => c[0] === x.tc) ? x.tc : ''; b.fill = {}; if (x.fill && typeof x.fill === 'object') Object.entries(x.fill).slice(0, 400).forEach(([k, v]) => { if (/^\d+,(\d+|\*)$/.test(k) && NB_COLORS.some(c => c[0] === v)) b.fill[k] = v; }); }
     if (x.ok) b.ok = true;
     if (t === 'p' && x.cd && typeof x.cd === 'object') {   // this line is a memory card (see notes-cards.js)
         const c = x.cd;
@@ -45,6 +45,7 @@ function normalizeNote(x) {
 const noteSig = n => JSON.stringify([n.title, n.deckId, n.b, n.daily, n.fav, n.emoji, n.pin, n.parent, n.tags, n.order]);
 const noteText = n => n.b.map(b => b.x + (b.cd ? ' ' + b.cd.a : '') + (b.rows ? ' ' + b.rows.map(r => r.join(' ')).join(' ') : '')).join('\n') + ' ' + n.tags.join(' ');
 const nbEmpty = () => ({ t: 'p', x: '', d: 0 });
+const NB_COLORS = [['blue', 'Bleu', '#3b82f6'], ['green', 'Vert', '#22c55e'], ['yellow', 'Jaune', '#eab308'], ['orange', 'Orange', '#f97316'], ['pink', 'Rose', '#ec4899'], ['violet', 'Violet', '#8b5cf6'], ['grey', 'Gris', '#64748b']];
 const nbSolid = t => t === 'hr' || t === 'img' || t === 'table';   // blocks that have no text to type in
 
 Object.assign(SuperAnki.prototype, {
@@ -68,7 +69,7 @@ Object.assign(SuperAnki.prototype, {
     dailyTitle(key) { const [y, m, d] = key.split('-').map(Number); const s = new Date(y, m - 1, d).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); return s.charAt(0).toUpperCase() + s.slice(1); },
     /* a little formatting kept as plain text: **gras**, *italique*, ==surligné==, `code` ; q = word to highlight while searching in the note */
     fmtHtml(h, q) {
-        h = h.replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?!\w)/g, '$1<i>$2</i>').replace(/==([^=]+)==/g, '<mark class="nb-hl">$1</mark>');
+        h = h.replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?!\w)/g, '$1<i>$2</i>').replace(/==(?:\{([ygbp])\})?([^=]+)==/g, (m, c, t) => `<mark class="nb-hl${c ? ' nb-hl-' + c : ''}">${t}</mark>`).replace(/(^|[^\w])__([^_]+)__(?!\w)/g, '$1<u>$2</u>');
         if (q) { const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'); h = h.split(/(<[^>]*>)/).map(t => (t.startsWith('<') ? t : t.replace(re, m => `<mark class="nb-find">${m}</mark>`))).join(''); }
         return h;
     },
@@ -143,7 +144,7 @@ Object.assign(SuperAnki.prototype, {
     <button data-nb="plus" title="Plus : lien, citation, séparateur, déplacer…" aria-label="Plus">${ic('plus')}<span>Plus</span></button>
     <button data-nb="undo" title="Annuler" aria-label="Annuler">${ic('undo')}<span>Annuler</span></button>
     <span class="nb-sep"></span>
-    <button data-nb="kbd" title="Fermer le clavier" aria-label="Fermer le clavier">${ic('kbdoff')}<span>Clavier</span></button>
+    <button data-nb="kbd" title="Fermer le clavier" aria-label="Fermer le clavier">${ic('kbdoff')}<span>Fermer</span></button>
 </div>`);
         document.body.classList.add('nb-open'); this.nbPlaceBar();
     },
@@ -231,7 +232,7 @@ Object.assign(SuperAnki.prototype, {
     nbUndo(redo = false) {
         const n = this.note(this.ui.note); if (!n) return;
         const from = redo ? this.nb.redo : this.nb.hist, to = redo ? this.nb.hist : this.nb.redo;
-        const e = from.pop(); if (!e) { this.toast(redo ? 'Rien à rétablir' : 'Rien à annuler', 'warning'); return; }
+        const e = from.pop(); if (!e) return;
         to.push({ b: JSON.stringify(n.b), i: this.nb.active });
         n.b = JSON.parse(e.b); this.nb.burst = 0;
         this.nbSaveSoon(0); this.nbRender(Math.min(e.i == null ? n.b.length - 1 : e.i, n.b.length - 1), 'end');
@@ -265,6 +266,11 @@ Object.assign(SuperAnki.prototype, {
     nbSplit(i) {
         const n = this.note(this.ui.note), b = n.b[i], t = $('.nb-t', this.nbEl(i)), pos = this.nbCaret(t).s;
         if (!b.x && b.t !== 'p') { this.nbOp(() => { b.t = 'p'; delete b.done; }, i, 0); return; }
+        if (b.cd && b.x.trim() && pos >= b.x.length && (b.cd.k === 'cloze' || b.cd.k === 'basic')) {   // chain cards: recto → verso, then a fresh card line of the same kind
+            const ain = $('.nbc-ain', this.nbEl(i));
+            if (b.cd.k === 'basic' && ain && !ain.value.trim()) { ain.focus(); return; }
+            this.nbOp(nn => { nn.b.splice(i + 1, 0, { t: 'p', x: '', d: b.d, cd: this.nbCdNew(b.cd.k) }); }, i + 1, 0); return;
+        }
         if (b.cd && NB_KIDS.includes(b.cd.k) && pos >= b.x.length) { const first = i + 1; const hasKid = n.b[first] && n.b[first].d > b.d; if (hasKid) { this.nbActivate(first, 'end'); return; } this.nbOp(nn => { nn.b.splice(i + 1, 0, { t: 'p', x: '', d: b.d + 1 }); }, i + 1, 0); return; }
         const ow = this.nbCardOwners(n)[i];
         if (ow >= 0 && b.x && pos >= b.x.length) { const nx = n.b[i + 1]; if (nx && !nx.x && nx.t === 'p' && nx.d === b.d && !nx.cd) { this.nbActivate(i + 1, 'start'); return; } }   // the next empty answer line is reused
@@ -328,14 +334,16 @@ Object.assign(SuperAnki.prototype, {
         const typed = m[1].trim();
         if (typed && !this.noteByTitle(typed)) items.push({ k: 'new', label: `Créer « ${typed} »`, ins: typed, ico: 'plus' });
         if (!items.length) { this.nbSuggestClose(); return; }
+        items.push({ k: 'pick', label: 'Choisir dans une liste (notes, PDF, cartes)…', ins: '', ico: 'search' });
         this.nb.sug = { items, start: pos - m[1].length, end: pos, i: this.nb.active };
         let box = $('.nb-suggest'); if (!box) { box = document.createElement('div'); box.className = 'nb-suggest'; document.body.appendChild(box); }
-        box.innerHTML = items.map((x, k) => `<button data-sug="${k}">${ic(x.ico)}<span>${esc(x.label)}</span><small>${x.k === 'note' ? 'note' : x.k === 'card' ? 'carte' : 'nouvelle'}</small></button>`).join('');
+        box.innerHTML = items.map((x, k) => `<button data-sug="${k}">${ic(x.ico)}<span>${esc(x.label)}</span><small>${x.k === 'note' ? 'note' : x.k === 'card' ? 'carte' : x.k === 'pick' ? '' : 'nouvelle'}</small></button>`).join('');
         this.nbPlaceBar();
     },
     nbSuggestClose() { const b = $('.nb-suggest'); if (b) b.remove(); if (this.nb) this.nb.sug = null; },
     nbSuggestPick(k) {
         const s = this.nb.sug, it = s && s.items[k]; if (!it) return;
+        if (it.k === 'pick') { this.nbLinkPicker(); return; }
         const n = this.note(this.ui.note), b = n.b[s.i];
         if (it.k === 'new' && !this.noteByTitle(it.ins)) this.noteNew(it.ins);
         const after = b.x.slice(s.end).replace(/^\]\]/, '');
@@ -380,16 +388,17 @@ Object.assign(SuperAnki.prototype, {
         else if (act === 'card') this.nbMenu([{ head: 'CARTES MÉMOIRE' },
             ...Object.entries(NB_KIND).map(([k, [label, ico]]) => ({ ico, label, on: b.cd && b.cd.k === k, fn: () => this.nbCardInsert(k) })),
             ...(hasSel ? [{ sep: true }, { ico: 'brackets', label: 'Mettre la sélection en trou', fn: () => this.nbSelToCloze() }] : []),
+            ...(b.cd ? [{ sep: true }, { ico: 'trash', label: 'Retirer la carte de cette ligne', danger: true, fn: () => this.nbCardDelete(i) }] : []),
             { sep: true }, { ico: 'sparkle', label: 'Plan → cartes (toute la note)…', fn: () => this.nbPlanToCards() }], btn);
         else if (act === 'head') this.nbMenu([['p', 'Texte', 'file'], ['h1', 'Titre 1', 'heading'], ['h2', 'Titre 2', 'heading'], ['h3', 'Titre 3', 'heading']].map(([t, label, ico]) => ({ ico, label, on: b.t === t, fn: () => this.nbOp(() => { if (!nbSolid(b.t)) { b.t = t; delete b.done; delete b.cd; } }, i, 'end') })), btn);
-        else if (act === 'fmt') this.nbMenu([{ ico: 'pencil', label: '<b>Gras</b> · Ctrl+B', fn: () => this.nbWrap('**') }, { ico: 'pencil', label: '<i>Italique</i> · Ctrl+I', fn: () => this.nbWrap('*') }, { ico: 'pencil', label: '<mark class="nb-hl">Surligné</mark>', fn: () => this.nbWrap('==') }, { ico: 'file', label: '<code>Code</code>', fn: () => this.nbWrap('`') }, { sep: true }, { ico: 'eraser', label: 'Effacer la mise en forme', fn: () => { if (b.x) this.nbOp(() => { b.x = b.x.replace(/\*\*|==|`/g, '').replace(/(^|\s)\*([^*]+)\*/g, '$1$2'); }, i, 'end'); } }], btn);
+        else if (act === 'fmt') this.nbMenu([{ ico: 'bold', label: '<b>Gras</b> · Ctrl+B', fn: () => this.nbWrap('**') }, { ico: 'italic', label: '<i>Italique</i> · Ctrl+I', fn: () => this.nbWrap('*') }, { ico: 'underline', label: '<u>Souligné</u> · Ctrl+U', fn: () => this.nbWrap('__') }, { sep: true }, { ico: 'pencil', label: '<mark class="nb-hl">Surligné jaune</mark>', fn: () => this.nbWrap('==') }, { ico: 'pencil', label: '<mark class="nb-hl nb-hl-g">Surligné vert</mark>', fn: () => this.nbWrap('=={g}', '==') }, { ico: 'pencil', label: '<mark class="nb-hl nb-hl-b">Surligné bleu</mark>', fn: () => this.nbWrap('=={b}', '==') }, { ico: 'pencil', label: '<mark class="nb-hl nb-hl-p">Surligné rose</mark>', fn: () => this.nbWrap('=={p}', '==') }, { sep: true }, { ico: 'file', label: '<code>Code</code>', fn: () => this.nbWrap('`') }, { ico: 'eraser', label: 'Effacer la mise en forme', fn: () => { if (b.x) this.nbOp(() => { b.x = b.x.replace(/==(?:\{[ygbp]\})?/g, '').replace(/\*\*|`/g, '').replace(/(^|[^\w])__([^_]+)__(?!\w)/g, '$1$2').replace(/(^|\s)\*([^*]+)\*/g, '$1$2'); }, i, 'end'); } }], btn);
         else if (act === 'table') this.nbTableMenu(btn, i);
         else if (act === 'plus') this.nbMenu([
-            { ico: 'link', label: 'Lien [[ ]] vers une note ou une carte', fn: () => { this.nbActivate(i, 'end'); document.execCommand('insertText', false, '[['); const t = $('.nb-t', this.nbEl(i)); this.nbSuggestCheck(t); this.nbPlaceBar(); } },
+            { ico: 'link', label: 'Lien vers une note, un PDF ou une carte…', fn: () => this.nbLinkPicker() },
             { ico: 'file', label: b.t === 'quote' ? 'Retirer la citation' : 'Citation', fn: () => this.nbOp(() => { if (!nbSolid(b.t)) { b.t = b.t === 'quote' ? 'p' : 'quote'; delete b.cd; } }, i, 'end') },
             { ico: 'list', label: 'Séparateur', fn: () => this.nbInsertAfter(i, [{ t: 'hr' }, { t: 'p', x: '' }]) },
             { sep: true },
-            { ico: 'chevronDown', label: 'Monter la ligne · Alt+↑', fn: () => this.nbMoveStep(i, -1) },
+            { ico: 'chevronUp', label: 'Monter la ligne · Alt+↑', fn: () => this.nbMoveStep(i, -1) },
             { ico: 'chevronDown', label: 'Descendre la ligne · Alt+↓', fn: () => this.nbMoveStep(i, 1) }], btn);
         else if (act === 'img') this.nbPickImage(i);
     },
@@ -427,6 +436,7 @@ Object.assign(SuperAnki.prototype, {
             else if (kind === 'cmenu') this.nbCardMenu(k, i);
             else if (kind === 'cprev') this.nbCardPreview(k, i);
             else if (kind === 'cvalid') this.nbCardValidate(i);
+            else if (kind === 'cdel') this.nbCardDelete(i);
             else if (kind === 'ok') { this.nbPush(); const ow = this.nbCardOwners(n)[i], mx = ow >= 0 && n.b[ow].cd.mx; if (!b.ok && !mx) { for (let j = ow + 1; j < this.nbSubEnd(n.b, ow); j++) delete n.b[j].ok; } b.ok = !b.ok; if (ow >= 0) n.b[ow].cd.sg = ''; this.nbChanged(); if (ow >= 0) for (let j = ow + 1; j < this.nbSubEnd(n.b, ow); j++) { const bt = $('.nb-okb', this.nbEl(j)); if (bt) { bt.classList.toggle('on', !!n.b[j].ok); bt.innerHTML = n.b[j].ok ? ic('check') : ''; bt.setAttribute('aria-pressed', String(!!n.b[j].ok)); } } this.nbCardFlushLater(); }
             else if (kind === 'imgx') { this.nbOp(nn => { nn.b.splice(i, 1); if (!nn.b.length) nn.b.push(nbEmpty()); }, null); }
             else if (kind === 'tail') { const last = n.b[n.b.length - 1]; if (last.t === 'p' && !last.x) this.nbActivate(n.b.length - 1, 'end'); else if (nbSolid(last.t) || last.x) this.nbOp(nn => { nn.b.push({ t: 'p', x: '', d: 0 }); }, n.b.length); else this.nbActivate(n.b.length - 1, 'end'); }
@@ -459,7 +469,7 @@ Object.assign(SuperAnki.prototype, {
             const va = e.target.closest && e.target.closest('.nbc-ain');
             if (va) {
                 const i = idx(va), n = this.note(this.ui.note);
-                if (e.key === 'Enter') { e.preventDefault(); this.nbInsertAfter(i, [{ t: 'p', x: '' }]); }
+                if (e.key === 'Enter') { e.preventDefault(); const cb = n.b[i], again = cb && cb.cd && cb.cd.k === 'basic' && (cb.x.trim() || va.value.trim()); this.nbInsertAfter(i, [again ? { t: 'p', x: '', cd: this.nbCdNew('basic') } : { t: 'p', x: '' }]); }
                 else if (e.key === 'Backspace' && !va.value) { e.preventDefault(); this.nbActivate(i, 'end'); }
                 else if (e.key === 'ArrowUp' || (e.key === 'ArrowLeft' && va.selectionStart === 0 && va.selectionEnd === 0)) { e.preventDefault(); this.nbActivate(i, 'end'); }
                 return;
@@ -481,6 +491,7 @@ Object.assign(SuperAnki.prototype, {
             if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); this.nbMoveStep(i, e.key === 'ArrowUp' ? -1 : 1); return; }
             if (mod && e.key.toLowerCase() === 'b') { e.preventDefault(); this.nbWrap('**'); return; }
             if (mod && e.key.toLowerCase() === 'i') { e.preventDefault(); this.nbWrap('*'); return; }
+            if (mod && e.key.toLowerCase() === 'u') { e.preventDefault(); this.nbWrap('__'); return; }
             if (mod && e.key.toLowerCase() === 'f') { e.preventDefault(); this.nbFindToggle(); return; }
             if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); this.nbUndo(e.shiftKey); return; }
             if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); this.nbUndo(true); return; }
@@ -490,6 +501,10 @@ Object.assign(SuperAnki.prototype, {
                 if (e.key === 'ArrowUp' && c.s === 0 && at > 0) { e.preventDefault(); this.nbActivate(vis[at - 1], 'end'); }
                 else if (e.key === 'ArrowDown' && c.e === t.textContent.length && at >= 0 && at < vis.length - 1) { e.preventDefault(); this.nbActivate(vis[at + 1], 'start'); }
             }
+        });
+        root.addEventListener('beforeinput', e => {   // phone keyboards: Backspace at the very start of an empty card line
+            const t = e.target.closest && e.target.closest('.nb-t'); if (!t || e.inputType !== 'deleteContentBackward') return;
+            const c = this.nbCaret(t); if (c.s === 0 && c.e === 0 && this.nbBackspace(idx(t))) e.preventDefault();
         });
         root.addEventListener('focusin', e => {
             const t = e.target.closest && e.target.closest('.nb-t, .nbc-ain, .nb-table input'); if (!t) return;

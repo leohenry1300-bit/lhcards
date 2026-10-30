@@ -56,7 +56,7 @@ Object.assign(SuperAnki.prototype, {
         const u = $('[data-action=pdf-undo]'), r = $('[data-action=pdf-redo]'); if (u) u.disabled = !pv.undo.length; if (r) r.disabled = !pv.redo.length;
     },
     pdfUndo(redo = false) {
-        const pv = this.pv; if (!pv) return; const from = redo ? pv.redo : pv.undo, to = redo ? pv.undo : pv.redo; if (!from.length) { this.toast(redo ? 'Rien à rétablir.' : 'Rien à annuler.', 'warning'); return; }
+        const pv = this.pv; if (!pv) return; const from = redo ? pv.redo : pv.undo, to = redo ? pv.undo : pv.redo; if (!from.length) return;
         const cur = this.pdfSnap(), s = JSON.parse(from.pop()), p = pv.p, now = Date.now(); to.push(cur);
         const pgChanged = JSON.stringify(s.g) !== JSON.stringify(p.pg), had = new Set(Object.values(p.ann).flat().map(a => a.i));
         p.ann = s.a; p.trash = s.t; p.pg = s.g;
@@ -380,6 +380,25 @@ Object.assign(SuperAnki.prototype, {
     },
 
     /* ---------- blank pages ---------- */
+    /* remove any pages (original or added): the original file is never touched ("Exporter l'original"), and ↶ brings them back */
+    pdfDeletePages() {
+        const pv = this.pv, p = pv.p, cur = (pv.mode === 'text' ? (pv.textAt || 0) : this.pdfCurrent()) + 1, tot = p.pg.length;
+        if (tot < 2) { this.toast('Il faut garder au moins une page.', 'warning'); return; }
+        const m = this.openModal({ title: 'Supprimer des pages', size: 'narrow',
+            body: `<p style="margin:0 0 10px">Les pages supprimées disparaissent de ce PDF (et du PDF annoté exporté). Ton fichier d'origine n'est pas modifié, et tu peux revenir en arrière avec ↶.</p>
+                <div class="row-gap"><label class="field" style="flex:1"><span class="label">De la page</span><input class="input" id="pdl-a" type="number" min="1" max="${tot}" value="${cur}"></label><label class="field" style="flex:1"><span class="label">à la page</span><input class="input" id="pdl-b" type="number" min="1" max="${tot}" value="${cur}"></label></div>
+                <p class="help" id="pdl-st"></p>`,
+            foot: `<button class="btn btn-soft" data-close>Annuler</button><button class="btn btn-danger" id="pdl-go">${ic('trash')}Supprimer</button>` });
+        const st = $('#pdl-st', m), read = () => { let a = clamp(parseInt($('#pdl-a', m).value, 10) || 1, 1, tot), b = clamp(parseInt($('#pdl-b', m).value, 10) || a, 1, tot); if (b < a) [a, b] = [b, a]; return [a, b]; };
+        const upd = () => { const [a, b] = read(), n = b - a + 1, na = p.pg.slice(a - 1, b).reduce((s, g) => s + (p.ann[g.id] || []).length, 0); st.style.color = n >= tot ? 'var(--due)' : ''; st.textContent = n >= tot ? 'Il faut garder au moins une page.' : `${plural(n, 'page')} supprimée${n > 1 ? 's' : ''}${na ? `, avec ${plural(na, 'annotation')}` : ''}.`; };
+        m.addEventListener('input', upd); upd();
+        $('#pdl-go', m).addEventListener('click', () => {
+            const [a, b] = read(); if (b - a + 1 >= tot) return;
+            this.closeModal(m);
+            this.pdfEdit(() => { p.pg.slice(a - 1, b).forEach(g => { delete p.ann[g.id]; }); p.pg.splice(a - 1, b - a + 1); p.last = clamp(p.last, 0, p.pg.length - 1); });
+            this.pdfAfterEdit(true);
+        });
+    },
     pdfBlankMenu(anchor) {
         const pv = this.pv, p = pv.p, cur = pv.mode === 'text' ? (pv.textAt || 0) : this.pdfCurrent(), n = cur + 1;
         const add = at => { this.pdfEdit(() => p.pg.splice(at, 0, { id: uid('g'), k: 'b' })); this.pdfAfterEdit(true); setTimeout(() => this.pdfGoto(p.pg[at].id, '', true), 300); };
@@ -389,7 +408,8 @@ Object.assign(SuperAnki.prototype, {
             { icon: 'arrowUp', label: `Avant la page ${n}`, fn: () => add(cur) },
             { icon: 'arrowDown', label: `Après la page ${n}`, fn: () => add(cur + 1) },
             { icon: 'arrowDown', label: 'À la fin du PDF', fn: () => add(p.pg.length) },
-            ...(p.pg[cur] && p.pg[cur].k === 'b' ? [{ sep: true }, { icon: 'trash', label: 'Supprimer cette page blanche', danger: true, fn: () => { this.pdfEdit(() => { const g = p.pg[cur]; delete p.ann[g.id]; p.pg.splice(cur, 1); }); this.pdfAfterEdit(true); } }] : [])
+            ...(p.pg[cur] && p.pg[cur].k === 'b' ? [{ sep: true }, { icon: 'trash', label: 'Supprimer cette page blanche', danger: true, fn: () => { this.pdfEdit(() => { const g = p.pg[cur]; delete p.ann[g.id]; p.pg.splice(cur, 1); }); this.pdfAfterEdit(true); } }] : []),
+            { icon: 'trash', label: 'Supprimer des pages…', danger: true, fn: () => this.pdfDeletePages() }
         ]);
     },
 
@@ -413,6 +433,7 @@ Object.assign(SuperAnki.prototype, {
             { icon: 'export', label: 'Exporter l\'original', fn: () => this.pdfExportOriginal(p) },
             { sep: true },
             ...(pv.mode === 'text' ? [{ icon: 'typeT', label: 'Texte plus grand', fn: () => { pr.fs = clamp(pr.fs + 0.12, 0.8, 1.8); this.pdfPrefSave(); $('#pdf-text').style.fontSize = `${1.02 * pr.fs}rem`; } }, { icon: 'typeT', label: 'Texte plus petit', fn: () => { pr.fs = clamp(pr.fs - 0.12, 0.8, 1.8); this.pdfPrefSave(); $('#pdf-text').style.fontSize = `${1.02 * pr.fs}rem`; } }] : []),
+            { icon: 'trash', label: 'Supprimer des pages…', danger: true, fn: () => this.pdfDeletePages() },
             { icon: 'info', label: 'Informations', fn: () => this.pdfInfo() },
             { sep: true },
             { icon: 'trash', label: 'Supprimer le PDF…', danger: true, fn: () => this.pdfDeleteAsk(p) }

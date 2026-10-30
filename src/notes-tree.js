@@ -449,12 +449,22 @@ Object.assign(SuperAnki.prototype, {
             this.nbMoveRange(i, end, 'after');
         }
     },
+    /* one tap = the format is applied: on the selection, else on the word under the cursor; tapping again removes it */
     nbWrap(tok, tok2 = tok) {
         const c = this.nbCurrent(); if (!c || c.b.t === 'hr' || c.b.t === 'img') return;
         const { i, b } = c; if (this.nb.active !== i) this.nbActivate(i, 'end');
-        const t = $('.nb-t', this.nbEl(i)), { s, e } = this.nbCaret(t);
-        this.nbPush(); b.x = b.x.slice(0, s) + tok + b.x.slice(s, e) + tok2 + b.x.slice(e);
-        t.textContent = b.x; this.nbSetCaret(t, s !== e ? e + tok.length + tok2.length : s + tok.length); this.nbChanged(); t.focus();
+        const t = $('.nb-t', this.nbEl(i)); let { s, e } = this.nbCaret(t); const x = b.x;
+        if (s === e) { let a = s, z = e; while (a > 0 && /[\p{L}\p{N}_'’-]/u.test(x[a - 1])) a--; while (z < x.length && /[\p{L}\p{N}_'’-]/u.test(x[z])) z++; s = a; e = z; }
+        const isHl = tok.startsWith('==');
+        this.nbPush();
+        const before = x.slice(0, s), mid = x.slice(s, e), after = x.slice(e);
+        let nx, caret;
+        const re = isHl ? /==(?:\{[ygbp]\})?$/ : null;
+        if (isHl && re.test(before) && after.startsWith('==')) { const m = re.exec(before); nx = before.slice(0, m.index) + mid + after.slice(2); caret = m.index + mid.length; if (m[0] !== tok) { nx = before.slice(0, m.index) + tok + mid + tok2 + after.slice(2); caret = m.index + tok.length + mid.length + tok2.length; } }
+        else if (!isHl && before.endsWith(tok) && after.startsWith(tok2) && mid) { nx = before.slice(0, -tok.length) + mid + after.slice(tok2.length); caret = before.length - tok.length + mid.length; }
+        else if (mid) { nx = before + tok + mid + tok2 + after; caret = e + tok.length + tok2.length; }
+        else { nx = before + tok + tok2 + after; caret = s + tok.length; }
+        b.x = nx; t.textContent = b.x; this.nbSetCaret(t, caret); this.nbChanged(); t.focus();
     },
 
     /* ---------- actions ---------- */

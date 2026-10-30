@@ -957,7 +957,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         await page.evaluate(() => { app.nbActivate(app.data.notes[0].b.length - 1, 'end'); }); await page.click('[data-nb=card]'); await page.click('.nb-menu button:has-text("Multi-lignes")'); await wait(250);
         const li = await page.evaluate(() => app.data.notes[0].b.length - 1); const prevBtn = await page.$(`.nb[data-i="${li - 1}"] [data-nbk=cprev], .nb[data-i="${li}"] [data-nbk=cprev]`); await prevBtn.click(); await wait(150);
         const pv = await page.evaluate(() => (document.querySelector('.nbprev') || {}).textContent || ''); await page.evaluate(() => app.closePopover());
-        ok('Notes 2B: "question >> réponse" + Enter makes a card line (Recto → Verso) and its card; toolbar with Carte / Titre / À faire / Image / Tableau / Texte / Plus / Annuler / Clavier; menu "Cartes mémoire" (5 types)', k1.cd === 'basic:Paris' && k1.x === 'Capitale de la France' && k1.next && k1.card && k1.deck && ['Carte ▾', 'Titre ▾', 'À faire', 'Image', 'Tableau ▾', 'Plus', 'Annuler', 'Clavier'].every(l => bar.some(b => b.includes(l))) && /CARTES MÉMOIRE/.test(menu.head) && ['Ligne unique', 'Multi-lignes', 'Liste', 'Choix multiples', 'À trous'].every(l => menu.items.some(i => i.includes(l))), JSON.stringify({ k1, bar, menu }));
+        ok('Notes 2B: "question >> réponse" + Enter makes a card line (Recto → Verso) and its card; toolbar with Carte / Titre / À faire / Image / Tableau / Texte / Plus / Annuler / Clavier; menu "Cartes mémoire" (5 types)', k1.cd === 'basic:Paris' && k1.x === 'Capitale de la France' && k1.next && k1.card && k1.deck && ['Carte ▾', 'Titre ▾', 'À faire', 'Image', 'Tableau ▾', 'Plus', 'Annuler', 'Fermer'].every(l => bar.some(b => b.includes(l))) && /CARTES MÉMOIRE/.test(menu.head) && ['Ligne unique', 'Multi-lignes', 'Liste', 'Choix multiples', 'À trous'].every(l => menu.items.some(i => i.includes(l))), JSON.stringify({ k1, bar, menu }));
         ok('Notes 2B: list card = line + sub-lines; "ordre important" gives an ordered list and keeps the items one by one; round button menu (type, direction, activate, type the answer, order, delete)', k2.kind === 'list' && k2.kids === 'Produit,Prix,Place,Promotion' && /<ul>/.test(k2.back) && k2.own && k3.ls === 'Produit,Prix,Place,Promotion' && k3.ol && ['Type de carte', 'Activer les cartes', 'Saisir la réponse', 'Ordre important', 'Supprimer la carte'].every(l => cm.some(i => i.includes(l))), JSON.stringify({ k2, k3, cm }));
         ok('Notes 2B: direction "Les deux" gives two cards, "Saisir la réponse" is kept on the cards, switching cards off suspends them and back on re-activates them; an incomplete line says what is missing', k4.n === 2 && k4.kinds === 'rev,rev' && k4.ta && k5.off && k6 && /pas encore de réponse/.test(pv), JSON.stringify({ k4, k5, k6, pv }));
         /* editing keeps the progress; deleting the line keeps the card */
@@ -1532,6 +1532,56 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
             return out;
         });
         ok('IA: quiz is prefilled for review and becomes QCM; scanned PDF pages are sent as images and the text is kept in the PDF (saved)', q3.prefill && q3.qcm && q3.ocrPrev && q3.ocr, JSON.stringify(q3));
+    }
+
+
+    {   /* Notes / PDF : retouches (mise en forme, tableaux, enchaîner des cartes, lien vers…, pages supprimées, lecture complète) */
+        await page.setViewportSize({ width: 1280, height: 800 });
+        const rt = await page.evaluate(async () => {
+            const out = {}, a = app, w = ms => new Promise(r => setTimeout(r, ms));
+            a.go('notes'); await w(300); const n = a.noteNew('Retouches', {}); a.noteOpen(n.id); await w(600);
+            // mise en forme : souligné rendu, surligné en couleur, un clic = appliqué sur le mot, re-clic = retiré
+            n.b[0].x = 'bonjour monde'; a.nbRender(); a.nbActivate(0, 3); await w(100); a.nbWrap('**'); out.bold = n.b[0].x === '**bonjour** monde'; a.nbActivate(0, 4); a.nbWrap('**'); out.unbold = n.b[0].x === 'bonjour monde';
+            a.nbActivate(0, 3); a.nbWrap('=={g}', '=='); out.hl = /==\{g\}bonjour==/.test(n.b[0].x); a.nbActivate(0, 8); a.nbWrap('=={g}', '=='); out.hloff = n.b[0].x === 'bonjour monde';
+            n.b[0].x = 'un __mot__ souligné'; a.nbRender(); await w(200); out.u = !!document.querySelector('.nb u');
+            // enchaîner des cartes : recto → verso → nouvelle carte
+            n.b[0].x = ''; n.b[0].cd = a.nbCdNew('basic'); n.b[0].x = 'Capitale ?'; a.nbRender(); a.nbActivate(0, 'end'); await w(150);
+            a.nbSplit(0); await w(200); out.toAns = document.activeElement && document.activeElement.classList.contains('nbc-ain');
+            document.activeElement.value = 'Paris'; document.activeElement.dispatchEvent(new Event('input', { bubbles: true }));
+            document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await w(250);
+            out.chain = n.b.length === 2 && n.b[1].cd && n.b[1].cd.k === 'basic';
+            // carte vide : le bouton « Retirer » l'enlève
+            a.nbCardDelete(1); out.removed = !n.b[1].cd;
+            // tableau coloré
+            a.nbInsertAfter(1, [{ t: 'table', id: 'tt', hdr: true, rows: [['a', 'b'], ['c', 'd']] }]); await w(200);
+            const tb = n.b.find(x => x.t === 'table'); tb.tc = 'green'; tb.fill = { '1,0': 'pink' }; a.nbRender(); await w(200);
+            out.table = !!document.querySelector('.nb-table.tc-green') && !!document.querySelector('.nb-table .fc-pink');
+            // lien vers : fenêtre avec onglets, un PDF se lie à une page
+            a.nbActivate(0, 'end'); a.nbLinkPicker(); await w(300);
+            out.pick = !!document.getElementById('lp-tabs') && document.querySelectorAll('#lp-list .lp-row').length > 0;
+            document.querySelector('#lp-tabs [data-tab=pdf]').click(); await w(200);
+            const pr = document.querySelector('#lp-list .lp-row'); out.pdfRow = !!pr; if (pr) { pr.click(); await w(200); document.getElementById('lp-pg').value = '1'; document.getElementById('lp-pgok').click(); await w(300); }
+            out.linked = /\[\[pdf:[^|]+\|[^|]+ · p\.1\]\]/.test(n.b[0].x);
+            return out;
+        });
+        ok('Notes: one-tap format toggles (bold, colour highlight), underline, chained cards, table colours, link picker with PDF page', rt.bold && rt.unbold && rt.hl && rt.hloff && rt.u && rt.toAns && rt.chain && rt.removed && rt.table && rt.pick && rt.pdfRow && rt.linked, JSON.stringify(rt));
+        const pd = await page.evaluate(async () => {
+            const out = {}, a = app, w = ms => new Promise(r => setTimeout(r, ms));
+            if (!a.pv) { await a.pdfOpen(a.data.pdfs[0].id); await w(2000); }
+            const p = a.pv.p, tot = p.pg.length;
+            a.pdfDeletePages(); await w(300);
+            document.getElementById('pdl-a').value = '1'; document.getElementById('pdl-b').value = '1'; document.getElementById('pdl-a').dispatchEvent(new Event('input', { bubbles: true }));
+            document.getElementById('pdl-go').click(); await w(500);
+            out.del = p.pg.length === tot - 1;
+            a.pdfUndo ? a.pdfUndo() : a.pdfAction('pdf-undo', document.body); await w(300); out.undo = p.pg.length === tot;
+            // lecture complète : une requête de parole par page
+            const said = []; const old = window.speechSynthesis; 
+            const fake = { speak: u => { said.push(u.text); setTimeout(() => u.onend && u.onend(), 5); }, cancel() {}, getVoices: () => [] };
+            Object.defineProperty(window, 'speechSynthesis', { value: fake, configurable: true });
+            await a.pdfReadAll(0, false); await w(1500); out.read = said.length >= 1;
+            return out;
+        });
+        ok('PDF: any pages can be deleted (and brought back with undo); the whole PDF can be read aloud page after page', pd.del && pd.undo && pd.read, JSON.stringify(pd));
     }
 
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));

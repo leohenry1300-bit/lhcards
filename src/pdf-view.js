@@ -265,6 +265,7 @@ Object.assign(SuperAnki.prototype, {
         const pv = this.pv, pages = $('#pdf-pages'), tx = $('#pdf-text'); if (!pages || !tx) return;
         const b = $('[data-action=pdf-mode]'); if (b) { b.classList.toggle('on', pv.mode === 'text'); b.innerHTML = ic(pv.mode === 'text' ? 'file' : 'typeT'); }
         const tools = $('#pdf-tools'); if (tools) tools.classList.toggle('hidden', pv.mode === 'text');
+        { const o = $('#pdf-textbar'); if (o) o.remove(); const sc = $('#pdf-scroll'); if (pv.mode === 'text' && sc) sc.insertAdjacentHTML('beforebegin', `<div class="pdf-textbar" id="pdf-textbar"><span>Lecteur de texte : pas d'annotations ici.</span><button class="btn btn-primary btn-sm" data-action="pdf-mode">${ic('highlighter')}Annoter (revenir au PDF)</button></div>`); }
         if (pv.mode !== 'text') { tx.classList.add('hidden'); pages.classList.remove('hidden'); if (pv.obs) pv.obs.disconnect(); this.pdfSizePages(); this.pdfStartObserve(); const el = pv.pages[pv.p.last] && pv.pages[pv.p.last].el; if (el) $('#pdf-scroll').scrollTop = el.offsetTop - 8; return; }
         const at = this.pdfCurrent(); if (pv.obs) pv.obs.disconnect(); pv.pages.forEach(pg => this.pdfUnrender(pg));
         pages.classList.add('hidden'); tx.classList.remove('hidden'); tx.style.fontSize = `${1.02 * this.pdfPrefs().fs}rem`;
@@ -321,13 +322,30 @@ Object.assign(SuperAnki.prototype, {
     },
 
     /* ---------- reading aloud ---------- */
-    pdfSpeakStop() { try { speechSynthesis.cancel(); } catch { /* ignore */ } if (this.pv) this.pv.read = null; const b = $('[data-action=pdf-read]'); if (b) b.classList.remove('on'); },
-    pdfSpeak(text) {
+    pdfSpeakStop() { this._rdTok = (this._rdTok || 0) + 1; try { speechSynthesis.cancel(); } catch { /* ignore */ } if (this.pv) this.pv.read = null; const b = $('[data-action=pdf-read]'); if (b) b.classList.remove('on'); },
+    pdfSpeak(text, onDone) {
         if (!('speechSynthesis' in window)) { this.toast('La lecture à voix haute n\'est pas disponible ici.', 'warning'); return; }
         this.pdfSpeakStop(); const pr = this.pdfPrefs(), chunks = String(text).replace(/\s+/g, ' ').match(/[^.!?;:\n]{1,180}[.!?;:]?\s*/g) || [String(text)];
         const voices = speechSynthesis.getVoices(), lang = guessLang(text), voice = voices.find(v => v.name === pr.voice) || voices.find(v => v.lang && v.lang.startsWith(lang.slice(0, 2)) && v.localService) || voices.find(v => v.lang && v.lang.startsWith(lang.slice(0, 2)));
+        const tok = this._rdTok;
         if (this.pv) this.pv.read = { n: chunks.length }; const b = $('[data-action=pdf-read]'); if (b) b.classList.add('on');
-        chunks.forEach((c, k) => { if (!c.trim()) return; const u = new SpeechSynthesisUtterance(c); u.lang = voice ? voice.lang : lang; if (voice) u.voice = voice; u.rate = pr.rate; if (k === chunks.length - 1) u.onend = () => { if (this.pv) this.pdfSpeakStop(); }; speechSynthesis.speak(u); });
+        chunks.forEach((c, k) => { if (!c.trim()) return; const u = new SpeechSynthesisUtterance(c); u.lang = voice ? voice.lang : lang; if (voice) u.voice = voice; u.rate = pr.rate; if (k === chunks.length - 1) u.onend = () => { if (this._rdTok !== tok) return; if (onDone) onDone(); else if (this.pv) this.pdfSpeakStop(); }; speechSynthesis.speak(u); });
+    },
+    /* the whole PDF, page after page (one page per speech request: long texts break on phones); optionally with my added texts and notes */
+    async pdfReadAll(from, withAnn) {
+        const pv = this.pv, p = pv.p; let k = from;
+        const next = async () => {
+            if (this.pv !== pv) return;
+            while (k < p.pg.length) {
+                const g = p.pg[k++]; let t = g.k === 'p' ? await this.pdfPageText(g.n) : '';
+                if (withAnn) { const a = (p.ann[g.id] || []).filter(x => (x.t === 'tx' || x.t === 'nt') && x.s && x.s.trim()).sort((u, v) => u.y - v.y).map(x => x.s.replace(/\s+/g, ' ').trim()); if (a.length) t += (t ? ' . ' : '') + (g.k === 'b' ? '' : 'Note ajoutée : ') + a.join(' . '); }
+                if (!t || !t.trim()) continue;
+                this.pdfSpeak(t, () => { if (this.pv === pv) next(); else this.pdfSpeakStop(); });
+                return;
+            }
+            this.pdfSpeakStop();
+        };
+        await next();
     },
     async pdfReadMenu() {
         const pv = this.pv, pr = this.pdfPrefs(); this.closePopover();
@@ -338,7 +356,8 @@ Object.assign(SuperAnki.prototype, {
         const sel = this.pdfSelection(), voices = speechSynthesis.getVoices().filter(v => /^(fr|en)/i.test(v.lang)).slice(0, 20), rates = [0.8, 1, 1.25, 1.5, 2];
         const box = document.createElement('div'); box.id = 'pdf-readbox'; box.className = 'pdf-sheet';
         box.innerHTML = `<div class="pdf-sheet-h"><b style="flex:1">Lecture à voix haute</b><button class="icon-btn" data-rd="x" aria-label="Fermer">${ic('x')}</button></div>
-            <div class="pdf-rd-go">${sel ? `<button class="btn btn-primary btn-sm" data-rd="sel">${ic('volume')}Sélection</button>` : ''}<button class="btn ${sel ? 'btn-soft' : 'btn-primary'} btn-sm" data-rd="page">${ic('volume')}Cette page</button><button class="btn btn-soft btn-sm" data-rd="from">${ic('play')}À partir d'ici</button></div>
+            <div class="pdf-rd-go">${sel ? `<button class="btn btn-primary btn-sm" data-rd="sel">${ic('volume')}Sélection</button>` : ''}<button class="btn ${sel ? 'btn-soft' : 'btn-primary'} btn-sm" data-rd="page">${ic('volume')}Cette page</button><button class="btn btn-soft btn-sm" data-rd="from">${ic('play')}À partir d'ici</button><button class="btn btn-soft btn-sm" data-rd="all">${ic('volume')}Tout le PDF</button></div>
+            <label class="check" style="margin:6px 0"><input type="checkbox" id="pdf-rd-ann" ${pr.rdAnn ? 'checked' : ''}> Lire aussi mes textes et notes ajoutés</label>
             <div class="pdf-rd-rate" id="pdf-rates" role="group" aria-label="Vitesse">${rates.map(r => `<button class="${pr.rate === r ? 'on' : ''}" data-rate="${r}">×${String(r).replace('.', ',')}</button>`).join('')}</div>
             ${voices.length > 1 ? `<select class="select" id="pdf-voice" aria-label="Voix"><option value="">Voix automatique</option>${voices.map(v => `<option value="${esc(v.name)}" ${pr.voice === v.name ? 'selected' : ''}>${esc(v.name)} (${esc(v.lang)})</option>`).join('')}</select>` : ''}`;
         $('.pdfv').appendChild(box);
@@ -349,6 +368,7 @@ Object.assign(SuperAnki.prototype, {
             if (k === 'x') { box.remove(); return; }
             if (k === 'sel') this.pdfSpeak(sel.text);
             else if (k === 'page') { const g = pv.p.pg[cur()]; this.pdfSpeak(g.k === 'p' ? (await this.pdfPageText(g.n)) || 'Cette page n\'a pas de texte.' : 'Page blanche.'); }
+            else if (k === 'all') { pr.rdAnn = $('#pdf-rd-ann', box).checked; this.pdfPrefSave(); this.pdfReadAll(0, pr.rdAnn); }
             else if (k === 'from') { let t = ''; for (const g of pv.p.pg.slice(cur(), cur() + 4)) if (g.k === 'p') t += (await this.pdfPageText(g.n)) + ' '; this.pdfSpeak(t); }
             box.remove();
         });
