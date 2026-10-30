@@ -296,7 +296,7 @@ Object.assign(SuperAnki.prototype, {
             { icon: 'star', label: n.fav ? 'Retirer des favoris' : 'Ajouter aux favoris', fn: () => { n.fav = !n.fav; this.save(); this.renderNotes(); } },
             { sep: true },
             { icon: 'plus', label: 'Ajouter une sous-note', fn: () => this.noteNewFrom(null, { parent: n.id }) },
-            ...(pf ? [] : [{ icon: 'sparkle', label: 'Cartes avec l\'IA…', fn: () => this.aiNoteCards(n.id) }]),
+            ...(pf ? [] : [{ icon: 'sparkle', label: 'Cartes avec l\'IA…', fn: () => this.aiNoteCards(n.id) }, { icon: 'sparkle', label: 'Résumé avec l\'IA…', fn: () => this.aiSummary(n.id) }, { icon: 'sparkle', label: 'Discuter avec cette note (IA)…', fn: () => this.aiChat(n.id) }]),
             { icon: 'copy', label: 'Dupliquer', fn: () => this.noteDuplicate(n.id) },
             { icon: 'folder', label: 'Déplacer…', fn: () => this.openNoteMove([n.id]) },
             { sep: true },

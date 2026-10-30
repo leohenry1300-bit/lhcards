@@ -1475,6 +1475,36 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         ok('IA: cancel sends nothing, "Pourquoi ?" answers (labelled), can be kept in the card, asks for a key when none', cancel.ta && sentAfterCancel === 2 && why.shows && why.answer && why.saved && why.needKey, JSON.stringify({ cancel, sentAfterCancel, why }));
     }
 
+
+    {   /* IA lot 2 : résumé écrit dans la note avec renvois de page, chat avec le cours (pages cliquables, web au choix et séparé) */
+        await page.route('https://api.anthropic.com/**', r => {
+            const body = r.request().postData() || '';
+            if (/QUESTION :/.test(body)) r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ content: [{ type: 'text', text: /autorisée/.test(body) && /La recherche internet est autorisée/.test(body) ? 'Selon le cours, un contrat est un accord [p.1].\n[web] Wikipédia le définit aussi ainsi.' : 'Non trouvé dans le document.', citations: [{ type: 'web_search_result_location', url: 'https://fr.wikipedia.org/wiki/Contrat', title: 'Contrat — Wikipédia' }] }] }) });
+            else r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ content: [{ type: 'text', text: '## Les contrats\n- Un contrat est un accord [p.1]\n- Il faut un consentement [p.1]' }] }) });
+        });
+        const sm = await page.evaluate(async () => {
+            const out = {}, a = app, w = ms => new Promise(r => setTimeout(r, ms));
+            localStorage.setItem('lh_ai', JSON.stringify({ provider: 'anthropic', keys: { anthropic: 'sk-x' }, models: {} }));
+            const top = () => [...document.querySelectorAll('.modal')].pop();
+            if (!a.pv) { await a.pdfOpen(a.data.pdfs[0].id); await w(2000); }
+            a.aiSummary().catch(e => { out.err = String(e); }); await w(400); if (!document.getElementById('aipg-go')) { out.dbg = { pv: !!a.pv, view: a.view, ready: a.aiReady(), modals: a.modals.length, txt: (top() || {}).textContent }; return out; } document.getElementById('aipg-go').click(); await w(900);
+            out.preview = /caractère/.test(top().textContent); document.getElementById('ai-send').click(); await w(900);
+            const n = a.pdfNoteOf(a.pv.p);
+            out.sum = n.b.some(b => /Résumé en 2 minutes/.test(b.x)) && n.b.some(b => /\[\[pdf:[^|]+\|page 1\]\]/.test(b.x)) && n.b.some(b => /Généré par IA/.test(b.x));
+            a.aiChat(); await w(400); document.getElementById('aipg-go').click(); await w(900);
+            document.getElementById('aich-go').click(); await w(400);
+            const ask = async (q, web) => { document.getElementById('aic-web').checked = web; document.getElementById('aic-in').value = q; document.getElementById('aic-go').click(); await w(900); };
+            await ask('Qu\'est-ce qu\'un contrat ?', false);
+            out.nf = /Non trouvé dans le document/.test(document.getElementById('aic-log').textContent) && !document.querySelector('.ai-links');
+            await ask('Et sur internet ?', true);
+            out.pg = !!document.querySelector('.ai-pg'); out.web = !!document.querySelector('.ai-links a[href^="https://fr.wikipedia"]') && !!document.querySelector('.ai-webtag'); out.tag = /Généré par IA/.test(document.getElementById('aic-log').textContent);
+            document.querySelector('.ai-pg').click(); await w(500); out.closed = !document.getElementById('aic-in');
+            localStorage.removeItem('lh_ai');
+            return out;
+        });
+        ok('IA: summary lands in the PDF note with page links; chat says "Non trouvé", cites clickable pages, web only when asked and shown apart', sm.preview && sm.sum && sm.nf && sm.pg && sm.web && sm.tag && sm.closed, JSON.stringify(sm));
+    }
+
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));
     console.log(R.join('\n') + `\n\n${R.length - failed}/${R.length} checks passed`);
     await browser.close(); server.close(); process.exit(failed ? 1 : 0);
