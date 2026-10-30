@@ -49,10 +49,11 @@ function normalizePdf(x) {
         deckId: x.deckId ? String(x.deckId) : '', pdeck: x.pdeck ? String(x.pdeck) : '', noteId: x.noteId ? String(x.noteId) : '', created: num(x.created, 0), mod: num(x.mod, 0),
         last: clamp(Math.round(num(x.last, 0)), 0, pg.length - 1), zoom: clamp(num(x.zoom, 1), 0.4, 4), mode: x.mode === 'text' ? 'text' : 'pdf',
         pg, ann, trash, up: !!x.up, toc: toArray(x.toc).slice(0, 300).map(t => ({ t: String(t && t.t || '').slice(0, 120), n: Math.max(1, Math.round(num(t && t.n, 1))), d: clamp(Math.round(num(t && t.d, 0)), 0, 4) })).filter(t => t.t),
-        prio: ['none', 'high', 'normal', 'low'].includes(x.prio) ? x.prio : 'none'
+        prio: ['none', 'high', 'normal', 'low'].includes(x.prio) ? x.prio : 'none',
+        ocr: (o => { const r = {}; if (o && typeof o === 'object') Object.entries(o).slice(0, 800).forEach(([k, v]) => { if (/^\d+$/.test(k) && typeof v === 'string' && v.trim()) r[k] = v.slice(0, 20000); }); return r; })(x.ocr)
     };
 }
-const pdfSig = p => JSON.stringify([p.name, p.deckId, p.pdeck, p.noteId, p.last, p.zoom, p.mode, p.pg, p.ann, p.trash.length, p.up, p.prio]);
+const pdfSig = p => JSON.stringify([p.name, p.deckId, p.pdeck, p.noteId, p.last, p.zoom, p.mode, p.pg, p.ann, p.trash.length, p.up, p.prio, Object.keys(p.ocr || {}).length]);
 /* two devices annotated the same PDF: the lines are united (a line erased on one side stays erased), the rest follows the newer copy */
 function mergePdfList(la, ra, tomb, mark) {
     const lm = new Map(la.map(x => [x.id, x])), rm = new Map(ra.map(x => [x.id, x])), out = [];

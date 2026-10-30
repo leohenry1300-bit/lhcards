@@ -148,13 +148,14 @@ Object.assign(SuperAnki.prototype, {
     },
 
     /* ---------- write several QCM at once (paste, preview, import) ---------- */
-    openQcmBulk(deckId) {
+    openQcmBulk(deckId, opts = {}) {
         if (!this.data.decks.length) { this.toast('Crée d\'abord un paquet.', 'warning'); this.openDeckModal(); return; }
         const deckSel = deckId && this.deck(deckId) ? deckId : this.sortedDecks()[0].id;
         const m = this.openModal({
             title: 'Plusieurs QCM d\'un coup', size: 'wide',
             body: `<p class="small muted" style="margin-bottom:12px">Un QCM par bloc, séparés par une ligne vide. Première ligne = la question, puis une réponse par ligne. Marque la bonne avec <code>*</code> à la fin (plusieurs <code>*</code> = plusieurs bonnes réponses), ou ajoute une ligne <code>Réponse : B</code>. Une ligne <code>=&gt; …</code> donne l'explication.</p>
                 <div class="field"><label class="label" for="qb-deck">Paquet de destination</label><select class="select" id="qb-deck">${this.sortedDecks().map(d => `<option value="${esc(d.id)}" ${d.id === deckSel ? 'selected' : ''}>${esc(d.emoji)} ${esc(this.deckPath(d.id))}</option>`).join('')}</select></div>
+                ${opts.ai ? '<p class="small" style="margin:0 0 10px">✨ <b>Généré par IA</b> : relis, décoche ou corrige avant d\'ajouter.</p>' : ''}
                 <div class="field"><label class="label" for="qb-text">Colle ou écris tes QCM</label><textarea class="textarea" id="qb-text" rows="9" placeholder="Capitale de l'Italie ?&#10;a) Rome *&#10;b) Milan&#10;c) Naples&#10;&#10;Quels sont des fruits ?&#10;a) Pomme *&#10;b) Carotte&#10;c) Fraise *&#10;=> La carotte est un légume."></textarea></div>
                 <div id="qb-preview" class="help">Aucun QCM détecté pour l'instant.</div>`,
             foot: `<button class="btn btn-soft" data-close>Annuler</button><button class="btn btn-primary" id="qb-go" disabled>${ic('check')}Ajouter</button>`
@@ -184,6 +185,7 @@ Object.assign(SuperAnki.prototype, {
             this.closeModal(m); this.qcmRefresh();
             this.toast(`${plural(rows.length, 'QCM ajouté', 'QCM ajoutés')}`, 'success', ic('check'));
         });
+        if (opts.text) { ta.value = opts.text; refresh(); }
         setTimeout(() => ta.focus(), 60);
     },
 

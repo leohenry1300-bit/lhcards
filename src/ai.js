@@ -24,7 +24,7 @@ Object.assign(SuperAnki.prototype, {
     aiCfg() { const s = AiStore.get(), p = s.provider; return { provider: p, name: AI_PROVIDERS[p].short, key: String(s.keys[p] || '').trim(), model: String(s.models[p] || '').trim() || AI_PROVIDERS[p].model }; },
     aiReady() { return !!this.aiCfg().key; },
     /* one request to the chosen provider; returns the text. Errors are AiError with a clear French message. */
-    async aiCall({ system = '', prompt, maxTokens = 3000, signal, web = false }) {
+    async aiCall({ system = '', prompt, maxTokens = 3000, signal, web = false, images = [] }) {
         this.aiLinks = [];
         const c = this.aiCfg();
         if (!c.key) throw new AiError('Aucune clé IA : ajoute-la dans Profil › Intelligence artificielle.');
@@ -33,16 +33,16 @@ Object.assign(SuperAnki.prototype, {
         if (c.provider === 'anthropic') {
             url = 'https://api.anthropic.com/v1/messages';
             Object.assign(headers, { 'x-api-key': c.key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' });
-            body = { model: c.model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: prompt }] };
+            body = { model: c.model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: images.length ? [...images.map(u => ({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: u.split(',')[1] } })), { type: 'text', text: prompt }] : prompt }] };
             if (web) body.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }];
         } else if (c.provider === 'openai') {
             url = 'https://api.openai.com/v1/chat/completions';
             headers.authorization = `Bearer ${c.key}`;
-            body = { model: c.model, max_tokens: maxTokens, messages: [...(system ? [{ role: 'system', content: system }] : []), { role: 'user', content: prompt }] };
+            body = { model: c.model, max_tokens: maxTokens, messages: [...(system ? [{ role: 'system', content: system }] : []), { role: 'user', content: images.length ? [{ type: 'text', text: prompt }, ...images.map(u => ({ type: 'image_url', image_url: { url: u } }))] : prompt }] };
         } else {
             url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(c.model)}:generateContent`;
             headers['x-goog-api-key'] = c.key;
-            body = { ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}), contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: maxTokens }, ...(web ? { tools: [{ google_search: {} }] } : {}) };
+            body = { ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}), contents: [{ role: 'user', parts: [...images.map(u => ({ inlineData: { mimeType: 'image/jpeg', data: u.split(',')[1] } })), { text: prompt }] }], generationConfig: { maxOutputTokens: maxTokens }, ...(web ? { tools: [{ google_search: {} }] } : {}) };
         }
         let res;
         try { res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal }); }
@@ -79,13 +79,13 @@ Object.assign(SuperAnki.prototype, {
     },
     /* The only way anything leaves the device: a window that shows what will be sent, waits for « Envoyer », then runs
        the requests (one per chunk) with a Cancel button. Resolves with the list of answers, or null (cancelled / error shown). */
-    aiRun({ title, what, chars, pages = 0, preview = '', jobs, note = '' }) {
+    aiRun({ title, what, chars, pages = 0, preview = '', jobs, note = '', asImages = false }) {
         return new Promise(resolve => {
             const c = this.aiCfg(); let ctl = null, done = false;
             const m = this.openModal({
                 title: `${ic('sparkle')} ${esc(title)}`, size: 'narrow',
                 body: `<p style="margin:0 0 10px">Ce texte va être envoyé à <b>${esc(c.name)}</b> (modèle ${esc(c.model)}) avec ta clé :</p>
-                    <div class="info-grid"><div><span>${esc(what)}</span><b>${pages ? plural(pages, 'page') + ' · ' : ''}${plural(chars, 'caractère')}</b></div>${jobs.length > 1 ? `<div><span>Envois</span><b>${jobs.length}</b></div>` : ''}</div>
+                    <div class="info-grid"><div><span>${esc(what)}</span><b>${asImages ? plural(pages, 'page') + ' envoyées comme images' : (pages ? plural(pages, 'page') + ' · ' : '') + plural(chars, 'caractère')}</b></div>${jobs.length > 1 ? `<div><span>Envois</span><b>${jobs.length}</b></div>` : ''}</div>
                     ${preview ? `<details style="margin-top:10px"><summary class="small">Voir le début du texte envoyé</summary><pre class="ai-prev">${esc(preview.slice(0, 600))}${preview.length > 600 ? '…' : ''}</pre></details>` : ''}
                     ${note ? `<p class="small" style="color:var(--due);margin-top:10px">${esc(note)}</p>` : ''}
                     <p class="help" id="ai-run-st" style="margin-top:10px">Rien n'est envoyé tant que tu ne touches pas « Envoyer ». Le résultat sera relu par toi avant d'être ajouté.</p>`,
@@ -101,7 +101,8 @@ Object.assign(SuperAnki.prototype, {
                 try {
                     for (let i = 0; i < jobs.length; i++) {
                         st.textContent = jobs.length > 1 ? `L'IA travaille… partie ${i + 1} sur ${jobs.length}` : 'L\'IA travaille…';
-                        out.push(await this.aiCall({ ...jobs[i], signal: ctl.signal }));
+                        const jb = { ...jobs[i] }; if (typeof jb.images === 'function') jb.images = await jb.images();
+                        out.push(await this.aiCall({ ...jb, signal: ctl.signal }));
                     }
                 } catch (e) {
                     if (done) return;
@@ -179,7 +180,7 @@ Object.assign(SuperAnki.prototype, {
     },
     /* choose the pages of the open PDF, read their text. Resolves { a, b, pages, text, vals } or null.
        `extra` is html with controls carrying data-v="name" (their values come back in `vals`). */
-    aiPdfRange({ title, extra = '', all = false, cta = 'Continuer' }) {
+    aiPdfRange({ title, extra = '', all = false, cta = 'Continuer', noText = false }) {
         return new Promise(resolve => {
             const pv = this.pv; if (!pv) { resolve(null); return; }
             if (!this.aiReady()) { this.aiNeedKey(); resolve(null); return; }
@@ -196,8 +197,8 @@ Object.assign(SuperAnki.prototype, {
                 if (b - a > 199) b = a + 199;
                 const st = $('#aipg-st', m), go = $('#aipg-go', m); go.disabled = true;
                 let text = '';
-                for (let i = a; i <= b; i++) { st.style.color = ''; st.textContent = `Lecture du texte… ${i - a + 1}/${b - a + 1}`; const t = await this.pdfPageText(i); if (t) text += `[page ${i}]\n${t}\n\n`; }
-                if (text.replace(/\[page \d+\]/g, '').trim().length < 10 * (b - a + 1)) { st.style.color = 'var(--due)'; st.textContent = 'Ces pages n\'ont presque pas de texte (PDF scanné ou fait d\'images). Je ne peux pas en tirer de bons résultats.'; go.disabled = false; return; }
+                if (!noText) for (let i = a; i <= b; i++) { st.style.color = ''; st.textContent = `Lecture du texte… ${i - a + 1}/${b - a + 1}`; const t = await this.pdfPageText(i); if (t) text += `[page ${i}]\n${t}\n\n`; }
+                if (!noText && text.replace(/\[page \d+\]/g, '').trim().length < 10 * (b - a + 1)) { st.style.color = 'var(--due)'; st.textContent = 'Ces pages n\'ont presque pas de texte (PDF scanné ou fait d\'images). Je ne peux pas en tirer de bons résultats.'; go.disabled = false; return; }
                 const vals = {}; m.querySelectorAll('[data-v]').forEach(el => { vals[el.dataset.v] = el.type === 'checkbox' ? el.checked : el.value; });
                 fin = true; this.closeModal(m); resolve({ a, b, pages: b - a + 1, text, vals });
             });
@@ -303,6 +304,53 @@ Object.assign(SuperAnki.prototype, {
         $('#aic-in', m).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ask(); } });
         logEl.addEventListener('click', e => { const b = e.target.closest('.ai-pg'); if (!b) return; const n = Number(b.dataset.p); this.closeModal(m); this.pdfGoto(n); });
         setTimeout(() => $('#aic-in', m).focus(), 50);
+    },
+    /* ---------- quiz (QCM outside the schedule) ---------- */
+    async aiQuizFrom(text, { label, pages = 0, count = 10, deckId = '' }) {
+        if (!this.aiReady()) { this.aiNeedKey(); return; }
+        const { chunks, cut, chars } = this.aiChunks(text);
+        if (chars < 80) { this.toast('Pas assez de texte pour un quiz.', 'warning'); return; }
+        const per = Math.max(2, Math.ceil(count / chunks.length));
+        const system = 'Tu crées des QCM de révision pour un étudiant, en français. Format strict, un QCM par bloc, blocs séparés par une ligne vide : la première ligne est la question, puis 4 réponses, une par ligne, au format "a) texte". Ajoute " *" à la fin de la ou des bonnes réponses. Puis une ligne "=> explication courte". Les mauvaises réponses doivent être plausibles. Base-toi uniquement sur le texte, sans rien inventer. Aucun titre ni commentaire. Si le texte ne permet pas de faire de QCM, réponds exactement NONE.';
+        const jobs = chunks.map(ch => ({ system, prompt: `Crée ${per} QCM à partir de ce texte :\n\n${ch}`, maxTokens: 3000 }));
+        const out = await this.aiRun({ title: 'Quiz avec l\'IA', what: label, chars, pages, preview: chunks[0], jobs, note: cut ? `Le texte est très long : seuls les ${AI_MAX_CHARS.toLocaleString('fr-FR')} premiers caractères sont envoyés.` : '' });
+        if (!out) return;
+        const txt = out.map(o => o.replace(/```[a-z]*/gi, '').replace(/^NONE$/gm, '').trim()).filter(Boolean).join('\n\n');
+        if (!parseQcmBlocks(txt).items.length) { this.toast('L\'IA n\'a pas pu faire de QCM avec ce texte.', 'warning'); return; }
+        this.openQcmBulk(deckId, { text: txt, ai: true });
+    },
+    async aiPdfQuiz() {
+        if (!this.pv) return;
+        const r = await this.aiPdfRange({ title: 'Quiz avec l\'IA', extra: `<label class="field"><span class="label">Nombre de questions</span><select class="select" data-v="n"><option value="5">Environ 5</option><option value="10" selected>Environ 10</option><option value="20">Environ 20</option></select></label>` });
+        if (!r) return;
+        const p = this.pv.p; await this.aiQuizFrom(r.text, { label: `PDF « ${p.name} »`, pages: r.pages, count: Number(r.vals.n), deckId: p.pdeck || '' });
+    },
+    async aiNoteQuiz(id) {
+        const n = this.note(id); if (!n) return;
+        await this.aiQuizFrom(n.b.map(b => this.nbPlain(b.x)).filter(Boolean).join('\n'), { label: `Note « ${n.title || 'Sans titre'} »`, count: 10, deckId: n.deckId || '' });
+    },
+    /* ---------- scanned PDF: read the pages with the AI (images → text, kept in the PDF) ---------- */
+    async aiOcr() {
+        const pv = this.pv; if (!pv) return;
+        const c = this.aiCfg();
+        const r = await this.aiPdfRange({ title: 'Lire ce PDF avec l\'IA', noText: true, cta: 'Continuer', extra: `<p class="help">Les pages sont envoyées <b>comme images</b> à ${esc(c.name)} pour en lire le texte (20 pages au maximum à la fois). Utile pour un PDF scanné. Le texte lu est gardé dans le PDF : recherche, résumé, cartes et chat marchent ensuite.</p>` });
+        if (!r) return;
+        const p = pv.p, nums = []; for (let i = r.a; i <= r.b && nums.length < 20; i++) if (!(p.ocr && p.ocr[i])) nums.push(i);
+        if (!nums.length) { this.toast('Ces pages ont déjà été lues par l\'IA.', 'warning'); return; }
+        const system = 'Tu fais de la reconnaissance de texte. Recopie fidèlement tout le texte visible sur l\'image de la page, dans l\'ordre de lecture, en gardant les paragraphes et les listes. Ne commente pas, ne traduis pas, n\'ajoute rien. Si la page n\'a aucun texte, réponds exactement NONE.';
+        const render = async n => {
+            const pg = await pv.doc.getPage(n), v0 = pg.getViewport({ scale: 1 }), vp = pg.getViewport({ scale: Math.min(2, 1500 / v0.width) });
+            const cv = document.createElement('canvas'); cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+            await pg.render({ canvasContext: cv.getContext('2d', { alpha: false }), viewport: vp }).promise;
+            const u = cv.toDataURL('image/jpeg', 0.8); cv.width = cv.height = 0; return u;
+        };
+        const jobs = nums.map(n => ({ system, prompt: `Page ${n} du document. Recopie son texte.`, maxTokens: 2500, images: async () => [await render(n)] }));
+        const out = await this.aiRun({ title: 'Lire ce PDF avec l\'IA', what: `PDF « ${p.name} »`, chars: 0, pages: nums.length, jobs, asImages: true, note: 'Chaque page est une requête avec une image : cela coûte plus cher qu\'un texte. La lecture peut contenir des erreurs.' });
+        if (!out) return;
+        p.ocr = p.ocr || {}; let got = 0;
+        out.forEach((t, i) => { t = String(t).replace(/```[a-z]*/gi, '').trim(); if (t && t !== 'NONE') { p.ocr[nums[i]] = t.slice(0, 20000); pv.texts[nums[i]] = p.ocr[nums[i]]; got++; } });
+        p.mod = Date.now(); this.save(false);
+        if (got) this.toast(`${plural(got, 'page lue', 'pages lues')} par l'IA`, 'success'); else this.toast('L\'IA n\'a trouvé aucun texte sur ces pages.', 'warning');
     },
     async aiNoteCards(id) {
         const n = this.note(id); if (!n) return;

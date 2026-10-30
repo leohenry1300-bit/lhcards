@@ -1505,6 +1505,35 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         ok('IA: summary lands in the PDF note with page links; chat says "Non trouvé", cites clickable pages, web only when asked and shown apart', sm.preview && sm.sum && sm.nf && sm.pg && sm.web && sm.tag && sm.closed, JSON.stringify(sm));
     }
 
+
+    {   /* IA lot 3 : quiz → QCM à relire, lecture d'un PDF scanné par images */
+        await page.route('https://api.anthropic.com/**', r => {
+            const body = r.request().postData() || '';
+            if (/reconnaissance de texte/.test(body)) { const hasImg = /"type":"image"/.test(body); r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ content: [{ type: 'text', text: hasImg ? 'Texte lu par IA sur la page.' : 'NONE' }] }) }); }
+            else if (/QCM de révision/.test(body)) r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ content: [{ type: 'text', text: 'Quelle est la capitale de la France ?\na) Paris *\nb) Rome\nc) Madrid\nd) Berlin\n=> Paris est la capitale.' }] }) });
+            else r.fallback();
+        });
+        const q3 = await page.evaluate(async () => {
+            const out = {}, a = app, w = ms => new Promise(r => setTimeout(r, ms));
+            localStorage.setItem('lh_ai', JSON.stringify({ provider: 'anthropic', keys: { anthropic: 'sk-x' }, models: {} }));
+            if (!a.pv) { await a.pdfOpen(a.data.pdfs[0].id); await w(2000); }
+            const n0 = a.data.qcms.length;
+            a.aiPdfQuiz(); await w(400); document.getElementById('aipg-go').click(); await w(900);
+            document.getElementById('ai-send').click(); await w(900);
+            out.prefill = /Paris/.test(document.getElementById('qb-text').value) && /Généré par IA/.test([...document.querySelectorAll('.modal')].pop().textContent);
+            document.getElementById('qb-go').click(); await w(500);
+            out.qcm = a.data.qcms.length === n0 + 1;
+            a.aiOcr(); await w(400); document.getElementById('aipg-go').click(); await w(900);
+            out.ocrPrev = /envoyées comme images/.test([...document.querySelectorAll('.modal')].pop().textContent);
+            document.getElementById('ai-send').click(); await w(1500);
+            const p = a.pv.p, saved = JSON.parse(a.serialize()).pdfs.find(x => x.id === p.id);
+            out.ocr = Object.keys(p.ocr || {}).length >= 1 && Object.keys(saved.ocr || {}).length >= 1 && /Texte lu par IA/.test(saved.ocr['1']);
+            localStorage.removeItem('lh_ai');
+            return out;
+        });
+        ok('IA: quiz is prefilled for review and becomes QCM; scanned PDF pages are sent as images and the text is kept in the PDF (saved)', q3.prefill && q3.qcm && q3.ocrPrev && q3.ocr, JSON.stringify(q3));
+    }
+
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));
     console.log(R.join('\n') + `\n\n${R.length - failed}/${R.length} checks passed`);
     await browser.close(); server.close(); process.exit(failed ? 1 : 0);
