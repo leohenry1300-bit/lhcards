@@ -957,7 +957,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         await page.evaluate(() => { app.nbActivate(app.data.notes[0].b.length - 1, 'end'); }); await page.click('[data-nb=card]'); await page.click('.nb-menu button:has-text("Multi-lignes")'); await wait(250);
         const li = await page.evaluate(() => app.data.notes[0].b.length - 1); const prevBtn = await page.$(`.nb[data-i="${li - 1}"] [data-nbk=cprev], .nb[data-i="${li}"] [data-nbk=cprev]`); await prevBtn.click(); await wait(150);
         const pv = await page.evaluate(() => (document.querySelector('.nbprev') || {}).textContent || ''); await page.evaluate(() => app.closePopover());
-        ok('Notes 2B: "question >> réponse" + Enter makes a card line (Recto → Verso) and its card; toolbar with Carte / Titre / À faire / Image / Tableau / Texte / Plus / Annuler / Clavier; menu "Cartes mémoire" (5 types)', k1.cd === 'basic:Paris' && k1.x === 'Capitale de la France' && k1.next && k1.card && k1.deck && ['Carte ▾', 'Titre ▾', 'À faire', 'Image', 'Tableau ▾', 'Plus', 'Annuler', 'Fermer'].every(l => bar.some(b => b.includes(l))) && /CARTES MÉMOIRE/.test(menu.head) && ['Ligne unique', 'Multi-lignes', 'Liste', 'Choix multiples', 'À trous'].every(l => menu.items.some(i => i.includes(l))), JSON.stringify({ k1, bar, menu }));
+        ok('Notes 2B: "question >> réponse" + Enter makes a card line (Recto → Verso) and its card; toolbar with Carte / Titre / À faire / Image / Tableau / Texte / Plus / Annuler / Clavier; menu "Cartes mémoire" (5 types)', k1.cd === 'basic:Paris' && k1.x === 'Capitale de la France' && k1.next && k1.card && k1.deck && ['Carte ▾', 'Titre ▾', 'À faire', 'Image', 'Tableau ▾', 'Plus', 'Annuler', 'Clavier', 'Réduire'].every(l => bar.some(b => b.includes(l))) && /CARTES MÉMOIRE/.test(menu.head) && ['Ligne unique', 'Multi-lignes', 'Liste', 'Choix multiples', 'À trous'].every(l => menu.items.some(i => i.includes(l))), JSON.stringify({ k1, bar, menu }));
         ok('Notes 2B: list card = line + sub-lines; "ordre important" gives an ordered list and keeps the items one by one; round button menu (type, direction, activate, type the answer, order, delete)', k2.kind === 'list' && k2.kids === 'Produit,Prix,Place,Promotion' && /<ul>/.test(k2.back) && k2.own && k3.ls === 'Produit,Prix,Place,Promotion' && k3.ol && ['Type de carte', 'Activer les cartes', 'Saisir la réponse', 'Ordre important', 'Supprimer la carte'].every(l => cm.some(i => i.includes(l))), JSON.stringify({ k2, k3, cm }));
         ok('Notes 2B: direction "Les deux" gives two cards, "Saisir la réponse" is kept on the cards, switching cards off suspends them and back on re-activates them; an incomplete line says what is missing', k4.n === 2 && k4.kinds === 'rev,rev' && k4.ta && k5.off && k6 && /pas encore de réponse/.test(pv), JSON.stringify({ k4, k5, k6, pv }));
         /* editing keeps the progress; deleting the line keeps the card */
@@ -1030,8 +1030,8 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
             [['0,0', 'Pays'], ['0,1', 'Capitale'], ['1,0', 'France'], ['1,1', 'Paris']].forEach(([rc, v]) => { const el = document.querySelector(`.nb[data-i="${ti}"] [data-nbt="${rc}"]`); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); });
             out.rows = JSON.stringify(n.b[ti].rows);
             a.nb.cell = { i: ti, r: 1, c: 1 }; a.nbTableMenu(document.querySelector('[data-nb=table]'), ti); await w(100);
-            [...document.querySelectorAll('.nb-menu button')].find(b => /Ajouter une ligne/.test(b.textContent)).click(); await w(300); out.addRow = n.b[ti].rows.length === 3;
-            n.b[ti].rows[2] = ['Italie', 'Rome']; a.nbTableCards(ti); await w(150); out.tcN = /2 lignes complètes/.test(document.getElementById('tc-n').textContent);
+            [...document.querySelectorAll('.nb-menu button')].find(b => /Ajouter une ligne dessous/.test(b.textContent)).click(); await w(300); out.addRow = n.b[ti].rows.length === 3;
+            n.b[ti].rows[2] = ['Italie', 'Rome']; a.nbTableCards(ti); await w(150); out.tcN = /2 lignes → 2 cartes/.test(document.getElementById('tc-n').textContent);
             const before = a.data.cards.length; document.getElementById('tc-go').click(); await w(300); out.tcards = a.data.cards.length === before + 2 && a.data.cards.filter(c => c.src && c.src.b === n.b[ti].id).length === 2;
             return out;
         });
@@ -1555,7 +1555,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
             // tableau coloré
             a.nbInsertAfter(1, [{ t: 'table', id: 'tt', hdr: true, rows: [['a', 'b'], ['c', 'd']] }]); await w(200);
             const tb = n.b.find(x => x.t === 'table'); tb.tc = 'green'; tb.fill = { '1,0': 'pink' }; a.nbRender(); await w(200);
-            out.table = !!document.querySelector('.nb-table.tc-green') && !!document.querySelector('.nb-table .fc-pink');
+            out.table = /--tcol/.test(document.querySelector('table.nb-table').getAttribute('style') || '') && /background/.test((document.querySelector('table.nb-table td[style]') || { getAttribute: () => '' }).getAttribute('style') || '');
             // lien vers : fenêtre avec onglets, un PDF se lie à une page
             a.nbActivate(0, 'end'); a.nbLinkPicker(); await w(300);
             out.pick = !!document.getElementById('lp-tabs') && document.querySelectorAll('#lp-list .lp-row').length > 0;
@@ -1625,6 +1625,58 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
             return out;
         });
         ok('IA: "Étude du PDF" asks the level first, chapters by hand or AI plan, progress from real cards/QCM (75%), weak topics listed, all saved', sp.ask && sp.level && sp.added && sp.real && sp.weak && sp.aiPreview && sp.plan && sp.saved, JSON.stringify(sp));
+    }
+
+
+    {   /* Notes : barre de sélection, couleurs (nuancier / roue / pipette), nouveaux blocs, "/", images, tableaux, barre réductible */
+        await page.setViewportSize({ width: 1280, height: 800 });
+        const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+        await page.route('https://commons.wikimedia.org/**', r => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ query: { pages: { 1: { title: 'File:Chat.png', imageinfo: [{ thumburl: 'https://upload.wikimedia.org/chat.png' }] } } } }) }));
+        await page.route('https://upload.wikimedia.org/**', r => r.fulfill({ status: 200, contentType: 'image/png', headers: { 'access-control-allow-origin': '*' }, body: png }));
+        const nt = await page.evaluate(async () => {
+            const out = {}, a = app, w = ms => new Promise(r => setTimeout(r, ms)); try {
+            a.go('notes'); await w(300); const n = a.noteNew('Outils', {}); a.noteOpen(n.id); await w(600);
+            n.b = [{ t: 'p', x: 'Bonjour le monde', d: 0 }]; a.nbRender(); a.nbActivate(0, 'end');
+            const sel = (s, e) => { const t = document.querySelector('.nb.on .nb-t'), r = document.createRange(); r.setStart(t.firstChild, s); r.setEnd(t.firstChild, e); const g = getSelection(); g.removeAllRanges(); g.addRange(r); };
+            sel(0, 7); await w(400);
+            out.bar = !!document.getElementById('nb-sel');
+            document.querySelector('#nb-sel [data-sb=u]').click(); await w(200); out.under = n.b[0].x === '__Bonjour__ le monde';
+            sel(0, 11); await w(300); document.querySelector('#nb-sel [data-sb=color]').click(); await w(200); document.querySelectorAll('.nb-menu button')[0].click(); await w(300);
+            out.picker = !!document.getElementById('cpk') && !!document.querySelector('#cpk canvas.cpk-wheel') && !!document.querySelector('#cpk [data-cp=eyeimg]');
+            document.querySelector('#cpk .cpk-sw[data-c="#dc2626"]').click(); await w(300); out.color = /\{c:#dc2626\|/.test(n.b[0].x);
+            document.querySelector('#cpk') && document.querySelector('#cpk [data-cp=x]').click();
+            // nouveaux blocs rendus
+            n.b = [{ t: 'callout', x: 'Info', d: 0, k: 'tip' }, { t: 'num', x: 'a', d: 0 }, { t: 'num', x: 'b', d: 0 }, { t: 'code', x: 'x=1', d: 0 }, { t: 'math', x: 'x^2', d: 0 }, { t: 'h2', x: 'Partie', d: 0 }, { t: 'toc' }, { t: 'toggle', x: 'Q ?', d: 0, c: true }, { t: 'p', x: 'R', d: 1 }];
+            a.nbRender(); await w(300);
+            out.blocks = !!document.querySelector('.nb-callout') && document.querySelectorAll('.nb-numg').length === 2 && document.querySelectorAll('.nb-numg')[1].textContent === '2.' && !!document.querySelector('.nb-code') && !!document.querySelector('.nb-math sup') && !!document.querySelector('.nb-toc button') && !!document.querySelector('.nb-tog');
+            // commande « / »
+            n.b = [{ t: 'p', x: '', d: 0 }]; a.nbRender(); a.nbActivate(0, 'end'); const t0 = document.querySelector('.nb.on .nb-t'); t0.textContent = '/enc'; a.nbSetCaret(t0, 4); n.b[0].x = '/enc'; a.nbSuggestCheck(t0); await w(200);
+            out.slash = !!document.querySelector('.nb-suggest button') && /Encadré/.test(document.querySelector('.nb-suggest').textContent);
+            a.nbSuggestPick(0); await w(300); out.slashDone = n.b[0].t === 'callout' && n.b[0].x === '';
+            // images : fenêtre à trois onglets, recherche, insertion
+            a.nbPickImage(0); await w(300);
+            out.imgTabs = !!document.getElementById('imgp-zone') && document.querySelectorAll('#imgp-tabs .chip').length === 3;
+            document.querySelector('#imgp-tabs [data-t=web]').click(); await w(200); document.getElementById('imgp-q').value = 'chat'; document.getElementById('imgp-qgo').click(); await w(800);
+            out.imgFound = !!document.querySelector('.imgp-th'); document.querySelector('.imgp-th').click(); await w(1200);
+            out.imgIns = n.b.some(b => b.t === 'img' && /^media:/.test(b.src));
+            // tableau : mise en forme de cellule, colonnes déplacées, cartes en trou
+            n.b = [{ t: 'table', id: 'tb', hdr: true, rows: [['Pays', 'Capitale'], ['France', 'Paris'], ['Italie', 'Rome']] }, { t: 'p', x: '', d: 0 }]; a.nbRender(); await w(300);
+            a.nb.cell = { i: 0, r: 1, c: 0 }; a.nbCellFormat(0, a.nb.cell); await w(200); document.querySelector('[data-cf=b]').click(); await w(200); document.querySelector('[data-cf="a:c"]').click(); await w(200);
+            out.cell = n.b[0].cf['1,0'] && n.b[0].cf['1,0'].b && n.b[0].cf['1,0'].a === 'c'; document.querySelector('.modal [data-close]').click(); await w(200);
+            a.nb.cell = { i: 0, r: 1, c: 1 }; a.nbTableMenu(document.body, 0); await w(100);
+            [...document.querySelectorAll('.nb-menu button')].find(x => /colonne à gauche/.test(x.textContent) && /Déplacer/.test(x.textContent)).click(); await w(300);
+            out.moved = n.b[0].rows[0][0] === 'Capitale' && n.b[0].rows[1][0] === 'Paris';
+            a.nbTableCards(0); await w(200); document.querySelector('#tc-mode [data-m=hole]').click(); await w(200);
+            out.holes = /2 lignes → 4 cartes/.test(document.getElementById('tc-n').textContent);
+            const before = a.data.cards.length; document.getElementById('tc-go').click(); await w(400); out.holeMade = a.data.cards.length === before + 4;
+            // barre réductible
+            a.nbActivate(1, 'end'); await w(200); document.querySelector('#nb-bar [data-nb=min]').click(); await w(200);
+            out.minDbg = JSON.stringify({ n: document.querySelectorAll('#nb-bar').length, cls: document.getElementById('nb-bar').className, disp: getComputedStyle(document.querySelector('#nb-bar [data-nb=todo]')).display, pref: a.nbPrefs().barMin }); out.min = document.getElementById('nb-bar').classList.contains('min') && getComputedStyle(document.querySelector('#nb-bar [data-nb=todo]')).display === 'none';
+            document.querySelector('#nb-bar [data-nb=min]').click(); await w(150); out.back = !document.getElementById('nb-bar').classList.contains('min');
+            return out;
+            } catch (e) { out.crash = String(e && e.message) + ' @' + ((e && e.stack) || '').split('\n')[1]; return out; }
+        });
+        ok('Notes: selection bar + one-tap underline, colour picker (swatches/wheel/eyedropper), new blocks, "/" menu, image picker (3 tabs, web search), table cell format/move/hole cards, collapsible bar', nt.bar && nt.under && nt.picker && nt.color && nt.blocks && nt.slash && nt.slashDone && nt.imgTabs && nt.imgFound && nt.imgIns && nt.cell && nt.moved && nt.holes && nt.holeMade && nt.min && nt.back, JSON.stringify(nt));
     }
 
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));

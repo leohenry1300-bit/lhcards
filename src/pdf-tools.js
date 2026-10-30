@@ -37,7 +37,7 @@ Object.assign(SuperAnki.prototype, {
     /* ---------- the little panel of options under a tool ---------- */
     pdfPanelHtml(t) {
         const pv = this.pdfOpts(), btn = (k, v, cur, inner, cls = '') => `<button class="pdfp-o ${cur === v ? 'on' : ''} ${cls}" data-action="pdf-opt" data-k="${k}" data-v="${v}">${inner}</button>`;
-        const grid = (k, cur) => `<div class="pdfp-grid">${PDF_GRID.map(c => btn(k, c, cur, '', 'sw').replace('class="', `style="--c:${c}" class="`)).join('')}</div><label class="pdfp-hex"><span>#</span><input data-optin="${k}" value="${esc(String(cur).replace('#', '').toUpperCase())}" maxlength="6" autocomplete="off" spellcheck="false" aria-label="Couleur (code HEX)"><i style="background:${esc(cur)}"></i></label>`;
+        const grid = (k, cur) => `<div class="pdfp-grid">${PDF_GRID.map(c => btn(k, c, cur, '', 'sw').replace('class="', `style="--c:${c}" class="`)).join('')}</div><label class="pdfp-hex"><span>#</span><input data-optin="${k}" value="${esc(String(cur).replace('#', '').toUpperCase())}" maxlength="6" autocomplete="off" spellcheck="false" aria-label="Couleur (code HEX)"><i style="background:${esc(cur)}"></i></label><button class="pdfp-wheel" data-action="pdf-colorpick" data-k="${k}" title="Roue chromatique, nuancier et pipette">${ic('palette')}Roue &amp; pipette</button>`;
         const thick = (k, vals, cur) => `<div class="pdfp-row">${vals.map(w => btn(k, w, cur, `<i style="height:${Math.max(2, Math.round(w * 520))}px"></i>`, 'th')).join('')}</div>`;
         const sw = (k, label, on) => `<button class="pdfp-tg" data-action="pdf-opt" data-k="${k}" data-v="t"><span>${label}</span><i class="${on ? 'on' : ''}"></i></button>`;
         const h = x => `<div class="pdfp-h">${x}</div>`;

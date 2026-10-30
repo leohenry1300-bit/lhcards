@@ -174,7 +174,7 @@ Object.assign(SuperAnki.prototype, {
                 <button class="icon-btn" data-action="nb-more" title="Plus d'actions" aria-label="Plus d'actions">${ic('more')}</button>
             </div>
             ${crumbs || n.daily ? `<p class="nb-crumbs">${n.daily ? ic('calendar') + ' Note du jour' : ''}${n.daily && crumbs ? ' · ' : ''}${esc(crumbs)}</p>` : ''}
-            <div class="nb-findbar hidden" id="nb-findbar"><input class="input" id="nb-findin" placeholder="Rechercher dans la note…" autocomplete="off"><span class="small muted" id="nb-findcount"></span><button class="icon-btn icon-btn-sm" data-action="nb-find-step" data-d="-1" aria-label="Précédent">${ic('chevronLeft')}</button><button class="icon-btn icon-btn-sm" data-action="nb-find-step" data-d="1" aria-label="Suivant">${ic('chevronRight')}</button><button class="icon-btn icon-btn-sm" data-action="nb-find" aria-label="Fermer">${ic('x')}</button></div>
+            <div class="nb-findbar hidden" id="nb-findbar"><input class="input" id="nb-findin" placeholder="Rechercher dans la note…" autocomplete="off"><span class="small muted" id="nb-findcount"></span><input class="input" id="nb-replin" placeholder="Remplacer par…" autocomplete="off"><button class="btn btn-soft btn-sm" data-action="nb-repl" data-all="0">Remplacer</button><button class="btn btn-soft btn-sm" data-action="nb-repl" data-all="1">Tout</button><button class="icon-btn icon-btn-sm" data-action="nb-find-step" data-d="-1" aria-label="Précédent">${ic('chevronLeft')}</button><button class="icon-btn icon-btn-sm" data-action="nb-find-step" data-d="1" aria-label="Suivant">${ic('chevronRight')}</button><button class="icon-btn icon-btn-sm" data-action="nb-find" aria-label="Fermer">${ic('x')}</button></div>
             <div class="nb-tags" id="nb-tags">${this.nbTagsHtml(n)}</div>
             <div class="nb-blocks" id="nb-blocks">${this.nbBlocksHtml(n)}</div>
             <p class="nb-stats small faint" id="nb-stats">${st}</p>
@@ -347,6 +347,13 @@ Object.assign(SuperAnki.prototype, {
         const box = $('#nb-blocks'); if (box && this.nb.active < 0) { box.innerHTML = this.nbBlocksHtml(n); this.resolveMedia(box); }
         if (hits.length) { const row = this.nbEl(hits[this.nb.find.at % hits.length]); if (row) row.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
     },
+    nbReplace(all) {
+        const n = this.note(this.ui.note), q = (this.nb.find || {}).q, r = ($('#nb-replin') || {}).value || ''; if (!n || !q) return;
+        const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'); let done = 0, left = all ? Infinity : 1;
+        this.nbPush();
+        for (const b of n.b) { if (nbSolid(b.t) || left <= 0) continue; b.x = b.x.replace(re, m => { if (left <= 0) return m; left--; done++; return r; }); }
+        if (done) { this.nbChanged(); this.nbRender(); this.nbFindUpdate(); }
+    },
     nbFindStep(d) { if (!this.nb.find || !this.nb.hits.length) return; this.nb.find.at = (this.nb.find.at + d + this.nb.hits.length) % this.nb.hits.length; this.nbFindUpdate(); },
 
     /* ---------- drag and drop: notes in the list ---------- */
@@ -459,7 +466,7 @@ Object.assign(SuperAnki.prototype, {
         this.nbPush();
         const before = x.slice(0, s), mid = x.slice(s, e), after = x.slice(e);
         let nx, caret;
-        const re = isHl ? /==(?:\{[ygbp]\})?$/ : null;
+        const re = isHl ? /==(?:\{(?:[ygbp]|#[0-9a-f]{6})\})?$/i : null;
         if (isHl && re.test(before) && after.startsWith('==')) { const m = re.exec(before); nx = before.slice(0, m.index) + mid + after.slice(2); caret = m.index + mid.length; if (m[0] !== tok) { nx = before.slice(0, m.index) + tok + mid + tok2 + after.slice(2); caret = m.index + tok.length + mid.length + tok2.length; } }
         else if (!isHl && before.endsWith(tok) && after.startsWith(tok2) && mid) { nx = before.slice(0, -tok.length) + mid + after.slice(tok2.length); caret = before.length - tok.length + mid.length; }
         else if (mid) { nx = before + tok + mid + tok2 + after; caret = e + tok.length + tok2.length; }
@@ -511,6 +518,7 @@ Object.assign(SuperAnki.prototype, {
         }
         else if (action === 'nb-emoji') this.openNoteEmoji();
         else if (action === 'nb-find') this.nbFindToggle();
+        else if (action === 'nb-repl') this.nbReplace(ds.all === '1');
         else if (action === 'nb-find-step') this.nbFindStep(Number(ds.d));
         else if (action === 'nb-tag-del') { const n = this.note(ui.note); if (n) { n.tags = n.tags.filter(t => t !== ds.tag); this.save(); $('#nb-tags').innerHTML = this.nbTagsHtml(n); this.nbRefreshList(); } }
         else if (action === 'nb-more') { const n = this.note(ui.note); if (n) this.nbNoteMenu(el, n.id); }

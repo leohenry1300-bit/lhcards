@@ -4,11 +4,11 @@
    Insère [[Titre]], [[c:ID|texte]] ou [[pdf:ID:PAGE|Nom · p.N]] dans la ligne de la note.
    ============================================================ */
 Object.assign(SuperAnki.prototype, {
-    nbLinkPicker() {
+    nbLinkPicker(selr) {
         const n = this.note(this.ui.note); if (!n) return;
         const i = this.nb.active >= 0 ? this.nb.active : (this.nb.last == null ? n.b.length - 1 : this.nb.last), b = n.b[i]; if (!b) return;
         let pos = b.x.length; try { const t = $('.nb-t', this.nbEl(i)); if (t && this.nb.active === i) pos = this.nbCaret(t).s; } catch { /* keep the end */ }
-        const mm = /\[\[([^\[\]\n]*)$/.exec(b.x.slice(0, pos)); let cut = null; if (mm) { cut = pos - mm[0].length; }   // « [[ » typed before: replaced by the link
+        const mm = /\[\[([^\[\]\n]*)$/.exec(b.x.slice(0, pos)); let cut = null; if (mm) { cut = pos - mm[0].length; } if (selr) { cut = selr.s; pos = selr.e; }   // « [[ » typed before: replaced by the link
         this.nbSuggestClose();
         let tab = 'all', step = null;
         const m = this.openModal({ title: `${ic('link')} Lien vers…`, size: 'wide',

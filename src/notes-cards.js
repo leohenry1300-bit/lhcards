@@ -27,7 +27,7 @@ Object.assign(SuperAnki.prototype, {
     nbCdNew(k = 'basic') { return { k, a: '', dir: 'fwd', on: true, ta: false, ord: false, mx: false, id: uid('b'), cid: [], qid: '', hm: [], sg: '', so: true, dead: false, vd: false }; },
     /* plain text typed in a note → html for a card (links unwrapped, **bold** etc. kept) */
     nbH(x) { return sanitizeHtml(this.fmtHtml(esc(String(x || '').replace(NB_LINK, (m, i) => i.replace(/^c:[^|]+\|/, '')))).replace(/\n/g, '<br>')); },
-    nbPlain(x) { return String(x || '').replace(NB_LINK, (m, i) => i.replace(/^c:[^|]+\|/, '')).replace(/\*\*|==|`/g, '').trim(); },
+    nbPlain(x) { return String(x || '').replace(NB_LINK, (m, i) => i.replace(/^c:[^|]+\|/, '')).replace(/==(?:\{(?:[ygbp]|#[0-9a-f]{6})\})?/gi, '').replace(/\{c:#[0-9a-f]{6}\|([^{}|]*)\}/gi, '$1').replace(/(^|[^\w])__([^_]+)__(?!\w)/g, '$1$2').replace(/\*\*|~~|`/g, '').replace(/(^|[^\w$])\$([^$\s](?:[^$]*[^$\s])?)\$(?![\w$])/g, '$1$2').trim(); },
 
     /* for every line: the card line (multi-lines / list / choices) whose answer it belongs to, or -1 */
     nbCardOwners(n) {
@@ -380,52 +380,101 @@ Object.assign(SuperAnki.prototype, {
 
     /* ---------- tables ---------- */
     nbTableHtml(b) {
-        const fl = (ri, ci) => (b.fill || {})[`${ri},${ci}`] || (b.fill || {})[`${ri},*`] || '';
-        return `<div class="nb-tablewrap"><table class="nb-table ${b.tc ? 'tc-' + b.tc : ''}">${b.rows.map((r, ri) => `<tr>${r.map((cell, ci) => `<${ri === 0 && b.hdr ? 'th' : 'td'}${fl(ri, ci) ? ` class="fc-${fl(ri, ci)}"` : ''}><input data-nbt="${ri},${ci}" value="${esc(cell)}" autocomplete="off" aria-label="Ligne ${ri + 1}, colonne ${ci + 1}"></${ri === 0 && b.hdr ? 'th' : 'td'}>`).join('')}</tr>`).join('')}</table></div>`;
+        const col = v => !v ? '' : v[0] === '#' ? v : (NB_COLORS.find(c => c[0] === v) || [])[2] || '', fl = (ri, ci) => (b.fill || {})[`${ri},${ci}`] || (b.fill || {})[`${ri},*`] || '', cf = (b.cf || {});
+        const cellStyle = (ri, ci) => { const f = fl(ri, ci), c = col(f), z = cf[`${ri},${ci}`]; return c ? `background:color-mix(in srgb,${c} 30%,transparent)` : ''; };
+        const inStyle = (ri, ci) => { const z = cf[`${ri},${ci}`]; if (!z) return ''; return [z.b ? 'font-weight:800' : '', z.i ? 'font-style:italic' : '', z.u || z.s ? `text-decoration:${[z.u ? 'underline' : '', z.s ? 'line-through' : ''].filter(Boolean).join(' ')}` : '', z.a ? `text-align:${{ l: 'left', c: 'center', r: 'right' }[z.a]}` : '', z.c ? `color:${z.c}` : ''].filter(Boolean).join(';'); };
+        const tcc = col(b.tc);
+        return `<div class="nb-tablewrap"><div class="nb-tbar"><button data-nbk="tmenu" aria-label="Options du tableau" title="Options du tableau">${ic('more')}</button><button data-nbk="trow">${ic('plus')}Ligne</button><button data-nbk="tcol">${ic('plus')}Colonne</button><button data-nbk="tcards">${ic('copy')}Cartes</button></div><table class="nb-table ${b.zebra ? 'zebra' : ''}" ${tcc ? `style="--tcol:${tcc}"` : ''}>${b.rows.map((r, ri) => `<tr>${r.map((cell, ci) => `<${ri === 0 && b.hdr ? 'th' : 'td'} ${cellStyle(ri, ci) ? `style="${cellStyle(ri, ci)}"` : ''}><input data-nbt="${ri},${ci}" value="${esc(cell)}" autocomplete="off" aria-label="Ligne ${ri + 1}, colonne ${ci + 1}" ${inStyle(ri, ci) ? `style="${inStyle(ri, ci)}"` : ''}></${ri === 0 && b.hdr ? 'th' : 'td'}>`).join('')}</tr>`).join('')}</table></div>`;
     },
     nbColorMenu(anchor, head, pick, cur, withNone = false) {
-        this.nbMenu([{ head: head.toUpperCase() }, ...NB_COLORS.map(([k, l, hex]) => ({ ico: 'palette', label: `<span class="tdot" style="background:${hex}"></span>${l}`, on: cur === k, fn: () => pick(k) })), ...(withNone ? [{ sep: true }, { ico: 'eraser', label: 'Aucune couleur', fn: () => pick('') }] : [])], anchor);
+        this.colorPicker({ anchor, title: head, cur: cur && cur[0] === '#' ? cur : ((NB_COLORS.find(c => c[0] === cur) || [])[2] || ''), none: withNone, swatches: [...NB_COLORS.map(c => c[2]), '#fecaca', '#fed7aa', '#fef08a', '#bbf7d0', '#bfdbfe', '#ddd6fe', '#fbcfe8', '#e5e7eb', '#000000', '#ffffff', '#fde047', '#4ade80', '#38bdf8', '#a78bfa', '#fb7185', '#94a3b8'], onPick: hex => pick(hex) });
+    },
+    nbCellFormat(i, cell) {
+        const n = this.note(this.ui.note), b = n.b[i]; if (!b || b.t !== 'table') return;
+        const key = `${cell.r},${cell.c}`, get = () => (b.cf = b.cf || {})[key] || {};
+        const m = this.openModal({ title: `${ic('palette')} Format de la cellule`, size: 'narrow', body: '<div id="cf-body"></div>', foot: '<button class="btn btn-primary" data-close>OK</button>' });
+        const paint = () => {
+            const z = get(), t = (k, label, extra = '') => `<button class="cf-b ${z[k] ? 'on' : ''}" data-cf="${k}" ${extra}>${label}</button>`, al = (k, ico) => `<button class="cf-b ${z.a === k ? 'on' : ''}" data-cf="a:${k}" aria-label="Alignement">${ico}</button>`;
+            $('#cf-body', m).innerHTML = `<div class="cf-row">${t('b', '<b>B</b>')}${t('i', '<i>I</i>')}${t('u', '<u>U</u>')}${t('s', '<s>S</s>')}</div>
+                <div class="cf-row">${al('l', '⇤')}${al('c', '↔')}${al('r', '⇥')}</div>
+                <div class="cf-row"><button class="btn btn-soft" data-cf="tc"><span class="tdot" style="background:${z.c || 'var(--text)'}"></span>Couleur du texte</button><button class="btn btn-soft" data-cf="fill"><span class="tdot" style="background:${((b.fill || {})[key] && (b.fill[key][0] === '#' ? b.fill[key] : (NB_COLORS.find(c => c[0] === b.fill[key]) || [])[2])) || 'var(--surface-2)'}"></span>Couleur de la cellule</button></div>
+                <button class="btn btn-soft btn-sm" data-cf="clear">${ic('eraser')}Effacer le format</button>`;
+        };
+        const apply = fn => { this.nbOp(() => { b.cf = b.cf || {}; const z = { ...(b.cf[key] || {}) }; fn(z); if (Object.keys(z).length) b.cf[key] = z; else delete b.cf[key]; }, null); paint(); };
+        m.addEventListener('click', e => {
+            const x = e.target.closest('[data-cf]'); if (!x) return; const k = x.dataset.cf;
+            if (['b', 'i', 'u', 's'].includes(k)) apply(z => { if (z[k]) delete z[k]; else z[k] = true; });
+            else if (k.startsWith('a:')) apply(z => { const v = k.slice(2); if (z.a === v) delete z.a; else z.a = v; });
+            else if (k === 'clear') { this.nbOp(() => { delete (b.cf || {})[key]; if (b.fill) delete b.fill[key]; }, null); paint(); }
+            else if (k === 'tc') this.colorPicker({ anchor: x, title: 'Couleur du texte', cur: get().c || '', none: true, onPick: hex => apply(z => { if (hex) z.c = hex; else delete z.c; }) });
+            else if (k === 'fill') this.nbColorMenu(x, 'Couleur de la cellule', hex => { this.nbOp(() => { b.fill = b.fill || {}; if (hex) b.fill[key] = hex; else delete b.fill[key]; }, null); paint(); }, (b.fill || {})[key], true);
+        });
+        paint();
     },
     nbTableMenu(anchor, i) {
         const n = this.note(this.ui.note), b = n.b[i], cell = this.nb.cell && this.nb.cell.i === i ? this.nb.cell : { i, r: 0, c: 0 };
         if (b && b.t === 'table') {
+            const W = b.rows[0].length, H = b.rows.length, mv = (arr, a, z) => { const t = arr.splice(a, 1)[0]; arr.splice(z, 0, t); };
+            const shiftKeys = (map, fn) => { if (!map) return; const out = {}; Object.entries(map).forEach(([k, v]) => { const nk = fn(k); if (nk) out[nk] = v; }); Object.keys(map).forEach(k => delete map[k]); Object.assign(map, out); };
             this.nbMenu([{ head: 'TABLEAU' },
-                { ico: 'plus', label: 'Ajouter une ligne dessous', fn: () => this.nbOp(() => { b.rows.splice(cell.r + 1, 0, b.rows[0].map(() => '')); }, null) },
-                { ico: 'plus', label: 'Ajouter une colonne à droite', fn: () => { if (b.rows[0].length >= 8) { this.toast('8 colonnes au maximum.', 'warning'); return; } this.nbOp(() => { b.rows.forEach(r => r.splice(cell.c + 1, 0, '')); }, null); } },
-                { ico: 'trash', label: 'Supprimer cette ligne', danger: true, fn: () => { if (b.rows.length > 1) this.nbOp(() => { b.rows.splice(cell.r, 1); }, null); else this.toast('Il faut au moins une ligne.', 'warning'); } },
-                { ico: 'trash', label: 'Supprimer cette colonne', danger: true, fn: () => { if (b.rows[0].length > 1) this.nbOp(() => { b.rows.forEach(r => r.splice(cell.c, 1)); }, null); else this.toast('Il faut au moins une colonne.', 'warning'); } },
+                { ico: 'palette', label: 'Format de la cellule (gras, alignement, couleurs)…', fn: () => this.nbCellFormat(i, cell) },
+                { ico: 'palette', label: 'Couleur du tableau…', fn: () => setTimeout(() => this.nbColorMenu(anchor, 'Couleur du tableau', k => this.nbOp(() => { b.tc = k; }, null), b.tc, true), 30) },
+                { ico: 'palette', label: 'Colorer la ligne…', fn: () => setTimeout(() => this.nbColorMenu(anchor, 'Colorer la ligne', k => this.nbOp(() => { b.fill = b.fill || {}; Object.keys(b.fill).filter(z => z.startsWith(`${cell.r},`)).forEach(z => delete b.fill[z]); if (k) b.fill[`${cell.r},*`] = k; }, null), (b.fill || {})[`${cell.r},*`], true), 30) },
+                { ico: 'palette', label: 'Colorer la colonne…', fn: () => setTimeout(() => this.nbColorMenu(anchor, 'Colorer la colonne', k => this.nbOp(() => { b.fill = b.fill || {}; for (let r = 0; r < H; r++) { const key = `${r},${cell.c}`; if (k) b.fill[key] = k; else delete b.fill[key]; } }, null), '', true), 30) },
+                { sep: true },
+                { ico: 'plus', label: 'Ajouter une ligne dessus', fn: () => this.nbOp(() => { b.rows.splice(cell.r, 0, b.rows[0].map(() => '')); shiftKeys(b.fill, k => { const [r, c] = k.split(','); return Number(r) >= cell.r ? `${Number(r) + 1},${c}` : k; }); shiftKeys(b.cf, k => { const [r, c] = k.split(','); return Number(r) >= cell.r ? `${Number(r) + 1},${c}` : k; }); }, null) },
+                { ico: 'plus', label: 'Ajouter une ligne dessous', fn: () => this.nbOp(() => { b.rows.splice(cell.r + 1, 0, b.rows[0].map(() => '')); shiftKeys(b.fill, k => { const [r, c] = k.split(','); return Number(r) > cell.r ? `${Number(r) + 1},${c}` : k; }); shiftKeys(b.cf, k => { const [r, c] = k.split(','); return Number(r) > cell.r ? `${Number(r) + 1},${c}` : k; }); }, null) },
+                { ico: 'plus', label: 'Ajouter une colonne à gauche', fn: () => { if (W >= 8) { this.toast('8 colonnes au maximum.', 'warning'); return; } this.nbOp(() => { b.rows.forEach(r => r.splice(cell.c, 0, '')); shiftKeys(b.fill, k => { const [r, c] = k.split(','); return c !== '*' && Number(c) >= cell.c ? `${r},${Number(c) + 1}` : k; }); shiftKeys(b.cf, k => { const [r, c] = k.split(','); return Number(c) >= cell.c ? `${r},${Number(c) + 1}` : k; }); }, null); } },
+                { ico: 'plus', label: 'Ajouter une colonne à droite', fn: () => { if (W >= 8) { this.toast('8 colonnes au maximum.', 'warning'); return; } this.nbOp(() => { b.rows.forEach(r => r.splice(cell.c + 1, 0, '')); shiftKeys(b.fill, k => { const [r, c] = k.split(','); return c !== '*' && Number(c) > cell.c ? `${r},${Number(c) + 1}` : k; }); shiftKeys(b.cf, k => { const [r, c] = k.split(','); return Number(c) > cell.c ? `${r},${Number(c) + 1}` : k; }); }, null); } },
+                { ico: 'arrowLeft', label: 'Déplacer la colonne à gauche', fn: () => { if (cell.c > 0) this.nbOp(() => { b.rows.forEach(r => mv(r, cell.c, cell.c - 1)); shiftKeys(b.cf, k => { const [r, c] = k.split(','), x = Number(c); return `${r},${x === cell.c ? x - 1 : x === cell.c - 1 ? x + 1 : x}`; }); shiftKeys(b.fill, k => { const [r, c] = k.split(','); if (c === '*') return k; const x = Number(c); return `${r},${x === cell.c ? x - 1 : x === cell.c - 1 ? x + 1 : x}`; }); this.nb.cell = { ...cell, c: cell.c - 1 }; }, null); } },
+                { ico: 'arrowRight', label: 'Déplacer la colonne à droite', fn: () => { if (cell.c < W - 1) this.nbOp(() => { b.rows.forEach(r => mv(r, cell.c, cell.c + 1)); shiftKeys(b.cf, k => { const [r, c] = k.split(','), x = Number(c); return `${r},${x === cell.c ? x + 1 : x === cell.c + 1 ? x - 1 : x}`; }); shiftKeys(b.fill, k => { const [r, c] = k.split(','); if (c === '*') return k; const x = Number(c); return `${r},${x === cell.c ? x + 1 : x === cell.c + 1 ? x - 1 : x}`; }); this.nb.cell = { ...cell, c: cell.c + 1 }; }, null); } },
+                { ico: 'chevronUp', label: 'Déplacer la ligne vers le haut', fn: () => { if (cell.r > (b.hdr ? 1 : 0)) this.nbOp(() => { mv(b.rows, cell.r, cell.r - 1); shiftKeys(b.cf, k => { const [r, c] = k.split(','), x = Number(r); return `${x === cell.r ? x - 1 : x === cell.r - 1 ? x + 1 : x},${c}`; }); shiftKeys(b.fill, k => { const [r, c] = k.split(','), x = Number(r); return `${x === cell.r ? x - 1 : x === cell.r - 1 ? x + 1 : x},${c}`; }); }, null); } },
+                { ico: 'chevronDown', label: 'Déplacer la ligne vers le bas', fn: () => { if (cell.r < H - 1 && !(b.hdr && cell.r === 0)) this.nbOp(() => { mv(b.rows, cell.r, cell.r + 1); shiftKeys(b.cf, k => { const [r, c] = k.split(','), x = Number(r); return `${x === cell.r ? x + 1 : x === cell.r + 1 ? x - 1 : x},${c}`; }); shiftKeys(b.fill, k => { const [r, c] = k.split(','), x = Number(r); return `${x === cell.r ? x + 1 : x === cell.r + 1 ? x - 1 : x},${c}`; }); }, null); } },
+                { ico: 'copy', label: 'Dupliquer la ligne', fn: () => this.nbOp(() => { b.rows.splice(cell.r + 1, 0, [...b.rows[cell.r]]); }, null) },
+                { ico: 'list', label: `Trier la colonne ${cell.c + 1} de A à Z`, fn: () => this.nbOp(() => { const head = b.hdr ? b.rows.shift() : null; b.rows.sort((x, y) => String(x[cell.c]).localeCompare(String(y[cell.c]), 'fr', { numeric: true })); if (head) b.rows.unshift(head); b.fill = {}; b.cf = {}; }, null) },
+                { sep: true },
                 { ico: 'file', label: b.hdr ? 'Sans ligne d\'en-tête' : 'Avec ligne d\'en-tête', fn: () => this.nbOp(() => { b.hdr = !b.hdr; }, null) },
+                { ico: 'list', label: b.zebra ? 'Lignes toutes pareilles' : 'Lignes alternées (zébré)', fn: () => this.nbOp(() => { b.zebra = !b.zebra; }, null) },
                 { sep: true },
-                { ico: 'palette', label: 'Couleur du tableau…', fn: () => setTimeout(() => this.nbColorMenu(anchor, 'Couleur du tableau', k => this.nbOp(() => { b.tc = k; }, null), b.tc), 30) },
-                { ico: 'palette', label: 'Colorer cette cellule…', fn: () => setTimeout(() => this.nbColorMenu(anchor, 'Colorer la cellule', k => this.nbOp(() => { b.fill = b.fill || {}; if (k) b.fill[`${cell.r},${cell.c}`] = k; else delete b.fill[`${cell.r},${cell.c}`]; }, null), (b.fill || {})[`${cell.r},${cell.c}`], true), 30) },
-                { ico: 'palette', label: 'Colorer cette ligne…', fn: () => setTimeout(() => this.nbColorMenu(anchor, 'Colorer la ligne', k => this.nbOp(() => { b.fill = b.fill || {}; Object.keys(b.fill).filter(z => z.startsWith(`${cell.r},`)).forEach(z => delete b.fill[z]); if (k) b.fill[`${cell.r},*`] = k; }, null), (b.fill || {})[`${cell.r},*`], true), 30) },
+                { ico: 'copy', label: 'Cartes depuis le tableau…', fn: () => this.nbTableCards(i) },
                 { sep: true },
-                { ico: 'copy', label: 'Cartes depuis des colonnes…', fn: () => this.nbTableCards(i) },
-                { sep: true },
+                { ico: 'trash', label: 'Supprimer cette ligne', danger: true, fn: () => { if (H > 1) this.nbOp(() => { b.rows.splice(cell.r, 1); b.fill = {}; b.cf = {}; }, null); else this.toast('Il faut au moins une ligne.', 'warning'); } },
+                { ico: 'trash', label: 'Supprimer cette colonne', danger: true, fn: () => { if (W > 1) this.nbOp(() => { b.rows.forEach(r => r.splice(cell.c, 1)); b.fill = {}; b.cf = {}; }, null); else this.toast('Il faut au moins une colonne.', 'warning'); } },
                 { ico: 'trash', label: 'Supprimer le tableau', danger: true, fn: () => this.nbOp(nn => { nn.b.splice(i, 1); if (!nn.b.length) nn.b.push(nbEmpty()); }, null) }], anchor);
             return;
         }
         this.nbMenu([{ head: 'INSÉRER UN TABLEAU' }, ...[[2, 2], [3, 2], [3, 3], [4, 3], [5, 4]].map(([r, c]) => ({ ico: 'table', label: `${r} lignes × ${c} colonnes`, fn: () => this.nbInsertAfter(i, [{ t: 'table', id: uid('b'), hdr: true, rows: Array.from({ length: r }, () => Array(c).fill('')) }, { t: 'p', x: '' }]) }))], anchor);
     },
-    /* a column of a table = the questions, another column = the answers: one card per row */
+    /* RemNote-like : a line = a card (column → answer columns), the other way round too, or a hidden cell (one card per cell) */
     nbTableCards(i) {
         const n = this.note(this.ui.note), b = n.b[i], w = b.rows[0].length;
-        if (w < 2) { this.toast('Il faut au moins deux colonnes : une pour les questions, une pour les réponses.', 'warning'); return; }
+        if (w < 2) { this.toast('Il faut au moins deux colonnes pour faire des cartes.', 'warning'); return; }
         const name = c => (b.hdr && b.rows[0][c].trim()) || `Colonne ${c + 1}`;
         const m = this.openModal({
             title: 'Cartes depuis un tableau', size: 'narrow',
-            body: `<div class="field"><label class="label" for="tc-q">Colonne des questions (recto)</label><select class="select" id="tc-q">${b.rows[0].map((_, c) => `<option value="${c}">${esc(name(c))}</option>`).join('')}</select></div>
-                <div class="field"><label class="label" for="tc-a">Colonne des réponses (verso)</label><select class="select" id="tc-a">${b.rows[0].map((_, c) => `<option value="${c}" ${c === 1 ? 'selected' : ''}>${esc(name(c))}</option>`).join('')}</select></div>
-                <label class="check" style="margin-bottom:8px"><input type="checkbox" id="tc-both"> Aussi dans l'autre sens (deux cartes par ligne)</label><p class="small muted" id="tc-n"></p>`,
+            body: `<div class="segmented" id="tc-mode"><button class="active" data-m="qa">Question → réponse</button><button data-m="hole">Cellule cachée</button></div>
+                <div id="tc-qa"><div class="field"><label class="label" for="tc-q">Colonne des questions (recto)</label><select class="select" id="tc-q">${b.rows[0].map((_, c) => `<option value="${c}">${esc(name(c))}</option>`).join('')}</select></div>
+                <div class="field"><span class="label">Colonnes des réponses (verso)</span><div class="tc-cols" id="tc-a">${b.rows[0].map((_, c) => `<label class="check"><input type="checkbox" value="${c}" ${c === 1 ? 'checked' : ''}> ${esc(name(c))}</label>`).join('')}</div></div>
+                <label class="check" style="margin-bottom:8px"><input type="checkbox" id="tc-both"> Aussi dans l'autre sens (deux cartes par ligne)</label></div>
+                <p class="small muted hidden" id="tc-holeinfo">Chaque ligne devient une carte à trous : on te cache une cellule à la fois (une carte par cellule remplie).</p>
+                <p class="small muted" id="tc-n"></p><div class="tc-prev" id="tc-prev"></div>`,
             foot: `<button class="btn btn-soft" data-close>Annuler</button><button class="btn btn-primary" id="tc-go">${ic('check')}Créer les cartes</button>`
         });
-        const rows = () => b.rows.slice(b.hdr ? 1 : 0), pairs = () => { const q = Number($('#tc-q', m).value), a = Number($('#tc-a', m).value); return rows().map(r => [r[q].trim(), r[a].trim()]).filter(([x, y]) => x && y && q !== a); };
-        const upd = () => { $('#tc-n', m).textContent = `${plural(pairs().length, 'ligne complète', 'lignes complètes')} → ${plural(pairs().length * ($('#tc-both', m).checked ? 2 : 1), 'carte')}.`; };
-        ['#tc-q', '#tc-a', '#tc-both'].forEach(s2 => $(s2, m).addEventListener('change', upd)); upd();
+        let mode = 'qa';
+        const rows = () => b.rows.slice(b.hdr ? 1 : 0), strip = x => this.nbPlain(x).trim();
+        const aCols = () => [...$$('#tc-a input:checked', m)].map(x => Number(x.value));
+        const items = () => {
+            if (mode === 'hole') return rows().map(r => r.map(strip)).filter(r => r.filter(Boolean).length >= 2).map(r => { let k = 0; const txt = r.map(c => c ? `{{c${++k}::${c}}}` : '').filter(Boolean).join(' · '); return { kind: 'cloze', text: txt, n: k }; });
+            const q = Number($('#tc-q', m).value), as = aCols().filter(c => c !== q), both = $('#tc-both', m).checked;
+            return rows().map(r => [strip(r[q]), as.map(c => strip(r[c])).filter(Boolean)]).filter(([x, y]) => x && y.length).map(([x, y]) => ({ kind: both ? 'rev' : 'basic', front: x, back: y.join('<br>'), n: both ? 2 : 1 }));
+        };
+        const upd = () => { const it = items(), cnt = it.reduce((s, x) => s + x.n, 0); $('#tc-n', m).textContent = `${plural(it.length, 'ligne')} → ${plural(cnt, 'carte')}.`; $('#tc-prev', m).innerHTML = it.slice(0, 4).map(x => `<div class="tc-p"><b>${esc(truncate(x.kind === 'cloze' ? x.text.replace(/\{\{c\d+::(.*?)\}\}/g, '[…$1]') : x.front, 50))}</b><span>${esc(truncate(x.kind === 'cloze' ? '' : x.back.replace(/<br>/g, ' · '), 60))}</span></div>`).join('') + (it.length > 4 ? `<small>… et ${it.length - 4} autres</small>` : ''); };
+        $('#tc-mode', m).addEventListener('click', e => { const x = e.target.closest('[data-m]'); if (!x) return; mode = x.dataset.m; $$('#tc-mode button', m).forEach(bb => bb.classList.toggle('active', bb === x)); $('#tc-qa', m).classList.toggle('hidden', mode === 'hole'); $('#tc-holeinfo', m).classList.toggle('hidden', mode !== 'hole'); upd(); });
+        m.addEventListener('change', upd); upd();
         $('#tc-go', m).addEventListener('click', () => {
-            const ps = pairs(); if (!ps.length) { this.toast('Rien à créer : remplis des lignes dans les deux colonnes.', 'warning'); return; }
-            const deckId = this.nbDeckFor(n), both = $('#tc-both', m).checked, ids = [];
-            this.change('cartes depuis un tableau', [], () => { ps.forEach(([q, a]) => { (this.createNote({ type: both ? 'rev' : 'basic', deckId, front: this.nbH(q), back: this.nbH(a), hint: '', detail: '', tags: [] }) || []).forEach(id => { const c = this.card(id); c.src = { n: n.id, b: b.id }; ids.push(id); }); }); return ids; });
+            const it = items(); if (!it.length) { this.toast('Rien à créer : remplis des lignes dans les colonnes choisies.', 'warning'); return; }
+            const deckId = this.nbDeckFor(n), ids = [];
+            this.change('cartes depuis un tableau', [], () => { it.forEach(x => { const f = x.kind === 'cloze' ? { type: 'cloze', deckId, front: this.nbH(x.text), back: '', hint: '', detail: '', tags: [] } : { type: x.kind, deckId, front: this.nbH(x.front), back: x.back.split('<br>').map(l => this.nbH(l)).join('<br>'), hint: '', detail: '', tags: [] }; (this.createNote(f) || []).forEach(id => { const c = this.card(id); c.src = { n: n.id, b: b.id }; ids.push(id); }); }); return ids; });
             this.closeModal(m); this.undoToast(`${plural(ids.length, 'carte créée', 'cartes créées')} depuis le tableau`, ic('card'));
         });
     }

@@ -443,7 +443,7 @@ Object.assign(SuperAnki.prototype, {
             'pdf-read': () => this.pdfReadMenu(),
             'pdf-notes': () => this.pdfToggleNotes(),
             'pdf-focus': () => this.pdfFocus(),
-            'pdf-more': () => this.pdfMoreMenu(el), 'pdf-study': () => this.stPanel(),
+            'pdf-more': () => this.pdfMoreMenu(el), 'pdf-study': () => this.stPanel(), 'pdf-colorpick': () => { const k = el.dataset.k; this.colorPicker({ anchor: el, title: 'Couleur', cur: ((this.pdfOpts() || {})[k] || ''), onPick: c => { if (c) this.pdfOptSet(k, c); } }); },
             'pdf-train': () => this.pdfTrainMenu(el),
             'pdf-annotate': () => { pv.annotate = !pv.annotate; if (pv.annotate && pv.tool === 'hand') pv.tool = 'select'; if (!pv.annotate) pv.tool = 'hand'; this.pdfRefreshTools(); },
             'pdf-note-open': () => { const n = this.pdfNoteOf(pv.p); this.pdfFlushNotes(); this.noteOpen(n.id, { push: false }); },
