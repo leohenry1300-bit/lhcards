@@ -54,3 +54,4 @@ L'utilisateur est un étudiant (pas un développeur). **Il veut qu'on lui pose d
 - Barre du bas fixe sur téléphone ; pas de bouton « synchroniser » en haut.
 
 - **Barre du bas collée (demande de l'utilisateur, « PLUS JAMAIS décollée »)** : `src/tab-warm.js` mesure la barre contre le bord réellement visible (`visualViewport`) à chaque défilement/fin de toucher et la remet en bas si iOS la décolle ; plus de `translateZ` sur la barre. Accueil : « Corbeille » et « Gérer » sont **sur la même ligne que « Tes paquets »**.
+- **Bug corrigé (notes bloquées)** : un clic sur une ligne de note plantait (`k.classList` sur null, ajouté avec les minutes ⏱) avant d'activer la ligne : plus rien ne s'écrivait. Toujours protéger `k` dans le gestionnaire de clic de `notes.js`.
