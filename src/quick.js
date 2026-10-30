@@ -6,7 +6,7 @@ Object.assign(SuperAnki.prototype, {
         const f = fold(q.trim()), out = [], d = this.data, snip = (t, n) => { const k = fold(t).indexOf(f); return k < 0 ? truncate(t, 70) : (k > 25 ? '…' : '') + t.slice(Math.max(0, k - 25), k + n + 45); };
         const act = [
             ['Nouvelle note', 'plus', () => this.noteNewFrom(null, {})], ['Note du jour', 'calendar', () => this.noteDaily()], ['Corbeille', 'trash', () => this.openTrash()], ['Importer un PDF', 'pdf', () => { this.go('notes'); this.pdfPick(''); }],
-            ['Réviser maintenant', 'play', () => this.startStudy(null)], ['Mes paquets', 'layers', () => this.go('decks')], ['Statistiques', 'chart', () => this.go('stats')], ['Profil et réglages', 'settings', () => this.go('settings')]
+            ['Assistant IA de mes cours', 'sparkle', () => this.aiAssistant()], ['Examen blanc sur mesure (IA)', 'quiz', () => this.aiMockExam()], ['Réviser maintenant', 'play', () => this.startStudy(null)], ['Mes paquets', 'layers', () => this.go('decks')], ['Statistiques', 'chart', () => this.go('stats')], ['Profil et réglages', 'settings', () => this.go('settings')]
         ];
         if (!f) {
             const rec = [...d.notes.filter(n => !this.pdfOfNote(n.id)).map(n => ({ k: 'note', id: n.id, mod: n.mod || n.created })), ...d.pdfs.map(p => ({ k: 'pdf', id: p.id, mod: p.mod || p.created }))].sort((a, b) => b.mod - a.mod).slice(0, 6);

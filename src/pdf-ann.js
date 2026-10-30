@@ -422,6 +422,7 @@ Object.assign(SuperAnki.prototype, {
             { icon: 'note', label: 'Extraire mes annotations dans la note', fn: () => this.pdfExtract() },
             { icon: pv.mode === 'text' ? 'file' : 'typeT', label: pv.mode === 'text' ? 'Revenir au PDF fidèle' : 'Lecteur de texte (réaffiche le texte)', fn: () => this.pdfAction('pdf-mode', anchor) },
             { icon: 'sparkle', label: 'Cartes avec l\'IA…', fn: () => this.aiPdfCards() },
+            { icon: 'sparkle', label: 'Image à masquer par IA (cette page)…', fn: () => this.aiOcclude() },
             { icon: 'sparkle', label: 'Quiz avec l\'IA…', fn: () => this.aiPdfQuiz() },
             { icon: 'sparkle', label: 'Lire ce PDF avec l\'IA (scanné)…', fn: () => this.aiOcr() },
             { icon: 'sparkle', label: 'Résumé avec l\'IA…', fn: () => this.aiSummary() },

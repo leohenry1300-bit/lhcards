@@ -260,7 +260,8 @@ Object.assign(SuperAnki.prototype, {
     /* bytes for the files the app does not need any more are dropped (never a PDF that is still in the app or in the trash) */
     async pdfGc() {
         try {
-            const keep = new Set([...this.data.pdfs.map(p => p.hash), ...this.data.trash.filter(t => t.k === 'pdf').map(t => t.c.hash)]);
+            const fids = n => (n && n.b ? n.b.filter(b => b.t === 'file').map(b => b.fid) : []);   // files joined to notes (notes-media.js) live in the same store
+            const keep = new Set([...this.data.pdfs.map(p => p.hash), ...this.data.trash.filter(t => t.k === 'pdf').map(t => t.c.hash), ...this.data.notes.flatMap(fids), ...this.data.trash.filter(t => t.k === 'note').flatMap(t => fids(t.c))]);
             for (const k of await PdfStore.keys()) if (!keep.has(k)) await PdfStore.del(k);
         } catch { /* ignore */ }
     },

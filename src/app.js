@@ -47,6 +47,7 @@ const ICONS = {
     code: '<path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/>',
     quote: '<path d="M7 7h4v4c0 3-1 5-4 6M15 7h4v4c0 3-1 5-4 6"/>',
     sigma: '<path d="M18 7V5H6l6 7-6 7h12v-2"/>',
+    globe: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/>',
     chevronUp: '<path d="m18 15-6-6-6 6"/>',
     arrowLeft: '<path d="m12 19-7-7 7-7M19 12H5"/>',
     file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h8"/>',
@@ -2872,6 +2873,7 @@ class SuperAnki {
             ? `<div class="type-result ${typed.verdict}">
                     <div class="verdict">${typed.verdict === 'ok' ? `${ic('check')} Correct !` : typed.verdict === 'close' ? `${ic('info')} Presque !` : `${ic('x')} Pas tout à fait`}</div>
                     <div class="muted small">Ta réponse : <b>${esc(typed.text) || '<i>(vide)</i>'}</b></div>
+                    ${typed.ai ? `<div class="type-ai">✨ ${esc(typed.ai)} <span class="faint">(généré par IA)</span></div>` : this.aiReady() && typed.text !== undefined ? `<button class="btn btn-soft btn-sm" style="margin-top:8px" data-action="ai-grade" ${typed.aiBusy ? 'disabled' : ''}>${ic('sparkle')}${typed.aiBusy ? 'L\'IA corrige…' : 'Faire corriger par l\'IA'}</button>` : ''}
                </div>`
             : `<div class="type-box">
                     <textarea class="textarea" id="type-answer" rows="2" style="min-height:64px" placeholder="Tape ta réponse puis Entrée…" data-input="type-answer"></textarea>

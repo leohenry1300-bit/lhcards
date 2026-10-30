@@ -209,6 +209,7 @@ Object.assign(SuperAnki.prototype, {
         try { const pg = await pv.doc.getPage(n), tc = await pg.getTextContent(); pv.texts[n] = tc.items.map(i => i.str + (i.hasEOL ? '\n' : '')).join(' ').replace(/[ \t]+/g, ' ').trim(); pv.items = pv.items || {}; pv.items[n] = tc.items.filter(i => i.str && i.str.trim()).map(i => ({ s: i.str, x: i.transform[4], y: i.transform[5], h: Math.abs(i.transform[3]) || i.height || 10, w: i.width })); pv.pw = pv.pw || {}; pv.pw[n] = pg.view; }
         catch { pv.texts[n] = ''; }
         if (!pv.texts[n] && pv.p.ocr && pv.p.ocr[n]) pv.texts[n] = pv.p.ocr[n];
+        if (pv.texts[n] && this.aiTextNote) this.aiTextNote(pv.p.hash, n, pv.texts[n]);
         return pv.texts[n];
     },
     pdfSearchPanel() {

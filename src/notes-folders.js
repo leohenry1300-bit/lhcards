@@ -143,6 +143,7 @@ Object.assign(SuperAnki.prototype, {
         const ui = this.ui, due = this.nbDueAll();
         return `<button class="icon-btn nb-hbtn ${ui.nbMem ? 'on' : ''}" data-action="nb-mem" title="Cartes mémoire${due ? ` (${due} à revoir)` : ''}" aria-label="Cartes mémoire">${ic('copy')}${due ? `<i class="nb-pill-badge">${due > 99 ? '99+' : due}</i>` : ''}</button>
             <button class="icon-btn nb-hbtn ${ui.nbFolder === NB_ROOT ? 'on' : ''}" data-action="nb-docs" title="Dossiers" aria-label="Dossiers">${ic('folder')}</button>
+            <button class="icon-btn nb-hbtn" data-action="ai-assist" title="Assistant IA de mes cours" aria-label="Assistant IA">${ic('sparkle')}</button>
             <button class="icon-btn nb-hbtn" data-action="tool-trash" title="Corbeille (gardée 30 jours)" aria-label="Corbeille">${ic('trash')}</button>`;
     },
     nbMainHtml(n) {

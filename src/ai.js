@@ -9,57 +9,79 @@
 const AI_PROVIDERS = {
     anthropic: { name: 'Claude (Anthropic)', short: 'Claude', model: 'claude-haiku-5-5', site: 'console.anthropic.com' },
     openai: { name: 'OpenAI', short: 'OpenAI', model: 'gpt-4o-mini', site: 'platform.openai.com' },
-    gemini: { name: 'Google Gemini', short: 'Gemini', model: 'gemini-2.5-flash', site: 'aistudio.google.com' }
+    gemini: { name: 'Google Gemini', short: 'Gemini', model: 'gemini-2.5-flash', site: 'aistudio.google.com' },
+    custom: { name: 'Compatible OpenAI (Groq, OpenRouter, Ollama…)', short: 'Perso', model: '', site: 'groq.com, openrouter.ai, ou ollama.com pour une IA sur ton ordinateur', custom: true }
 };
 const AI_CHUNK = 12000;       // characters per request
 const AI_MAX_CHARS = 60000;   // above this the text is cut (and the user is told)
 const AI_TAG = 'généré-par-ia';
 const AiStore = {
-    get() { try { const o = JSON.parse(localStorage.getItem('lh_ai') || '{}') || {}; return { provider: AI_PROVIDERS[o.provider] ? o.provider : 'anthropic', keys: o.keys || {}, models: o.models || {} }; } catch { return { provider: 'anthropic', keys: {}, models: {} }; } },
+    get() { try { const o = JSON.parse(localStorage.getItem('lh_ai') || '{}') || {}; return { provider: AI_PROVIDERS[o.provider] ? o.provider : 'anthropic', keys: o.keys || {}, models: o.models || {}, urls: o.urls || {} }; } catch { return { provider: 'anthropic', keys: {}, models: {}, urls: {} }; } },
     set(o) { try { localStorage.setItem('lh_ai', JSON.stringify(o)); } catch { /* storage blocked */ } }
 };
 class AiError extends Error { constructor(msg) { super(msg); this.ai = true; } }
 
 Object.assign(SuperAnki.prototype, {
-    aiCfg() { const s = AiStore.get(), p = s.provider; return { provider: p, name: AI_PROVIDERS[p].short, key: String(s.keys[p] || '').trim(), model: String(s.models[p] || '').trim() || AI_PROVIDERS[p].model }; },
-    aiReady() { return !!this.aiCfg().key; },
-    /* one request to the chosen provider; returns the text. Errors are AiError with a clear French message. */
-    async aiCall({ system = '', prompt, maxTokens = 3000, signal, web = false, images = [] }) {
-        this.aiLinks = [];
-        const c = this.aiCfg();
-        if (!c.key) throw new AiError('Aucune clé IA : ajoute-la dans Profil › Intelligence artificielle.');
-        if (!navigator.onLine) throw new AiError('Pas de connexion : l\'IA a besoin d\'internet.');
+    aiCfg() { const s = AiStore.get(), p = s.provider; return { provider: p, name: AI_PROVIDERS[p].short, key: String(s.keys[p] || '').trim(), model: String(s.models[p] || '').trim() || AI_PROVIDERS[p].model, url: String((s.urls || {})[p] || '').trim().replace(/\/+$/, '') }; },
+    aiReady() { const c = this.aiCfg(); return c.provider === 'custom' ? !!(c.url && c.model) : !!c.key; },
+    aiVision() { return true; },
+    /* what each provider wants : url, headers, body (several messages, images on the last one, optional streaming) */
+    aiBuild(c, { system = '', messages, maxTokens = 3000, web = false, images = [], stream = false }) {
+        const msgs = messages.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content) })), last = msgs.length - 1;
         let url, headers = { 'content-type': 'application/json' }, body;
         if (c.provider === 'anthropic') {
             url = 'https://api.anthropic.com/v1/messages';
             Object.assign(headers, { 'x-api-key': c.key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' });
-            body = { model: c.model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: images.length ? [...images.map(u => ({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: u.split(',')[1] } })), { type: 'text', text: prompt }] : prompt }] };
+            body = { model: c.model, max_tokens: maxTokens, system, messages: msgs.map((m, k) => ({ role: m.role, content: k === last && images.length ? [...images.map(u => ({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: u.split(',')[1] } })), { type: 'text', text: m.content }] : m.content })) };
             if (web) body.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }];
-        } else if (c.provider === 'openai') {
-            url = 'https://api.openai.com/v1/chat/completions';
-            headers.authorization = `Bearer ${c.key}`;
-            body = { model: c.model, max_tokens: maxTokens, messages: [...(system ? [{ role: 'system', content: system }] : []), { role: 'user', content: images.length ? [{ type: 'text', text: prompt }, ...images.map(u => ({ type: 'image_url', image_url: { url: u } }))] : prompt }] };
+            if (stream) body.stream = true;
+        } else if (c.provider === 'openai' || c.provider === 'custom') {
+            url = (c.provider === 'custom' ? c.url : 'https://api.openai.com/v1') + '/chat/completions';
+            if (c.key) headers.authorization = `Bearer ${c.key}`;
+            body = { model: c.model, max_tokens: maxTokens, messages: [...(system ? [{ role: 'system', content: system }] : []), ...msgs.map((m, k) => ({ role: m.role, content: k === last && images.length ? [{ type: 'text', text: m.content }, ...images.map(u => ({ type: 'image_url', image_url: { url: u } }))] : m.content }))] };
+            if (stream) body.stream = true;
         } else {
-            url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(c.model)}:generateContent`;
+            url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(c.model)}:${stream ? 'streamGenerateContent?alt=sse' : 'generateContent'}`;
             headers['x-goog-api-key'] = c.key;
-            body = { ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}), contents: [{ role: 'user', parts: [...images.map(u => ({ inlineData: { mimeType: 'image/jpeg', data: u.split(',')[1] } })), { text: prompt }] }], generationConfig: { maxOutputTokens: maxTokens }, ...(web ? { tools: [{ google_search: {} }] } : {}) };
+            body = { ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}), contents: msgs.map((m, k) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [...(k === last ? images.map(u => ({ inlineData: { mimeType: 'image/jpeg', data: u.split(',')[1] } })) : []), { text: m.content }] })), generationConfig: { maxOutputTokens: maxTokens }, ...(web ? { tools: [{ google_search: {} }] } : {}) };
         }
+        return { url, headers, body };
+    },
+    aiHttpError(c, st, j) {
+        const detail = j && ((j.error && (j.error.message || j.error)) || j.message) || '';
+        if (st === 401 || st === 403) return new AiError(`${c.name} refuse la clé. Vérifie-la dans Profil › Intelligence artificielle.`);
+        if (st === 404) return new AiError(`Modèle « ${c.model} » introuvable chez ${c.name}. Change son nom dans les réglages IA.`);
+        if (st === 429) return new AiError(`Limite ou quota atteint chez ${c.name}. Attends un peu ou vérifie ton compte.`);
+        if (st >= 500) return new AiError(`${c.name} est indisponible pour le moment. Réessaie dans un instant.`);
+        return new AiError(`${c.name} a répondu une erreur (${st})${detail ? ` : ${String(detail).slice(0, 160)}` : '.'}`);
+    },
+    /* one request to the chosen provider; returns the text. Errors are AiError with a clear French message. */
+    async aiCall({ system = '', prompt, messages, maxTokens = 3000, signal, web = false, images = [], onDelta }) {
+        this.aiLinks = [];
+        const c = this.aiCfg();
+        if (!this.aiReady()) throw new AiError(c.provider === 'custom' ? 'Renseigne l\'adresse et le modèle dans Profil › Intelligence artificielle.' : 'Aucune clé IA : ajoute-la dans Profil › Intelligence artificielle.');
+        if (!navigator.onLine && c.provider !== 'custom') throw new AiError('Pas de connexion : l\'IA a besoin d\'internet.');
+        const stream = !!onDelta && !web, { url, headers, body } = this.aiBuild(c, { system, messages: messages || [{ role: 'user', content: prompt }], maxTokens, web, images, stream });
         let res;
         try { res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal }); }
         catch (e) {
             if (e && e.name === 'AbortError') throw new AiError('Annulé.');
-            throw new AiError(`Impossible de joindre ${c.name} (réseau coupé ou blocage du navigateur).`);
+            throw new AiError(c.provider === 'custom' ? `Impossible de joindre ${c.url} (le serveur tourne ? sur iPhone, une IA locale n'est pas joignable).` : `Impossible de joindre ${c.name} (réseau coupé ou blocage du navigateur).`);
+        }
+        if (stream && res.ok && res.body) {   // answer shown while it is written
+            const rd = res.body.getReader(), dec = new TextDecoder(); let buf = '', full = '';
+            const take = line => {
+                if (!line.startsWith('data:')) return; const d = line.slice(5).trim(); if (!d || d === '[DONE]') return; let j; try { j = JSON.parse(d); } catch { return; }
+                const piece = c.provider === 'anthropic' ? (j.type === 'content_block_delta' && j.delta && j.delta.text) || '' : c.provider === 'gemini' ? (((j.candidates || [])[0] || {}).content || { parts: [] }).parts.map(x => x.text || '').join('') : ((j.choices || [])[0] || {}).delta && (((j.choices || [])[0] || {}).delta.content || '');
+                if (piece) { full += piece; onDelta(piece, full); }
+            };
+            try { for (;;) { const { done, value } = await rd.read(); if (done) break; buf += dec.decode(value, { stream: true }); let k; while ((k = buf.indexOf('\n')) >= 0) { take(buf.slice(0, k).trim()); buf = buf.slice(k + 1); } } take(buf.trim()); }
+            catch (e) { if (e && e.name === 'AbortError') throw new AiError('Annulé.'); if (!full) throw new AiError('La réponse a été coupée. Réessaie.'); }
+            if (!full.trim()) throw new AiError(`${c.name} n'a rien répondu. Réessaie.`);
+            return full;
         }
         let j = null; try { j = await res.json(); } catch { /* not json */ }
-        if (!res.ok) {
-            const detail = j && ((j.error && (j.error.message || j.error)) || j.message) || '';
-            const st = res.status;
-            if (st === 401 || st === 403) throw new AiError(`${c.name} refuse la clé. Vérifie-la dans Profil › Intelligence artificielle.`);
-            if (st === 404) throw new AiError(`Modèle « ${c.model} » introuvable chez ${c.name}. Change son nom dans les réglages IA.`);
-            if (st === 429) throw new AiError(`Limite ou quota atteint chez ${c.name}. Attends un peu ou vérifie ton compte.`);
-            if (st >= 500) throw new AiError(`${c.name} est indisponible pour le moment. Réessaie dans un instant.`);
-            throw new AiError(`${c.name} a répondu une erreur (${st})${detail ? ` : ${String(detail).slice(0, 160)}` : '.'}`);
-        }
+        if (!res.ok) throw this.aiHttpError(c, res.status, j);
         let text = '';
         const links = [], addLink = (u, t) => { if (/^https?:\/\//i.test(u || '') && !links.some(l => l.url === u) && links.length < 6) links.push({ url: u, title: String(t || u).slice(0, 90) }); };
         if (c.provider === 'anthropic') {
@@ -67,7 +89,7 @@ Object.assign(SuperAnki.prototype, {
             text = blocks.map(x => x.type === 'text' || x.text ? x.text || '' : '').join('');
             blocks.forEach(x => { (x.citations || []).forEach(q => addLink(q.url, q.title)); if (x.type === 'web_search_tool_result' && Array.isArray(x.content)) x.content.forEach(q => addLink(q.url, q.title)); });
         }
-        else if (c.provider === 'openai') text = (j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '';
+        else if (c.provider === 'openai' || c.provider === 'custom') text = (j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '';
         else {
             const cand = j && j.candidates && j.candidates[0];
             text = ((cand && cand.content && cand.content.parts) || []).map(x => x.text || '').join('');
@@ -75,6 +97,7 @@ Object.assign(SuperAnki.prototype, {
         }
         this.aiLinks = web ? links : [];
         if (!String(text).trim()) throw new AiError(`${c.name} n'a rien répondu. Réessaie.`);
+        if (onDelta) onDelta(String(text), String(text));
         return String(text);
     },
     /* The only way anything leaves the device: a window that shows what will be sent, waits for « Envoyer », then runs
@@ -85,7 +108,7 @@ Object.assign(SuperAnki.prototype, {
             const m = this.openModal({
                 title: `${ic('sparkle')} ${esc(title)}`, size: 'narrow',
                 body: `<p style="margin:0 0 10px">Ce texte va être envoyé à <b>${esc(c.name)}</b> (modèle ${esc(c.model)}) avec ta clé :</p>
-                    <div class="info-grid"><div><span>${esc(what)}</span><b>${asImages ? plural(pages, 'page') + ' envoyées comme images' : (pages ? plural(pages, 'page') + ' · ' : '') + plural(chars, 'caractère')}</b></div>${jobs.length > 1 ? `<div><span>Envois</span><b>${jobs.length}</b></div>` : ''}</div>
+                    <div class="info-grid"><div><span>${esc(what)}</span><b>${asImages ? plural(pages, 'page') + ' envoyées comme images' : (pages ? plural(pages, 'page') + ' · ' : '') + plural(chars, 'caractère') + ` (≈ ${Math.round(chars / 4).toLocaleString('fr-FR')} jetons)`}</b></div>${jobs.length > 1 ? `<div><span>Envois</span><b>${jobs.length}</b></div>` : ''}</div>
                     ${preview ? `<details style="margin-top:10px"><summary class="small">Voir le début du texte envoyé</summary><pre class="ai-prev">${esc(preview.slice(0, 600))}${preview.length > 600 ? '…' : ''}</pre></details>` : ''}
                     ${note ? `<p class="small" style="color:var(--due);margin-top:10px">${esc(note)}</p>` : ''}
                     <p class="help" id="ai-run-st" style="margin-top:10px">Rien n'est envoyé tant que tu ne touches pas « Envoyer ». Le résultat sera relu par toi avant d'être ajouté.</p>`,
@@ -126,22 +149,24 @@ Object.assign(SuperAnki.prototype, {
             <p class="small muted">Utilise ta propre clé. Elle reste <b>sur cet appareil</b> : jamais dans les exports, les sauvegardes ni la synchro. Rien n'est envoyé sans que tu voies d'abord ce qui part.</p>
             <div class="set-row"><div class="txt"><b>Fournisseur</b><span>Chaque fournisseur garde sa propre clé.</span></div>
                 <div class="segmented">${Object.entries(AI_PROVIDERS).map(([k, v]) => `<button class="${k === p ? 'active' : ''}" data-action="ai-prov" data-v="${k}">${v.short}</button>`).join('')}</div></div>
-            <div class="field"><label class="label" for="ai-key">Clé API ${esc(c.short)}</label><input class="input" id="ai-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(s.keys[p] || '')}" placeholder="Colle ta clé ici"><p class="help">Elle se crée sur ${esc(c.site)}. Une clé dans un navigateur n'est jamais totalement secrète : utilise une clé avec une limite de dépense.</p></div>
+            ${c.custom ? `<div class="field"><label class="label" for="ai-url">Adresse de l'API</label><input class="input" id="ai-url" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc((s.urls || {})[p] || '')}" placeholder="https://api.groq.com/openai/v1"><p class="help">Groq, OpenRouter, Together… ou <b>Ollama / LM Studio sur ton ordinateur</b> (http://localhost:11434/v1) : aucune donnée ne sort de ta machine. Ne marche pas sur iPhone pour une IA locale.</p></div>` : ''}
+            <div class="field"><label class="label" for="ai-key">Clé API ${esc(c.short)}${c.custom ? ' <span class="faint">(vide si IA locale)</span>' : ''}</label><input class="input" id="ai-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(s.keys[p] || '')}" placeholder="Colle ta clé ici"><p class="help">Elle se crée sur ${esc(c.site)}. Une clé dans un navigateur n'est jamais totalement secrète : utilise une clé avec une limite de dépense.</p></div>
             <div class="field"><label class="label" for="ai-model">Modèle</label><input class="input" id="ai-model" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(s.models[p] || '')}" placeholder="${esc(c.model)}"><p class="help">Laisse vide pour le modèle conseillé (${esc(c.model)}).</p></div>
             <div class="row-gap"><button class="btn btn-soft btn-sm" data-action="ai-test">${ic('check')}Tester la clé</button><button class="btn btn-soft btn-sm" data-action="ai-clear">${ic('trash')}Effacer la clé</button></div>
             <p class="help" id="ai-st" style="margin-top:8px"></p>
+            <div class="row-gap" style="margin:8px 0"><button class="btn btn-primary btn-sm" data-action="ai-assist">${ic('sparkle')}Assistant de mes cours</button><button class="btn btn-soft btn-sm" data-action="ai-exam">${ic('quiz')}Examen blanc sur mesure</button></div>
             <p class="help">Fonctions : « Cartes avec l'IA » (dans Importer, le menu d'un PDF et celui d'une note) et « Pourquoi ? » pendant une révision.</p>
         </div>`;
     },
     aiSaveFields() {
-        const s = AiStore.get(), k = $('#ai-key'), md = $('#ai-model'); if (!k) return s;
-        s.keys[s.provider] = k.value.trim(); s.models[s.provider] = md ? md.value.trim() : '';
+        const s = AiStore.get(), k = $('#ai-key'), md = $('#ai-model'), u = $('#ai-url'); if (!k) return s;
+        s.keys[s.provider] = k.value.trim(); s.models[s.provider] = md ? md.value.trim() : ''; s.urls = s.urls || {}; if (u) s.urls[s.provider] = u.value.trim();
         AiStore.set(s); return s;
     },
     async aiTest() {
         const st = $('#ai-st'); this.aiSaveFields();
         const say = (t, bad) => { if (st) { st.style.color = bad ? 'var(--due)' : 'var(--easy)'; st.textContent = t; } };
-        if (!this.aiReady()) { say('Colle d\'abord ta clé.', true); return; }
+        if (!this.aiReady()) { say(this.aiCfg().provider === 'custom' ? 'Renseigne l\'adresse et le modèle.' : 'Colle d\'abord ta clé.', true); return; }
         say('Test en cours…');
         try { await this.aiCall({ prompt: 'Réponds uniquement par le mot OK.', maxTokens: 20 }); say(`Ça marche : ${this.aiCfg().name} répond.`); }
         catch (e) { say(e && e.ai ? e.message : 'Erreur inattendue.', true); }
@@ -164,14 +189,16 @@ Object.assign(SuperAnki.prototype, {
         return String(t || '').replace(/```[a-z]*/gi, '').split('\n').map(l => l.replace(/^\s*(?:[-*•]|\d+[.)])\s+/, '').trim())
             .filter(l => l && l !== 'NONE' && (/>>|<>/.test(l) || /\{\{[^}]+\}\}/.test(l))).map(l => l.replace(/\{\{c\d+::/g, '{{'));
     },
+    aiExistingFronts(deckId) { if (!deckId) return []; const ids = new Set(this.descendantIds(deckId)); return this.data.cards.filter(c => ids.has(c.deckId)).slice(-40).map(c => truncate(stripHtml(c.kind === 'cloze' && c.nf ? c.nf.text : c.front).replace(CLOZE_RE, '…'), 70)); },
     /* the whole flow: confirm → send → lines. `text` is the course text, `label` says where it comes from. Resolves with the lines (or null). */
-    async aiCardsFrom(text, { label = 'Texte', pages = 0, count = 20, hint = '' } = {}) {
+    async aiCardsFrom(text, { label = 'Texte', pages = 0, count = 20, hint = '', deckId = '' } = {}) {
+        const avoid = this.aiExistingFronts(deckId);
         if (!this.aiReady()) { this.aiNeedKey(); return null; }
         const { chunks, cut, chars } = this.aiChunks(text);
         if (chars < 40) { this.toast('Pas assez de texte pour créer des fiches.', 'warning'); return null; }
         const per = Math.max(3, Math.ceil(count / chunks.length));
-        const system = 'Tu crées des fiches de révision pour un étudiant. Réponds UNIQUEMENT par des lignes, une fiche par ligne, sans titre ni commentaire. Formats permis : "question >> réponse" ou une phrase avec le mot clé entre doubles accolades, par exemple "Le {{trou}} est…" (texte à trous). Règles : une seule idée par fiche, question précise, réponse courte, uniquement ce qui est dit dans le texte (n\'invente rien), même langue que le texte. Si le texte ne contient rien d\'utile à retenir, réponds exactement NONE.';
-        const jobs = chunks.map(ch => ({ system, prompt: `Crée au maximum ${per} fiches à partir de ce texte :${hint ? '\n(' + hint + ')' : ''}\n\n${ch}`, maxTokens: 2500 }));
+        const system = 'Tu crées des fiches de révision pour un étudiant. Réponds UNIQUEMENT par des lignes, une fiche par ligne, sans titre ni commentaire. Formats permis, à VARIER selon le contenu : "question >> réponse" (notions, causes, comparaisons), "terme <> définition" (paires qu\'on doit savoir dans les deux sens, vocabulaire), ou une phrase avec le mot clé entre doubles accolades, par exemple "Le {{trou}} est…" (faits, chiffres, dates, listes). Règles : une seule idée par fiche, question précise et autonome (compréhensible sans le texte), jamais de question oui/non, réponse courte, priorité à l\'essentiel qui tombe à l\'examen, uniquement ce qui est dit dans le texte (n\'invente rien), même langue que le texte. Si le texte ne contient rien d\'utile à retenir, réponds exactement NONE.';
+        const jobs = chunks.map(ch => ({ system, prompt: `Crée au maximum ${per} fiches à partir de ce texte :${hint ? '\n(' + hint + ')' : ''}${avoid.length ? `\n(Fiches qui existent déjà, ne les répète pas : ${avoid.join(' ; ')})` : ''}\n\n${ch}`, maxTokens: 2500 }));
         const out = await this.aiRun({ title: 'Cartes avec l\'IA', what: label, chars, pages, preview: chunks[0], jobs, note: cut ? `Le texte est très long : seuls les ${AI_MAX_CHARS.toLocaleString('fr-FR')} premiers caractères sont envoyés.` : '' });
         if (!out) return null;
         const lines = [...new Set(out.flatMap(o => this.aiCleanLines(o)))];
@@ -210,7 +237,7 @@ Object.assign(SuperAnki.prototype, {
         const lv = this.stLevelInfo(this.pv.p), dn = st.n || lv.cards;
         const r = await this.aiPdfRange({ title: 'Cartes avec l\'IA', range: st.range, extra: `<label class="field"><span class="label">Nombre de fiches</span><select class="select" data-v="n">${[10, 20, 40].map(v => `<option value="${v}" ${v === dn ? 'selected' : ''}>Environ ${v}</option>`).join('')}</select></label>` });
         if (!r) return;
-        const p = this.pv.p, lines = await this.aiCardsFrom(r.text, { label: `PDF « ${p.name} »`, pages: r.pages, count: Number(r.vals.n), hint: lv.cardsHint });
+        const p = this.pv.p, lines = await this.aiCardsFrom(r.text, { label: `PDF « ${p.name} »`, pages: r.pages, count: Number(r.vals.n), hint: lv.cardsHint, deckId: p.pdeck || '' });
         if (lines) this.openImportModal({ text: lines.join('\n'), ai: true, deckId: p.pdeck || '', tags: st.ch ? [`ch-${st.ch}`] : [] });
     },
     /* ---------- summary → written in the note, with [[page N]] links ---------- */
@@ -357,7 +384,7 @@ Object.assign(SuperAnki.prototype, {
     async aiNoteCards(id) {
         const n = this.note(id); if (!n) return;
         const text = n.b.map(b => this.nbPlain(b.x)).filter(Boolean).join('\n');
-        const lines = await this.aiCardsFrom(text, { label: `Note « ${n.title || 'Sans titre'} »` });
+        const lines = await this.aiCardsFrom(text, { label: `Note « ${n.title || 'Sans titre'} »`, deckId: n.deckId || '' });
         if (lines) this.openImportModal({ text: lines.join('\n'), ai: true, deckId: n.deckId || '' });
     },
     /* ---------- « Pourquoi ? » on a card ---------- */
@@ -372,7 +399,7 @@ Object.assign(SuperAnki.prototype, {
             body: `<div class="info-grid"><div><span>Envoyé à ${esc(this.aiCfg().name)}</span><b>${esc(truncate(front, 120))} → ${esc(truncate(back, 120))}</b></div></div>
                 <div id="aiw-log" style="margin-top:12px"></div><p class="help" id="aiw-st" style="margin-top:8px"></p>
                 <div class="field hidden" id="aiw-q"><label class="label" for="aiw-in">Une question sur cette fiche ?</label><div class="row-gap"><input class="input" id="aiw-in" style="flex:1" placeholder="Ex : Donne-moi un exemple" autocomplete="off"><button class="btn btn-soft" id="aiw-ask">Demander</button></div></div>`,
-            foot: `<button class="btn btn-soft" data-close>Fermer</button><button class="btn btn-soft hidden" id="aiw-detail">Plus de détail</button><button class="btn btn-soft hidden" id="aiw-save">${ic('plus')}Garder dans la carte</button><button class="btn btn-primary" id="aiw-go">${ic('sparkle')}Expliquer</button>` });
+            foot: `<button class="btn btn-soft" data-close>Fermer</button><button class="btn btn-soft hidden" id="aiw-detail">Plus de détail</button><button class="btn btn-soft hidden" id="aiw-mnemo">Mnémotechnique</button><button class="btn btn-soft hidden" id="aiw-better">Améliorer la carte</button><button class="btn btn-soft hidden" id="aiw-save">${ic('plus')}Garder dans la carte</button><button class="btn btn-primary" id="aiw-go">${ic('sparkle')}Expliquer</button>` });
         const st = $('#aiw-st', m), logEl = $('#aiw-log', m);
         let ctl = null, busy = false;
         const paint = () => { logEl.innerHTML = log.map(([q, a]) => `${q ? `<div class="ai-q">${esc(q)}</div>` : ''}<div class="ai-a">${esc(a).replace(/\n/g, '<br>')}</div>`).join('') + (log.length ? '<div class="ai-tag">✨ Généré par IA, à vérifier</div>' : ''); };
@@ -383,12 +410,14 @@ Object.assign(SuperAnki.prototype, {
             try {
                 const a = await this.aiCall({ system, prompt, maxTokens: 900, signal: ctl.signal });
                 log.push([q || '', a.trim()]); st.textContent = ''; paint();
-                $('#aiw-go', m).classList.add('hidden'); ['#aiw-q', '#aiw-detail', '#aiw-save'].forEach(s => $(s, m).classList.remove('hidden'));
+                $('#aiw-go', m).classList.add('hidden'); ['#aiw-q', '#aiw-detail', '#aiw-save', '#aiw-mnemo', '#aiw-better'].forEach(s => $(s, m).classList.remove('hidden'));
             } catch (e) { st.style.color = 'var(--due)'; st.textContent = e && e.ai ? e.message : 'Erreur inattendue.'; }
             busy = false; $('#aiw-go', m).disabled = false;
         };
         $('#aiw-go', m).addEventListener('click', () => ask(''));
         $('#aiw-detail', m).addEventListener('click', () => ask('', 'Explique plus en détail, étape par étape.'));
+        $('#aiw-mnemo', m).addEventListener('click', () => ask('', 'Propose une astuce mnémotechnique originale et facile à retenir pour cette carte (image mentale, acronyme ou phrase).'));
+        $('#aiw-better', m).addEventListener('click', () => this.aiImproveCard(c.id, m));
         const free = () => { const i = $('#aiw-in', m), q = i.value.trim(); if (!q) return; i.value = ''; ask(q); };
         $('#aiw-ask', m).addEventListener('click', free);
         $('#aiw-in', m).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); free(); } });
@@ -404,7 +433,10 @@ Object.assign(SuperAnki.prototype, {
         else if (action === 'ai-clear') { const s = AiStore.get(); s.keys[s.provider] = ''; AiStore.set(s); this.renderSettings(); }
         else if (action === 'ai-why') { if (this.session && this.session.current) this.aiWhy(this.session.current); }
         else if (action === 'ai-pdf') this.aiPdfCards();
+        else if (action === 'ai-grade') this.aiGradeAnswer();
+        else if (action === 'ai-assist') this.aiAssistant();
+        else if (action === 'ai-exam') this.aiMockExam();
         else if (action === 'ai-chat') this.aiChat();
     }
 });
-document.addEventListener('change', e => { if (e.target && (e.target.id === 'ai-key' || e.target.id === 'ai-model') && window.app && app.aiSaveFields) app.aiSaveFields(); });
+document.addEventListener('change', e => { if (e.target && (e.target.id === 'ai-key' || e.target.id === 'ai-model' || e.target.id === 'ai-url') && window.app && app.aiSaveFields) app.aiSaveFields(); });

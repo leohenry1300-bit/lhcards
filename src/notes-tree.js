@@ -312,6 +312,7 @@ Object.assign(SuperAnki.prototype, {
         this.showMenu(anchor, [
             { icon: 'plus', label: 'Note vide', fn: () => this.noteNewFrom(null, ctx) },
             { icon: 'pdf', label: 'Importer un PDF…', fn: () => this.pdfPick(ctx.deckId || '') },
+            { icon: 'file', label: 'Importer un document (Word, PowerPoint, Excel, texte)…', fn: () => { const n = this.noteNew('Document', {}); this.go('notes'); this.noteOpen(n.id); setTimeout(() => this.nbFilePick(0, true), 200); } },
             { sep: true },
             ...NB_TEMPLATES.map(t => ({ icon: 'file', label: `${t.emoji} ${t.name}`, fn: () => this.noteNewFrom(t, ctx) })),
             { sep: true },

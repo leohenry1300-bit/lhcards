@@ -1679,6 +1679,91 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         ok('Notes: selection bar + one-tap underline, colour picker (swatches/wheel/eyedropper), new blocks, "/" menu, image picker (3 tabs, web search), table cell format/move/hole cards, collapsible bar', nt.bar && nt.under && nt.picker && nt.color && nt.blocks && nt.slash && nt.slashDone && nt.imgTabs && nt.imgFound && nt.imgIns && nt.cell && nt.moved && nt.holes && nt.holeMade && nt.min && nt.back, JSON.stringify(nt));
     }
 
+
+    {   /* IA avancée + médias : assistant (RAG local, streaming), examen blanc, correction de réponse, outils sur sélection, écrire, carte améliorée, occlusion IA, IA locale ; vidéo, fichiers, import Word */
+        const sse = txt => 'event: content_block_delta\ndata: ' + JSON.stringify({ type: 'content_block_delta', delta: { type: 'text_delta', text: txt.slice(0, Math.ceil(txt.length / 2)) } }) + '\n\nevent: content_block_delta\ndata: ' + JSON.stringify({ type: 'content_block_delta', delta: { type: 'text_delta', text: txt.slice(Math.ceil(txt.length / 2)) } }) + '\n\n';
+        let seenCtx = '';
+        await page.route('https://api.anthropic.com/**', r => {
+            const body = r.request().postData() || '', ok = t => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ content: [{ type: 'text', text: t }] }) });
+            if (/EXTRAITS DE MES COURS/.test(body)) { seenCtx = body; r.fulfill({ status: 200, contentType: 'text/event-stream', body: sse('Paris est la capitale de la France [S1].') }); }
+            else if (/Tu prépares un examen blanc/.test(body)) ok('OUVERTE | Quelle est la capitale de la France ? | Paris\nOUVERTE | Qui a écrit Les Misérables ? | Victor Hugo\n### QCM\nQuelle est la capitale de l\'Italie ?\na) Rome *\nb) Milan\nc) Turin\nd) Pise\n=> Rome');
+            else if (/Tu corriges un examen/.test(body)) ok('1 | 9 | Bien\n2 | 2 | Il manque Hugo');
+            else if (/Tu corriges la réponse d'un étudiant/.test(body)) ok('bien | Correct, tu as la bonne idée.');
+            else if (/Corrige l'orthographe/.test(body)) ok('Bonjour le monde corrigé');
+            else if (/Tu écris des notes de cours/.test(body)) ok('## Porter\n- Menace des entrants\n- Pouvoir des clients');
+            else if (/Tu améliores une carte/.test(body)) ok('Q: Quelle est la capitale de la France ?\nR: Paris');
+            else if (/image à masquer|Tu prépares des cartes "image à masquer"/.test(body)) ok('[{"t":"Moteur","x":10,"y":10,"w":20,"h":8},{"t":"Roue","x":50,"y":40,"w":15,"h":10}]');
+            else r.fallback();
+        });
+        await page.route('http://localhost:11434/**', r => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ choices: [{ message: { content: 'réponse locale' } }] }) }));
+        const adv = await page.evaluate(async () => {
+            const out = {}, a = app, w = ms => new Promise(r => setTimeout(r, ms));
+            localStorage.setItem('lh_ai', JSON.stringify({ provider: 'anthropic', keys: { anthropic: 'sk-x' }, models: {}, urls: {} }));
+            a.go('notes'); await w(300); const n = a.noteNew('Géographie', {}); n.b = [{ t: 'p', x: 'Paris est la capitale de la France et se situe sur la Seine.', d: 0 }, { t: 'p', x: 'Bonjour le mond', d: 0 }]; a.noteOpen(n.id); await w(500);
+            const top = () => [...document.querySelectorAll('.modal')].pop();
+            // assistant : question → passages trouvés → réponse en direct avec source cliquable
+            a.aiAssistant(); await w(500); document.getElementById('ast-in').value = 'Quelle est la capitale de la France ?'; document.getElementById('ast-go').click(); await w(700);
+            if (document.getElementById('aic-ok')) { document.getElementById('aic-ok').click(); await w(1200); }
+            out.answer = /capitale de la France/.test(document.getElementById('ast-log').textContent) && !!document.querySelector('#ast-log .ai-src') && !!document.querySelector('#ast-log .ai-srcl');
+            document.querySelector('#ast-modes [data-md=soc]').click(); out.soc = !document.getElementById('ast-giveup').classList.contains('hidden') || true;
+            document.querySelectorAll('.modal [data-close]').forEach(b => b.click()); await w(200);
+            // examen blanc
+            const d = a.data.decks[0]; a.createNote({ type: 'basic', deckId: d.id, front: 'Capitale de la France ?', back: 'Paris', hint: '', detail: '', tags: [] }); a.createNote({ type: 'basic', deckId: d.id, front: 'Auteur des Misérables ?', back: 'Hugo', hint: '', detail: '', tags: [] }); a.createNote({ type: 'basic', deckId: d.id, front: 'Capitale de l\'Italie ?', back: 'Rome', hint: '', detail: '', tags: [] });
+            a.aiMockExam(); await w(300); document.getElementById('mx-go').click(); await w(500); document.getElementById('ai-send').click(); await w(1200);
+            out.exam = document.querySelectorAll('[data-mx]').length === 2 && !!document.getElementById('mx-qcm');
+            document.querySelector('[data-mx="0"]').value = 'Paris'; document.getElementById('mx-corr').click(); await w(500); document.getElementById('ai-send').click(); await w(1200);
+            out.corr = /11 \/ 20/.test(document.getElementById('mx-res').textContent) && !!document.getElementById('mx-cards');
+            document.querySelectorAll('.modal [data-close]').forEach(b => b.click()); await w(200);
+            // correction d'une réponse écrite
+            const c0 = a.data.cards.find(c => c.back === 'Paris' || /Paris/.test(c.back)); a.startPractice(null, 'type', 5, 'Test IA', [c0.id]); await w(500);
+            const ta = document.getElementById('type-answer'); ta.value = 'Paris'; a.submitTyped(); await w(300);
+            document.querySelector('[data-action="ai-grade"]').click(); await w(500); if (document.getElementById('aic-ok')) { document.getElementById('aic-ok').click(); await w(1000); }
+            out.grade = a.session && a.session.typed && a.session.typed.suggest === 3 && /bonne idée/.test(document.querySelector('.type-ai') ? document.querySelector('.type-ai').textContent : '');
+            a.quitSession ? a.quitSession() : a.go('dashboard'); await w(300);
+            // outils sur sélection : corriger
+            a.go('notes'); await w(300); a.noteOpen(n.id); await w(500); a.nbActivate(1, 'end');
+            const t = document.querySelector('.nb.on .nb-t'), r = document.createRange(); r.setStart(t.firstChild, 0); r.setEnd(t.firstChild, 15); const g = getSelection(); g.removeAllRanges(); g.addRange(r); await w(400);
+            document.querySelector('#nb-sel [data-sb=ai]').click(); await w(200); [...document.querySelectorAll('.nb-menu button')].find(x => /Corriger/.test(x.textContent)).click(); await w(500);
+            if (document.getElementById('aic-ok')) { document.getElementById('aic-ok').click(); await w(1000); }
+            out.sel = n.b[1].x === 'Bonjour le monde corrigé';
+            // écrire avec l'IA
+            a.aiWriteBlocks(1); await w(300); document.getElementById('aw-p').value = 'Les forces de Porter'; document.getElementById('aw-go').click(); await w(500); document.getElementById('ai-send').click(); await w(1200);
+            out.write = n.b.some(b => b.x === 'Menace des entrants') && n.b.some(b => b.t === 'h3' && b.x === 'Porter');
+            // carte améliorée
+            const c1 = a.card(a.createNote({ type: 'basic', deckId: d.id, front: 'capitale ?', back: 'Paris, France', hint: '', detail: '', tags: [] })[0]);
+            a.aiImproveCard(c1.id); await w(400); document.getElementById('ai-send').click(); await w(1000); document.getElementById('im-use').click(); await w(300);
+            out.better = /Quelle est la capitale/.test(stripHtml(a.card(c1.id).front)) && stripHtml(a.card(c1.id).back) === 'Paris';
+            // IA locale compatible OpenAI
+            localStorage.setItem('lh_ai', JSON.stringify({ provider: 'custom', keys: {}, models: { custom: 'llama3' }, urls: { custom: 'http://localhost:11434/v1' } }));
+            out.localReady = a.aiReady(); out.local = (await a.aiCall({ prompt: 'x' })) === 'réponse locale';
+            localStorage.setItem('lh_ai', JSON.stringify({ provider: 'anthropic', keys: { anthropic: 'sk-x' }, models: {}, urls: {} }));
+            return out;
+        });
+        adv.ctx = /Paris est la capitale/.test(seenCtx) && /EXTRAITS DE MES COURS/.test(seenCtx);
+        ok('IA avancée: assistant (BM25 locale + streaming + sources), examen blanc corrigé, correction de réponse écrite, outils sur sélection, écrire avec l\'IA, carte améliorée, IA locale', adv.ctx && adv.answer && adv.exam && adv.corr && adv.grade && adv.sel && adv.write && adv.better && adv.localReady && adv.local, JSON.stringify(adv));
+        const med = await page.evaluate(async () => {
+            const out = {}, a = app, w = ms => new Promise(r => setTimeout(r, ms));
+            const enc = new TextEncoder(), crc = b => { let c, t = []; for (let n = 0; n < 256; n++) { c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } let x = 0xFFFFFFFF; for (const v of b) x = t[(x ^ v) & 255] ^ (x >>> 8); return (x ^ 0xFFFFFFFF) >>> 0; };
+            const zip = files => { const parts = [], cen = []; let off = 0; for (const [nm, d] of Object.entries(files)) { const nb = enc.encode(nm), db = enc.encode(d), c = crc(db); const h = new DataView(new ArrayBuffer(30)); h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint32(14, c, true); h.setUint32(18, db.length, true); h.setUint32(22, db.length, true); h.setUint16(26, nb.length, true); parts.push(new Uint8Array(h.buffer), nb, db); const ce = new DataView(new ArrayBuffer(46)); ce.setUint32(0, 0x02014b50, true); ce.setUint16(4, 20, true); ce.setUint16(6, 20, true); ce.setUint32(16, c, true); ce.setUint32(20, db.length, true); ce.setUint32(24, db.length, true); ce.setUint16(28, nb.length, true); ce.setUint32(42, off, true); cen.push(new Uint8Array(ce.buffer), nb); off += 30 + nb.length + db.length; } const cl = cen.reduce((s2, x) => s2 + x.length, 0), e = new DataView(new ArrayBuffer(22)); e.setUint32(0, 0x06054b50, true); e.setUint16(8, Object.keys(files).length, true); e.setUint16(10, Object.keys(files).length, true); e.setUint32(12, cl, true); e.setUint32(16, off, true); return new Blob([...parts, ...cen, new Uint8Array(e.buffer)]); };
+            const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+            const docx = zip({ 'word/document.xml': `<?xml version="1.0"?><w:document ${W}><w:body><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Le marché</w:t></w:r></w:p><w:p><w:r><w:rPr><w:b/></w:rPr><w:t>Important</w:t></w:r></w:p><w:tbl><w:tr><w:tc><w:p><w:r><w:t>A</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>B</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>` });
+            a.go('notes'); await w(300); const n = a.noteNew('Médias', {}); a.noteOpen(n.id); await w(500);
+            // vidéo
+            a.nbVideoPrompt(0); await w(200); document.getElementById('vid-u').value = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=90'; document.getElementById('vid-u').dispatchEvent(new Event('input', { bubbles: true })); await w(100); document.getElementById('vid-ok').click(); await w(400);
+            const v = n.b.find(b => b.t === 'video'); out.video = !!v && v.s === 90 && !!document.querySelector('.nb-vid-box[data-id="dQw4w9WgXcQ"]');
+            document.querySelector('.nb-vid-box').click(); await w(200); out.iframe = /youtube-nocookie\.com\/embed\/dQw4w9WgXcQ.*start=90/.test((document.querySelector('.nb-vid-box iframe') || { src: '' }).src);
+            n.b.push({ t: 'p', x: 'à voir ⏱1:30', d: 0 }); a.nbRender(); await w(200); out.ts = !!document.querySelector('.nb-ts[data-ts="90"]');
+            // fichier joint + conversion Word
+            await a.nbFileAdd(0, new File([docx], 'cours.docx'), true); await w(900);
+            const nn = a.note(a.ui.note); out.conv = nn.id !== n.id && nn.title === 'Le marché' && nn.b[0].t === 'file' && nn.b.some(b => b.t === 'table') && nn.b.some(b => /\*\*Important\*\*/.test(b.x));
+            out.chip = !!document.querySelector('.nb-file') && /sur cet appareil/.test(document.querySelector('.nb-file').textContent);
+            out.blob = !!(await PdfStore.get(nn.b[0].fid));
+            await a.pdfGc(); out.gcKeeps = !!(await PdfStore.get(nn.b[0].fid));
+            return out;
+        });
+        ok('Notes: YouTube video (start time, embed, ⏱ minutes), attached files kept on the device (not garbage-collected), Word document converted to a note with its original', med.video && med.iframe && med.ts && med.conv && med.chip && med.blob && med.gcKeeps, JSON.stringify(med));
+    }
+
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));
     console.log(R.join('\n') + `\n\n${R.length - failed}/${R.length} checks passed`);
     await browser.close(); server.close(); process.exit(failed ? 1 : 0);

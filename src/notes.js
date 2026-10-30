@@ -9,13 +9,15 @@ Object.assign(ICONS, {
     grip: '<circle cx="9" cy="6" r="1.2"/><circle cx="15" cy="6" r="1.2"/><circle cx="9" cy="12" r="1.2"/><circle cx="15" cy="12" r="1.2"/><circle cx="9" cy="18" r="1.2"/><circle cx="15" cy="18" r="1.2"/>',
     notebook: '<path d="M6 3h12a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6z"/><path d="M9 3v18M12.5 8h3.5M12.5 12h3.5"/>'
 });
-const NB_TYPES = ['p', 'h1', 'h2', 'h3', 'todo', 'quote', 'hr', 'img', 'table', 'callout', 'code', 'math', 'num', 'toggle', 'toc'], NB_CARD_KINDS = ['basic', 'multi', 'list', 'mcq', 'cloze'], NB_MAX_DEPTH = 6, NB_MAX_BLOCKS = 4000;
+const NB_TYPES = ['p', 'h1', 'h2', 'h3', 'todo', 'quote', 'hr', 'img', 'table', 'callout', 'code', 'math', 'num', 'toggle', 'toc', 'video', 'file'], NB_CARD_KINDS = ['basic', 'multi', 'list', 'mcq', 'cloze'], NB_MAX_DEPTH = 6, NB_MAX_BLOCKS = 4000;
 const NB_CE = (() => { try { const d = document.createElement('div'); d.contentEditable = 'plaintext-only'; return d.contentEditable === 'plaintext-only' ? 'plaintext-only' : 'true'; } catch { return 'true'; } })();
 const NB_LINK = /\[\[([^\[\]\n]{1,160})\]\]/g;
 
 function normalizeNoteBlock(x) {
     if (!x || typeof x !== 'object') return null;
-    const t = NB_TYPES.includes(x.t) ? x.t : 'p', b = { t, x: t === 'hr' || t === 'img' || t === 'table' || t === 'toc' ? '' : String(x.x == null ? '' : x.x).replace(/\n+/g, ' ').slice(0, 4000), d: clamp(Math.round(num(x.d, 0)), 0, NB_MAX_DEPTH) };
+    const t = NB_TYPES.includes(x.t) ? x.t : 'p', b = { t, x: t === 'hr' || t === 'img' || t === 'table' || t === 'toc' || t === 'video' || t === 'file' ? '' : String(x.x == null ? '' : x.x).replace(/\n+/g, ' ').slice(0, 4000), d: clamp(Math.round(num(x.d, 0)), 0, NB_MAX_DEPTH) };
+    if (t === 'video') { b.u = String(x.u || '').slice(0, 500); if (!/^https?:\/\//i.test(b.u)) return null; b.s = Math.max(0, Math.round(num(x.s, 0))); }
+    if (t === 'file') { b.fid = String(x.fid || ''); if (!/^[a-z0-9]{4,64}$/i.test(b.fid)) return null; b.name = String(x.name || 'fichier').slice(0, 200); b.size = Math.max(0, num(x.size, 0)); b.mime = String(x.mime || '').slice(0, 100); }
     if (t === 'callout') b.k = ['info', 'tip', 'warn', 'def'].includes(x.k) ? x.k : 'info';
     if (t === 'table') { b.rows = toArray(x.rows).slice(0, 40).map(r => toArray(r).slice(0, 8).map(c => String(c == null ? '' : c).replace(/\n+/g, ' ').slice(0, 300))).filter(r => r.length); if (!b.rows.length) b.rows = [['', ''], ['', '']]; const w = Math.max(...b.rows.map(r => r.length)); b.rows.forEach(r => { while (r.length < w) r.push(''); }); b.hdr = x.hdr !== false; b.id = String(x.id || uid('b')); b.tc = nbColOk(x.tc) ? x.tc : ''; b.zebra = !!x.zebra; b.fill = {}; b.cf = {}; if (x.fill && typeof x.fill === 'object') Object.entries(x.fill).slice(0, 400).forEach(([k, v]) => { if (/^\d+,(\d+|\*)$/.test(k) && nbColOk(v)) b.fill[k] = v; }); if (x.cf && typeof x.cf === 'object') Object.entries(x.cf).slice(0, 400).forEach(([k, v]) => { if (!/^\d+,\d+$/.test(k) || !v || typeof v !== 'object') return; const o = {}; ['b', 'i', 'u', 's'].forEach(z => { if (v[z]) o[z] = true; }); if (['l', 'c', 'r'].includes(v.a)) o.a = v.a; if (/^#[0-9a-f]{6}$/i.test(v.c || '')) o.c = v.c.toLowerCase(); if (Object.keys(o).length) b.cf[k] = o; }); }
     if (x.ok) b.ok = true;
@@ -48,7 +50,7 @@ const noteText = n => n.b.map(b => b.x + (b.cd ? ' ' + b.cd.a : '') + (b.rows ? 
 const nbEmpty = () => ({ t: 'p', x: '', d: 0 });
 const NB_COLORS = [['blue', 'Bleu', '#3b82f6'], ['green', 'Vert', '#22c55e'], ['yellow', 'Jaune', '#eab308'], ['orange', 'Orange', '#f97316'], ['pink', 'Rose', '#ec4899'], ['violet', 'Violet', '#8b5cf6'], ['grey', 'Gris', '#64748b']];
 const nbColOk = v => NB_COLORS.some(c => c[0] === v) || /^#[0-9a-f]{6}$/i.test(String(v || ''));
-const nbSolid = t => t === 'hr' || t === 'img' || t === 'table' || t === 'toc';   // blocks that have no text to type in
+const nbSolid = t => t === 'hr' || t === 'img' || t === 'table' || t === 'toc' || t === 'video' || t === 'file';   // blocks that have no text to type in
 
 Object.assign(SuperAnki.prototype, {
     /* ---------- finding things ---------- */
@@ -71,7 +73,7 @@ Object.assign(SuperAnki.prototype, {
     dailyTitle(key) { const [y, m, d] = key.split('-').map(Number); const s = new Date(y, m - 1, d).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); return s.charAt(0).toUpperCase() + s.slice(1); },
     /* a little formatting kept as plain text: **gras**, *italique*, ==surligné==, `code` ; q = word to highlight while searching in the note */
     fmtHtml(h, q) {
-        h = h.replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?!\w)/g, '$1<i>$2</i>').replace(/==(?:\{([ygbp]|#[0-9a-f]{6})\})?([^=]+)==/gi, (m, c, t) => c && c[0] === '#' ? `<mark class="nb-hl" style="background:color-mix(in srgb,${c} 55%,transparent)">${t}</mark>` : `<mark class="nb-hl${c ? ' nb-hl-' + c : ''}">${t}</mark>`).replace(/(^|[^\w])__([^_]+)__(?!\w)/g, '$1<u>$2</u>').replace(/~~([^~]+)~~/g, '<s>$1</s>').replace(/(^|[^\w$])\$([^$\s](?:[^$]*[^$\s])?)\$(?![\w$])/g, (m, a, f) => `${a}<span class="nb-mth">${nbMathHtml(f)}</span>`).replace(/\{c:(#[0-9a-f]{6})\|([^{}|]*)\}/gi, '<span style="color:$1">$2</span>');
+        h = h.replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?!\w)/g, '$1<i>$2</i>').replace(/==(?:\{([ygbp]|#[0-9a-f]{6})\})?([^=]+)==/gi, (m, c, t) => c && c[0] === '#' ? `<mark class="nb-hl" style="background:color-mix(in srgb,${c} 55%,transparent)">${t}</mark>` : `<mark class="nb-hl${c ? ' nb-hl-' + c : ''}">${t}</mark>`).replace(/(^|[^\w])__([^_]+)__(?!\w)/g, '$1<u>$2</u>').replace(/⏱(\d{1,2}(?::\d{2}){1,2})/g, (m, c) => `<button class="nb-ts" data-nbk="ts" data-ts="${parseClock(c)}">⏱ ${c}</button>`).replace(/~~([^~]+)~~/g, '<s>$1</s>').replace(/(^|[^\w$])\$([^$\s](?:[^$]*[^$\s])?)\$(?![\w$])/g, (m, a, f) => `${a}<span class="nb-mth">${nbMathHtml(f)}</span>`).replace(/\{c:(#[0-9a-f]{6})\|([^{}|]*)\}/gi, '<span style="color:$1">$2</span>');
         if (q) { const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'); h = h.split(/(<[^>]*>)/).map(t => (t.startsWith('<') ? t : t.replace(re, m => `<mark class="nb-find">${m}</mark>`))).join(''); }
         return h;
     },
@@ -124,7 +126,7 @@ Object.assign(SuperAnki.prototype, {
     noteAsText(n) {
         return [`# ${this.noteName(n)}`, ...n.b.map(b => {
             const pad = '  '.repeat(b.d), x = b.x;
-            return b.t === 'h1' ? `${pad}# ${x}` : b.t === 'h2' ? `${pad}## ${x}` : b.t === 'h3' ? `${pad}### ${x}` : b.t === 'todo' ? `${pad}- [${b.done ? 'x' : ' '}] ${x}` : b.t === 'quote' ? `${pad}> ${x}` : b.t === 'hr' ? `${pad}---` : b.t === 'img' ? `${pad}[image]` : b.t === 'num' ? `${pad}1. ${x}` : b.t === 'code' ? `${pad}\`${x}\`` : b.t === 'math' ? `${pad}$$ ${x} $$` : b.t === 'callout' ? `${pad}> ${{ info: 'ℹ️', tip: '💡', warn: '⚠️', def: '📘' }[b.k] || ''} ${x}` : b.t === 'toggle' ? `${pad}- ▸ ${x}` : b.t === 'toc' ? `${pad}[sommaire]` : `${pad}- ${x}`;
+            return b.t === 'h1' ? `${pad}# ${x}` : b.t === 'h2' ? `${pad}## ${x}` : b.t === 'h3' ? `${pad}### ${x}` : b.t === 'todo' ? `${pad}- [${b.done ? 'x' : ' '}] ${x}` : b.t === 'quote' ? `${pad}> ${x}` : b.t === 'hr' ? `${pad}---` : b.t === 'img' ? `${pad}[image]` : b.t === 'num' ? `${pad}1. ${x}` : b.t === 'code' ? `${pad}\`${x}\`` : b.t === 'math' ? `${pad}$$ ${x} $$` : b.t === 'callout' ? `${pad}> ${{ info: 'ℹ️', tip: '💡', warn: '⚠️', def: '📘' }[b.k] || ''} ${x}` : b.t === 'toggle' ? `${pad}- ▸ ${x}` : b.t === 'toc' ? `${pad}[sommaire]` : b.t === 'video' ? `${pad}[vidéo] ${b.u}` : b.t === 'file' ? `${pad}[fichier] ${b.name}` : `${pad}- ${x}`;
         })].join('\n');
     },
 
@@ -176,6 +178,8 @@ Object.assign(SuperAnki.prototype, {
         else if (b.t === 'img') body = `<figure class="nb-img"><img src="${esc(b.src)}" alt=""><button class="icon-btn icon-btn-sm nb-img-x" data-nbk="imgx" aria-label="Retirer l'image">${ic('x')}</button></figure>`;
         else if (b.t === 'table') body = this.nbTableHtml(b);
         else if (b.t === 'toc') body = this.nbTocHtml(n);
+        else if (b.t === 'video') body = this.nbVideoHtml(b);
+        else if (b.t === 'file') body = this.nbFileHtml(b);
         else if (cd) body = this.nbCardLineHtml(n, i, q);
         else body = `<div class="nb-view">${b.t === 'math' ? `<span class="nb-mth">${nbMathHtml(esc(b.x)) || '<span class="faint">Formule : x^2 + \\frac{a}{b}</span>'}</span>` : this.inlineHtml(b.x, q)}</div><div class="nb-t" contenteditable="${NB_CE}" role="textbox" aria-multiline="false" spellcheck="true" autocapitalize="sentences"></div>`;
         const cls = `nb nb-${b.t} ${b.done ? 'done' : ''} ${hide[i] ? 'hid' : ''} ${cd ? 'has-card' : ''} ${owner >= 0 ? 'in-card in-' + om : ''}`;
@@ -346,10 +350,10 @@ Object.assign(SuperAnki.prototype, {
         return [['Texte simple', 'file', () => this.nbSetType(i, 'p')], ['Titre 1', 'heading', () => this.nbSetType(i, 'h1')], ['Titre 2', 'heading', () => this.nbSetType(i, 'h2')], ['Titre 3', 'heading', () => this.nbSetType(i, 'h3')],
             ['À faire (case à cocher)', 'checkSq', () => this.nbSetType(i, 'todo')], ['Liste numérotée', 'listOrdered', set('num')], ['Bascule (replie)', 'chevronRight', set('toggle')], ['Citation', 'quote', () => this.nbSetType(i, 'quote')],
             ['Encadré', 'info', set('callout')], ['Bloc de code', 'code', set('code')], ['Formule maths', 'sigma', set('math')], ['Séparateur', 'list', () => this.nbInsertAfter(i, [{ t: 'hr' }, { t: 'p', x: '' }])], ['Sommaire de la note', 'toc', () => this.nbInsertAfter(i, [{ t: 'toc' }, { t: 'p', x: '' }])],
-            ['Tableau 3×3', 'table', () => this.nbInsertAfter(i, [{ t: 'table', id: uid('b'), hdr: true, rows: [['', '', ''], ['', '', ''], ['', '', '']] }])], ['Image', 'image', () => this.nbBar('img', $('#nb-bar'))],
+            ['Tableau 3×3', 'table', () => this.nbInsertAfter(i, [{ t: 'table', id: uid('b'), hdr: true, rows: [['', '', ''], ['', '', ''], ['', '', '']] }])], ['Image', 'image', () => this.nbBar('img', $('#nb-bar'))], ['Vidéo YouTube / Vimeo', 'play', () => this.nbVideoPrompt(i)], ['Joindre un fichier', 'export', () => this.nbFilePick(i)],
             ['Carte : ligne unique', 'copy', card('basic')], ['Carte à trous', 'brackets', card('cloze')], ['Carte : liste', 'listOrdered', card('list')],
             ['Date du jour', 'calendar', () => this.nbInsertText(i, new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))], ['Heure', 'clock', () => this.nbInsertText(i, new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }))],
-            ['Lien vers une note, un PDF, une carte', 'link', () => this.nbLinkPicker()]].map(([label, ico, fn]) => ({ k: 'slash', label, ico, fn, ins: '' }));
+            ['Écrire avec l\'IA', 'sparkle', () => this.aiWriteBlocks(i)], ['Lien vers une note, un PDF, une carte', 'link', () => this.nbLinkPicker()]].map(([label, ico, fn]) => ({ k: 'slash', label, ico, fn, ins: '' }));
     },
     nbSuggestCheck(t) {
         const pos = this.nbCaret(t).s, before = t.textContent.slice(0, pos), sl = /(?:^|\s)\/([^\s/]*)$/.exec(before);
@@ -444,6 +448,11 @@ Object.assign(SuperAnki.prototype, {
             { ico: 'chevronRight', label: 'Bascule (replie ses sous-lignes)', fn: () => this.nbSetBlockType(i, 'toggle') },
             { ico: 'toc', label: 'Sommaire de la note', fn: () => this.nbInsertAfter(i, [{ t: 'toc' }, { t: 'p', x: '' }]) },
             { sep: true },
+            { ico: 'play', label: 'Vidéo (YouTube, Vimeo, mp4)…', fn: () => this.nbVideoPrompt(i) },
+            { ico: 'export', label: 'Joindre un fichier (Word, Excel, audio, vidéo…)…', fn: () => this.nbFilePick(i) },
+            { ico: 'sparkle', label: 'Écrire avec l\'IA…', fn: () => this.aiWriteBlocks(i) },
+            { ico: 'clock', label: 'Insérer une minute de vidéo (⏱)', fn: () => this.nbInsertText(i, '⏱0:00') },
+            { sep: true },
             { ico: 'calendar', label: 'Insérer la date du jour', fn: () => this.nbInsertText(i, new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })) },
             { ico: 'clock', label: 'Insérer l\'heure', fn: () => this.nbInsertText(i, new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })) },
             { ico: 'search', label: 'Rechercher / remplacer dans la note', fn: () => this.nbFindToggle() },
@@ -522,6 +531,12 @@ Object.assign(SuperAnki.prototype, {
             else if (kind === 'cprev') this.nbCardPreview(k, i);
             else if (kind === 'cvalid') this.nbCardValidate(i);
             else if (kind === 'cdel') this.nbCardDelete(i);
+            else if (kind === 'vplay') this.nbVideoPlay(k);
+            else if (kind === 'vidx') this.nbOp(nn => { nn.b.splice(i, 1); if (!nn.b.length) nn.b.push(nbEmpty()); }, null);
+            else if (kind === 'fopen') this.nbFileOpen(b);
+            else if (kind === 'fplay') this.nbFilePlay(k.closest('.nb-file'), b);
+            else if (kind === 'fconv') this.nbFileBlob(b).then(async bl => { if (!bl) { this.toast('Ce fichier n\'est pas sur cet appareil.', 'warning'); return; } await this.nbConvertFile(new File([bl], b.name, { type: b.mime }), b, await bl.arrayBuffer()); });
+            else if (k.classList && k.classList.contains('nb-ts')) { const box = [...document.querySelectorAll('#nb-blocks .nb-vid-box, #nb-blocks video')].filter(el => el.closest('.nb') && Number(el.closest('.nb').dataset.i) < i).pop() || document.querySelector('#nb-blocks .nb-vid-box, #nb-blocks video'); if (box) { if (box.tagName === 'VIDEO') { box.currentTime = Number(k.dataset.ts); box.play(); } else this.nbVideoPlay(box, Number(k.dataset.ts)); box.scrollIntoView({ block: 'center', behavior: 'smooth' }); } else this.toast('Aucune vidéo avant cette ligne.', 'warning'); }
             else if (kind === 'tmenu') this.nbTableMenu(k, i);
             else if (kind === 'trow') this.nbOp(() => { b.rows.push(b.rows[0].map(() => '')); }, null);
             else if (kind === 'tcol') { if (b.rows[0].length >= 8) this.toast('8 colonnes au maximum.', 'warning'); else this.nbOp(() => { b.rows.forEach(r => r.push('')); }, null); }
