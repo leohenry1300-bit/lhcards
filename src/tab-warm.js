@@ -26,3 +26,30 @@ Object.assign(SuperAnki.prototype, {
     }
 });
 (() => { const base = SuperAnki.prototype.go; SuperAnki.prototype.go = function (...a) { const r = base.apply(this, a); try { this.tabWarmSoon(); } catch { /* ignore */ } return r; }; })();
+// phone: the bottom bar always touches the bottom edge of what is really visible. On iPhone the "fixed" bar can come loose while scrolling (the browser bars move, the page is taller than the layout viewport) : it is measured against the visual viewport and put back when needed
+(() => {
+    const nav = document.querySelector('.bottom-nav'), vv = window.visualViewport;
+    if (!nav) return;
+    let shift = 0, queued = false;
+    const fix = () => {
+        queued = false;
+        if (getComputedStyle(nav).display === 'none') return;
+        const r = nav.getBoundingClientRect();
+        const natural = r.bottom - shift;
+        const target = Math.max(vv ? vv.offsetTop + vv.height : 0, window.innerHeight);
+        const kb = vv && window.innerHeight - vv.height > 120;   // keyboard open: leave the bar alone
+        const want = kb ? 0 : Math.round((target - natural) * 10) / 10;
+        if (Math.abs(want - shift) < 0.5) return;
+        shift = want;
+        nav.style.transform = shift ? `translate3d(0,${shift}px,0)` : '';
+    };
+    const ask = () => { if (!queued) { queued = true; requestAnimationFrame(fix); } };
+    window.addEventListener('scroll', ask, { passive: true });
+    window.addEventListener('resize', ask, { passive: true });
+    window.addEventListener('orientationchange', ask);
+    window.addEventListener('pageshow', ask);
+    document.addEventListener('visibilitychange', ask);
+    document.addEventListener('touchend', () => setTimeout(ask, 60), { passive: true });
+    if (vv) { vv.addEventListener('scroll', ask, { passive: true }); vv.addEventListener('resize', ask, { passive: true }); }
+    ask();
+})();

@@ -1340,7 +1340,7 @@ body.in-session .focus-w:not(.collapsed) { width: min(300px, calc(100vw - 24px))
 @media (max-width: 767px) {
   body { display: block; }
   .main { width: 100%; padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px)); }
-  .bottom-nav { position: fixed !important; left: 0; right: 0; bottom: 0; top: auto; margin: 0; z-index: 40; transform: translateZ(0); -webkit-transform: translateZ(0); padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)); }
+  .bottom-nav { position: fixed !important; left: 0; right: 0; bottom: 0; top: auto; margin: 0; z-index: 40; padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)); }
   body.in-session .main { padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
 }
 
@@ -3471,3 +3471,8 @@ mark.nb-hl-p{background:color-mix(in srgb,#f472b6 50%,transparent)}
 .aio-list{display:grid;gap:4px;margin-top:8px;max-height:20vh;overflow:auto}
 .nb-sel.busy{opacity:.55;pointer-events:none}
 .type-ai{margin-top:8px;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--primary) 10%,transparent);font-size:.9rem}
+
+/* home: "Corbeille" and "Gérer" sit on the same line as the "Tes paquets" title (not under it) */
+.section-head:has(> span.deck-head-links) { flex-direction: row !important; flex-wrap: nowrap; align-items: center; gap: 10px; }
+.section-head:has(> span.deck-head-links) > span.deck-head-links { width: auto; flex: none; flex-wrap: nowrap; gap: 14px; margin-left: auto; }
+.deck-head-links .link { white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
