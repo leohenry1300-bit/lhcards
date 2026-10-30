@@ -19,7 +19,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     const ctx = await browser.newContext({ viewport: { width: 390, height: 800 }, deviceScaleFactor: 2 });
     const page = await ctx.newPage(), errs = [];
     page.on('pageerror', e => errs.push('JS: ' + e.message));
-    page.on('response', r => { if (r.status() >= 400 && !/fonts\.g/.test(r.url())) errs.push(r.status() + ' ' + r.url().slice(-50)); });
+    page.on('response', r => { if (r.status() >= 400 && !/fonts\.g|generativelanguage/.test(r.url())) errs.push(r.status() + ' ' + r.url().slice(-50)); });
     await page.route(/fonts\.(googleapis|gstatic)/, r => r.abort());
     const go = v => page.evaluate(x => app.go(x), v);
 
@@ -1403,6 +1403,76 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         await page.mouse.click(hb.x + hb.w * 0.3, hb.y + hb.h * 0.2); await wait(900);
         const hp = await page.evaluate(() => ({ pop: !!document.querySelector('#pdf-pop'), btns: document.querySelectorAll('#pdf-pop button').length }));
         ok('PDF: touching a highlight opens its bar (colour, quote, card, erase) and it stays open', hp.pop && hp.btns >= 3, JSON.stringify(hp));
+    }
+
+
+    {   /* IA (Vague 4, lot 1) : clé sur l'appareil seulement, aperçu avant envoi, cartes à relire, « Pourquoi ? » */
+        await page.setViewportSize({ width: 1280, height: 800 });
+        let calls = { anthropic: 0, openai: 0, gemini: 0 }, mode = 'ok';
+        await page.route('https://api.anthropic.com/**', r => { calls.anthropic++; mode === '401' ? r.fulfill({ status: 401, contentType: 'application/json', body: '{"error":{"message":"bad key"}}' }) : r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ content: [{ type: 'text', text: r.request().postData().includes('Pourquoi') || r.request().postData().includes('Fiche de révision') ? 'Parce que Rome est la capitale.' : "1. Capitale de l'Italie >> Rome\n- Le {{soleil}} est une étoile\nbla bla" }] }) }); });
+        await page.route('https://api.openai.com/**', r => { calls.openai++; r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ choices: [{ message: { content: 'OK openai' } }] }) }); });
+        await page.route('https://generativelanguage.googleapis.com/**', r => { calls.gemini++; r.fulfill({ status: 429, contentType: 'application/json', body: '{"error":{"message":"quota"}}' }); });
+        const ai = await page.evaluate(async () => {
+            const out = {}; const a = app;
+            localStorage.removeItem('lh_ai'); out.noKey = !a.aiReady();
+            a.go('settings'); await new Promise(r => setTimeout(r, 500));
+            out.panel = !!document.getElementById('ai-panel');
+            const k = document.getElementById('ai-key'); k.value = 'sk-test-SECRET123'; k.dispatchEvent(new Event('change', { bubbles: true }));
+            out.stored = /SECRET123/.test(localStorage.getItem('lh_ai') || '') && a.aiReady();
+            out.notInData = !/SECRET123/.test(a.serialize()) && !JSON.stringify(a.data).includes('SECRET123');
+            a.aiAction('ai-test', {}); await new Promise(r => setTimeout(r, 600));
+            out.testMsg = /répond/.test(document.getElementById('ai-st').textContent);
+            const s = JSON.parse(localStorage.getItem('lh_ai')); s.provider = 'openai'; s.keys.openai = 'sk-o'; localStorage.setItem('lh_ai', JSON.stringify(s));
+            out.openai = (await a.aiCall({ prompt: 'x' })) === 'OK openai';
+            s.provider = 'gemini'; s.keys.gemini = 'g-k'; localStorage.setItem('lh_ai', JSON.stringify(s));
+            try { await a.aiCall({ prompt: 'x' }); out.quota = false; } catch (e) { out.quota = /quota|Limite/i.test(e.message); }
+            s.provider = 'anthropic'; localStorage.setItem('lh_ai', JSON.stringify(s));
+            return out;
+        });
+        ok('IA: panel in the profile, key kept only in the browser (not in data/export), providers answer, quota error is clear', ai.noKey && ai.panel && ai.stored && ai.notInData && ai.testMsg && ai.openai && ai.quota, JSON.stringify(ai));
+        const flow = await page.evaluate(async () => {
+            const out = {}, a = app, w = ms => new Promise(r => setTimeout(r, ms));
+            a.go('decks'); await w(300); a.openImportModal(); await w(300);
+            const ta = document.getElementById('im-text'); ta.value = "L'Italie est un pays d'Europe du Sud. Sa capitale est Rome. Le Soleil est une étoile située au centre du système solaire."; ta.dispatchEvent(new Event('input', { bubbles: true }));
+            document.getElementById('im-ai').click(); await w(300);
+            const mm = [...document.querySelectorAll('.modal')].pop().textContent; out.confirm = /envoyé à/.test(mm) && /caractère/.test(mm) && !!document.getElementById('ai-send');
+            out.nothingSent = true;
+            document.getElementById('ai-send').click(); await w(900);
+            const lines = document.getElementById('im-text').value.split('\n');
+            out.lines = lines.length === 2 && lines[0] === "Capitale de l'Italie >> Rome" && /\{\{soleil\}\}/.test(lines[1]);
+            out.label = /Généré par IA/.test(document.getElementById('im-ai-st').textContent);
+            const before = a.data.cards.length;
+            document.getElementById('im-go').click(); await w(500);
+            const made = a.data.cards.slice(before);
+            out.cards = made.length >= 2 && made.every(c => (c.tags || []).includes('généré-par-ia'));
+            return out;
+        });
+        ok('IA: pasted text → preview of what is sent → fiches to review → imported with the "généré-par-ia" tag', flow.confirm && flow.lines && flow.label && flow.cards, JSON.stringify(flow));
+        const cancel = await page.evaluate(async () => {
+            const w = ms => new Promise(r => setTimeout(r, ms)); const out = {};
+            const n0 = window.__aiCalls = 0;
+            app.openImportModal(); await w(300);
+            const ta = document.getElementById('im-text'); ta.value = 'Texte assez long pour être envoyé à l\'IA, mais on va annuler avant.'; ta.dispatchEvent(new Event('input', { bubbles: true }));
+            document.getElementById('im-ai').click(); await w(300);
+            document.getElementById('ai-cancel').click(); await w(300);
+            out.ta = document.getElementById('im-text').value.startsWith('Texte assez'); document.querySelectorAll('.modal [data-close]').forEach(b => b.click());
+            return out;
+        });
+        const sentAfterCancel = calls.anthropic;
+        const why = await page.evaluate(async () => {
+            const out = {}, a = app, w = ms => new Promise(r => setTimeout(r, ms));
+            const c = a.data.cards.find(x => x.kind === 'basic'); a.aiWhy(c.id); await w(300);
+            out.shows = /Envoyé à/.test([...document.querySelectorAll('.modal')].pop().textContent);
+            document.getElementById('aiw-go').click(); await w(900);
+            out.answer = /capitale/.test(document.getElementById('aiw-log').textContent) && /Généré par IA/.test(document.getElementById('aiw-log').textContent);
+            document.getElementById('aiw-save').click(); await w(300);
+            out.saved = /Généré par IA/.test(a.card(c.id).detail);
+            document.querySelectorAll('.modal [data-close]').forEach(b => b.click());
+            localStorage.removeItem('lh_ai'); a.aiWhy(c.id); await w(300);
+            out.needKey = /Branche ton IA/.test(document.querySelector('.modal').textContent); document.querySelectorAll('.modal [data-close]').forEach(b => b.click());
+            return out;
+        });
+        ok('IA: cancel sends nothing, "Pourquoi ?" answers (labelled), can be kept in the card, asks for a key when none', cancel.ta && sentAfterCancel === 2 && why.shows && why.answer && why.saved && why.needKey, JSON.stringify({ cancel, sentAfterCancel, why }));
     }
 
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));

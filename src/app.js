@@ -2483,6 +2483,7 @@ class SuperAnki {
 
             ${this.extrasSettingsHtml()}
             ${this.ambientSettingsHtml()}
+            ${this.aiSettingsHtml()}
             <div class="panel panel-pad set-section">
                 <h3>${ic('palette')} Thème</h3>
                 <p class="small muted">Chaque thème change tout le design : couleurs, typographie, formes.</p>
@@ -2878,6 +2879,7 @@ class SuperAnki {
                 <button class="icon-btn sess-extra" title="Écouter" data-action="speak">${ic('volume')}</button>
                 <button class="icon-btn" title="Annuler la dernière réponse (Z)" data-action="undo" ${s.history.length ? '' : 'disabled style="opacity:.35"'}>${ic('undo')}</button>
                 <button class="icon-btn sess-extra" title="Modifier la carte (E)" data-action="edit-current">${ic('pencil')}</button>
+                ${s.revealed && this.aiReady() ? `<button class="icon-btn" title="Pourquoi cette réponse ? (IA)" data-action="ai-why" aria-label="Pourquoi ? (IA)">${ic('sparkle')}</button>` : ''}
                 <button class="icon-btn" title="Plus d'actions" data-action="session-menu" aria-label="Plus d'actions">${ic('more')}</button>
             </div>
             <div class="pbar"><i style="width:${progress}%"></i></div>
@@ -3646,9 +3648,9 @@ class SuperAnki {
     }
 
     /* ---------- Import / export ---------- */
-    openImportModal() {
+    openImportModal(opts = {}) {
         if (!this.data.decks.length) { this.toast('Crée d\'abord un paquet.', 'warning'); this.openDeckModal(); return; }
-        const cur = this.ui.deck !== 'all' && this.ui.deck !== 'errors' ? this.ui.deck : '';
+        const cur = opts.deckId || (this.ui.deck !== 'all' && this.ui.deck !== 'errors' ? this.ui.deck : '');
         const m = this.openModal({
             title: 'Importer des fiches', size: 'wide',
             body: `
@@ -3659,12 +3661,23 @@ class SuperAnki {
                 <div class="field"><span class="label">Fichier</span><button class="btn btn-soft btn-block" id="im-file">${ic('file')}Choisir un fichier TXT / CSV</button></div>
                 <div class="field"><span class="label">Ou un paquet Anki</span><button class="btn btn-soft btn-block" id="im-apkg">${ic('layers')}Importer un fichier .apkg</button><p class="help">Anki : Fichier › Exporter › « Paquet Anki (.apkg) », en cochant « Prendre en charge les anciennes versions d'Anki ». Les cartes arrivent comme neuves.</p></div>
                 <div class="field"><label class="label" for="im-text">... ou colle tes fiches ici</label><textarea class="textarea" id="im-text" rows="6" placeholder="Capitale de l'Italie ; Rome&#10;H2O ; L'eau"></textarea>
+                    <div class="im-tr"><button class="btn btn-soft btn-sm" id="im-ai" type="button">${ic('sparkle')}Créer les fiches avec l'IA</button><button class="btn btn-soft btn-sm hidden" id="im-ai-undo" type="button">Remettre mon texte</button><span class="help" id="im-ai-st">Colle un cours dans la zone, l'IA propose des fiches que tu relis avant d'importer.</span></div>
                     <div class="im-tr"><button class="btn btn-soft btn-sm" id="im-translate" type="button">Traduire les mots seuls (anglais → français)</button><span class="help" id="im-tr-st">Colle une liste de mots anglais, un par ligne : les traductions proposées s'écrivent à côté. Vérifie-les avant d'importer.</span></div></div>
                 <label class="check hidden" id="im-usedecks-wrap" style="margin-bottom:10px"><input type="checkbox" id="im-usedecks" checked> Utiliser les paquets et tags indiqués dans le fichier</label>
                 <div id="im-preview" class="help">Aucune fiche détectée pour l'instant.</div>`,
             foot: `<button class="btn btn-soft" data-close>Annuler</button><button class="btn btn-primary" id="im-go" disabled>${ic('import')}Importer</button>`
         });
         const ta = $('#im-text', m), prev = $('#im-preview', m), go = $('#im-go', m), sel = $('#im-deck', m);
+        let aiGen = !!opts.ai, aiOrig = null;   // fiches proposées par l'IA : étiquetées « généré par IA »
+        if (opts.text) { ta.value = opts.text; $('#im-ai-st', m).textContent = '✨ Généré par IA : relis, décoche ou corrige les lignes avant d\'importer.'; }
+        $('#im-ai', m).addEventListener('click', async () => {
+            const src = ta.value;
+            const lines = await this.aiCardsFrom(src, { label: 'Texte collé' });
+            if (!lines) return;
+            aiOrig = src; aiGen = true; ta.value = lines.join('\n'); refresh();
+            $('#im-ai-undo', m).classList.remove('hidden'); $('#im-ai-st', m).textContent = '✨ Généré par IA : relis, décoche ou corrige les lignes avant d\'importer.';
+        });
+        $('#im-ai-undo', m).addEventListener('click', () => { if (aiOrig !== null) { ta.value = aiOrig; aiOrig = null; aiGen = false; refresh(); $('#im-ai-undo', m).classList.add('hidden'); $('#im-ai-st', m).textContent = ''; } });
         const over = new Map();   // what the user ticked or unticked by hand (by line key)
         let shown = [];
         const refresh = () => {
@@ -3695,6 +3708,7 @@ class SuperAnki {
             if (e.target.id === 'im-all' || e.target.id === 'im-none') { shown.forEach(r => over.set(`${r.n}|${r.key}`, e.target.id === 'im-all')); refresh(); }
         });
         ta.addEventListener('input', refresh);
+        if (opts.text) refresh();
         $('#im-translate', m).addEventListener('click', async () => {
             const st = $('#im-tr-st', m), btn = $('#im-translate', m);
             const lines = ta.value.split('\n'), todo = lines.map((l, i) => [i, l.trim()]).filter(([, l]) => l && !/[;\t]/.test(l) && !l.includes(','));
@@ -3758,6 +3772,7 @@ class SuperAnki {
                 return found ? found.id : deckId;
             };
             let made = 0;
+            if (aiGen) rows.forEach(r => { r.tags = [...(r.tags || []), AI_TAG]; });
             this.change('import', [], () => {
                 const ids = [];
                 rows.forEach((r, i) => {
@@ -4498,7 +4513,7 @@ class SuperAnki {
             case 'tool-check': this.checkDatabase(); break;
             case 'fsrs-optimize': this.fsrsOptimizeModal(ds.id || ''); break;
             case 'fsrs-reset': this.fsrsReset(ds.id || ''); break;
-            default: if (action.startsWith('tq-')) this.toeicAction(action, el); else if (action.startsWith('qcm-')) this.qcmAction(action, el); else if (action.startsWith('mg-')) this.matchAction(action, el); else if (action.startsWith('nb-')) this.noteAction(action, el, e); else if (action.startsWith('pf-')) this.profileAction(action, el); else if (action.startsWith('pdf-')) this.pdfAction(action, el, e); else if (action.startsWith('tab-')) this.tabAction(action, el); break;
+            default: if (action.startsWith('tq-')) this.toeicAction(action, el); else if (action.startsWith('qcm-')) this.qcmAction(action, el); else if (action.startsWith('mg-')) this.matchAction(action, el); else if (action.startsWith('nb-')) this.noteAction(action, el, e); else if (action.startsWith('pf-')) this.profileAction(action, el); else if (action.startsWith('ai-')) this.aiAction(action, el); else if (action.startsWith('pdf-')) this.pdfAction(action, el, e); else if (action.startsWith('tab-')) this.tabAction(action, el); break;
         }
     }
     startQuizFromIds(ids, count, chrono, title) {

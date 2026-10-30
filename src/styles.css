@@ -3309,3 +3309,10 @@ body.tab-drag .view, body.tab-drag .view * { -webkit-backdrop-filter: none !impo
 .nb-page > * { min-width: 0; }
 .nb-listpanel { overflow: hidden; }
 .nb-lp-chips { overflow-x: auto; }
+
+/* ===== IA (clé personnelle) ===== */
+.ai-prev{margin:6px 0 0;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2,var(--bg));font:inherit;font-size:.85rem;white-space:pre-wrap;word-break:break-word;max-height:180px;overflow:auto}
+.ai-q{margin:10px 0 4px;padding:8px 12px;border-radius:12px;background:var(--surface-2,var(--bg));font-weight:600;font-size:.92rem}
+.ai-a{margin:6px 0;line-height:1.5;font-size:.95rem}
+.ai-tag{margin-top:8px;font-size:.78rem;color:var(--muted)}
+#im-ai-st{display:block;margin-top:4px}

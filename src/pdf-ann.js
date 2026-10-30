@@ -400,6 +400,7 @@ Object.assign(SuperAnki.prototype, {
             { icon: 'pencil', label: 'Renommer le PDF', fn: () => this.pdfRenameDialog(p) },
             { icon: 'note', label: 'Extraire mes annotations dans la note', fn: () => this.pdfExtract() },
             { icon: pv.mode === 'text' ? 'file' : 'typeT', label: pv.mode === 'text' ? 'Revenir au PDF fidèle' : 'Lecteur de texte (réaffiche le texte)', fn: () => this.pdfAction('pdf-mode', anchor) },
+            { icon: 'sparkle', label: 'Cartes avec l\'IA…', fn: () => this.aiPdfCards() },
             { icon: 'volume', label: 'Lire à voix haute…', fn: () => this.pdfReadMenu(anchor) },
             { icon: 'fullscreen', label: 'Mode concentration', fn: () => this.pdfFocus() },
             { icon: 'trash', label: `Annotations effacées${p.trash.length ? ` (${p.trash.length})` : ''}`, fn: () => this.pdfTrashPanel() },

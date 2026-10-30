@@ -449,7 +449,7 @@ Object.assign(SuperAnki.prototype, {
         const by = re => all.find(p => re.test(title(p)));
         const rowOf = re => [...root.querySelectorAll('.set-row')].find(r => re.test(((r.querySelector('.txt > b') || {}).textContent || '')));
         const P = { upd: document.getElementById('ex-update'), rev: by(/^Révision/), goal: by(/^Objectif/), algo: document.getElementById('study-options'), fsrs: document.getElementById('fsrs-panel'),
-            snd: document.getElementById('ex-settings'), amb: document.getElementById('amb-panel'), theme: by(/^Thème/), cloud: by(/^Synchronisation/), data: by(/^Données/), tools: by(/^Outils/), keys: by(/^Raccourcis/) };
+            snd: document.getElementById('ex-settings'), amb: document.getElementById('amb-panel'), theme: by(/^Thème/), cloud: by(/^Synchronisation/), data: by(/^Données/), tools: by(/^Outils/), keys: by(/^Raccourcis/), ai: document.getElementById('ai-panel') };
         if (P.rev) { const h = P.rev.querySelector('h3'); if (h && h.lastChild && h.lastChild.nodeType === 3) h.lastChild.textContent = ' Séance de révision'; }
         /* settings that were in "Données" but belong to the review: moved to "Révision" */
         if (P.rev) ['Réviser par petits groupes', 'Équilibrer la charge'].forEach(t => { const r = rowOf(new RegExp('^' + t)); if (r) P.rev.appendChild(r); });
@@ -475,6 +475,7 @@ Object.assign(SuperAnki.prototype, {
             ['grp-snd', '🔊', 'Sons et ambiance', 'Sons de l\'appli et mixeur d\'ambiance.', [P.snd, P.amb]],
             ['grp-look', '🎨', 'Apparence', 'Thème et taille du texte.', [P.theme]],
             ['grp-data', '☁️', 'Données et synchronisation', 'Cloud, sauvegardes, import / export et outils.', [P.cloud, P.data, P.tools]],
+            ['grp-ai', '✨', 'Intelligence artificielle', 'Ta propre clé (Claude, OpenAI, Gemini) pour créer des cartes et expliquer.', [P.ai]],
             ['grp-adv', '⚙️', 'Avancé', 'Raccourcis clavier et actions sensibles.', [P.keys, P.danger]]
         ];
         const nav = document.createElement('nav'); nav.className = 'set-nav'; nav.setAttribute('aria-label', 'Sections des réglages');
@@ -487,7 +488,7 @@ Object.assign(SuperAnki.prototype, {
             panels.forEach(pn => g.appendChild(pn));
             anchor.after(g); anchor = g; chips.push([id, name.replace(' et synchronisation', '').replace('Sons et ambiance', 'Sons')]);
         });
-        const emo = { 'grp-rev': '📚', 'grp-snd': '🔊', 'grp-look': '🎨', 'grp-data': '☁️', 'grp-adv': '⚙️' };
+        const emo = { 'grp-rev': '📚', 'grp-snd': '🔊', 'grp-look': '🎨', 'grp-data': '☁️', 'grp-ai': '✨', 'grp-adv': '⚙️' };
         nav.innerHTML = chips.map(([id, l]) => `<button class="chip" data-jump="${id}"><span aria-hidden="true">${emo[id] || ''}</span>${l}</button>`).join('');
         nav.addEventListener('click', e => { const b = e.target.closest('[data-jump]'); const t = b && document.getElementById(b.dataset.jump); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
         const head = root.querySelector('.page-title'); (head ? head.parentElement : stack.firstElementChild).after(nav);
