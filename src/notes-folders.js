@@ -82,11 +82,11 @@ Object.assign(SuperAnki.prototype, {
     nbFolderHtml(deckId) {
         const root = deckId === NB_ROOT, d = root ? null : this.deck(deckId);
         if (!root && !d) return '';
-        const sortAZ = this.ui.nbFSort === 'az';
+        const fs = this.ui.nbFSort === 'az' ? 'alpha' : this.ui.nbFSort === 'manual' ? 'manual' : 'recent';
         const direct = root ? this.data.notes.filter(n => !n.deckId) : this.notesInDeck(deckId, false);
         const subs = (root ? this.data.decks.filter(x => !x.parent) : this.childrenOf(deckId)).filter(x => !x.pdf).filter(x => this.notesInDeck(x.id, true).length || !root).sort((a, b) => a.name.localeCompare(b.name));
         const filter = this.ui.nbFType || 'all';
-        const docs = direct.filter(n => filter === 'all' || (filter === 'pdf') === !!this.pdfOfNote(n.id)).sort(sortAZ ? (a, b) => this.noteName(a).localeCompare(this.noteName(b)) : (a, b) => b.mod - a.mod || b.created - a.created);
+        const docs = direct.filter(n => filter === 'all' || (filter === 'pdf') === !!this.pdfOfNote(n.id)).sort(fs === 'alpha' ? (a, b) => this.noteName(a).localeCompare(this.noteName(b), 'fr', { sensitivity: 'base' }) : fs === 'manual' ? (a, b) => a.order - b.order || a.created - b.created : (a, b) => b.mod - a.mod || b.created - a.created);
         const st = d ? this.deckStats().get(d.id) : null, nNotes = root ? this.data.notes.length : this.notesInDeck(deckId, true).length;
         const folderCard = x => `<button class="nbf-fold" data-action="nb-folder" data-id="${esc(x.id)}"><span class="nbf-emoji">${esc(x.emoji)}</span><span class="nbf-ft"><b>${esc(x.name)}</b><small>${plural(this.notesInDeck(x.id, true).length, 'note')}${this.nbDueDeck(x.id) ? ` · <span style="color:var(--due)">${this.nbDueDeck(x.id)} à revoir</span>` : ''}</small></span>${ic('chevronRight', 'chev')}</button>`;
         const docRow = n => { const pf = this.pdfOfNote(n.id); return `<button class="nbf-doc" data-action="nb-open" data-id="${esc(n.id)}"><span class="nbf-dico">${pf ? ic('pdf') : n.emoji ? esc(n.emoji) : ic(n.daily ? 'calendar' : 'notebook')}</span><span class="nbf-dt"><b>${esc(this.noteName(n))}</b><small>${pf ? esc(this.pdfSubline(pf)) : ''}${pf ? '' : esc(truncate(n.parent ? this.notePathLabel(n).split(' › ').slice(-1)[0] + ' · ' : '', 40))}${esc(truncate(((n.b.find(b => b.x && b.t !== 'hr') || { x: 'Note vide' }).x), 70))}</small></span><span class="nbf-dd"><small>${this.nbNoteCards(n.id).length ? `${ic('card')} ${this.nbNoteCards(n.id).length}` : ''}</small><small>${new Date(n.mod || n.created).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</small></span></button>`; };
@@ -102,7 +102,7 @@ Object.assign(SuperAnki.prototype, {
             ${subs.length ? `<div class="nbf-sub">${subs.map(folderCard).join('')}</div>` : ''}
             <div class="nbf-listhead"><h4>Documents${docs.length ? ` (${docs.length})` : ''}</h4>
                 <span class="chip-row"><button class="chip ${filter === 'all' ? 'active' : ''}" data-action="nb-ftype" data-t="all">Tout</button><button class="chip ${filter === 'note' ? 'active' : ''}" data-action="nb-ftype" data-t="note">${ic('notebook')}Notes</button><button class="chip ${filter === 'pdf' ? 'active' : ''}" data-action="nb-ftype" data-t="pdf">${ic('pdf')}PDF</button></span>
-                <button class="btn btn-soft btn-sm" data-action="nb-fsort">${ic('list')}<span>${sortAZ ? 'A → Z' : 'Récents'}</span></button></div>
+                ${this.sortBtn('nb-fsort', fs)}</div>
             <div class="nbf-docs">${docs.length ? docs.map(docRow).join('') : `<p class="small faint" style="padding:12px 4px">Aucune note ${root ? 'sans dossier' : 'dans ce dossier'} pour l'instant. Touche « Créer des notes » pour commencer.</p>`}</div>
         </div>`;
     },
@@ -166,6 +166,6 @@ Object.assign(SuperAnki.prototype, {
         else if (action === 'nb-folder-plus') this.nbFolderPlusMenu(el, ds.deck);
         else if (action === 'nb-favs') { ui.noteFav = !ui.noteFav; ui.noteTag = ''; this.nbRefreshList(); const t = $('[data-action=nb-favs]'); if (t) t.classList.toggle('on', ui.noteFav); }
         else if (action === 'nb-ftype') { ui.nbFType = ds.t; this.renderNotes(); }
-        else if (action === 'nb-fsort') { ui.nbFSort = ui.nbFSort === 'az' ? 'recent' : 'az'; this.renderNotes(); }
+        else if (action === 'nb-fsort') { const cur = ui.nbFSort === 'az' ? 'alpha' : ui.nbFSort === 'manual' ? 'manual' : 'recent'; this.sortMenu(el, ['manual', 'alpha', 'recent'], cur, k => { ui.nbFSort = k === 'alpha' ? 'az' : k; this.renderNotes(); }); }
     }
 });

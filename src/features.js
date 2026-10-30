@@ -288,7 +288,7 @@ Object.assign(SuperAnki.prototype, {
     opReplace(ids, find, repl, scope, caseSens) {
         const cards = this.cardsByIds(this.expandNotes(ids));
         let n = 0;
-        this.change('chercher / remplacer', cards.map(c => c.id), () => {
+        this.change('rechercher / remplacer', cards.map(c => c.id), () => {
             const seen = new Set();
             cards.forEach(c => {
                 const key = c.nid || c.id;
@@ -375,9 +375,9 @@ Object.assign(SuperAnki.prototype, {
     },
     promptReplace(ids) {
         const m = this.openModal({
-            title: 'Chercher et remplacer', size: 'narrow',
+            title: 'Rechercher et remplacer', size: 'narrow',
             body: `<p class="small muted" style="margin-bottom:12px">Sur les ${plural(ids.length, 'carte sélectionnée', 'cartes sélectionnées')}.</p>
-                   <div class="field"><label class="label" for="rp-find">Chercher</label><input class="input" id="rp-find" autocomplete="off"></div>
+                   <div class="field"><label class="label" for="rp-find">Rechercher</label><input class="input" id="rp-find" autocomplete="off"></div>
                    <div class="field"><label class="label" for="rp-repl">Remplacer par</label><input class="input" id="rp-repl" autocomplete="off"></div>
                    <div class="field"><label class="label" for="rp-scope">Dans</label><select class="select" id="rp-scope"><option value="both">Recto et verso</option><option value="front">Recto seulement</option><option value="back">Verso seulement</option></select></div>
                    <label class="check"><input type="checkbox" id="rp-case"> Respecter la casse</label>`,
@@ -441,11 +441,11 @@ Object.assign(SuperAnki.prototype, {
         if (cards.some(x => x.nid)) items.push({ icon: 'eyeOff', label: 'Enfouir la note', kbd: '=', fn: () => this.opBury(ids, true) });
         items.push({ sep: true });
         items.push({ icon: 'calendar', label: 'Définir la date d\'échéance…', fn: () => this.promptDue(ids) });
-        items.push({ icon: 'reset', label: 'Réinitialiser (remettre à zéro)', fn: () => this.opReset(ids) });
+        items.push({ icon: 'reset', label: 'Remettre à zéro', danger: true, fn: () => this.opReset(ids) });
         if (!inSession) {
             items.push({ icon: 'folder', label: 'Déplacer vers un paquet…', fn: () => this.promptMove(ids) });
             items.push({ icon: 'tag', label: 'Modifier les tags…', fn: () => this.promptTags(ids) });
-            items.push({ icon: 'refresh', label: 'Chercher / remplacer…', fn: () => this.promptReplace(ids) });
+            items.push({ icon: 'refresh', label: 'Rechercher / remplacer…', fn: () => this.promptReplace(ids) });
         }
         items.push({ sep: true });
         items.push({ icon: 'trash', label: single ? 'Supprimer la note' : `Supprimer ${cards.length} cartes`, danger: true, fn: () => this.opDelete(ids, true) });

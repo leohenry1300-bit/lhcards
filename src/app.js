@@ -1949,8 +1949,8 @@ class SuperAnki {
                     <h3 class="section-title">Tes paquets</h3>
                     <span class="deck-head-links"><button class="link" data-action="tool-trash">${ic('trash')}Corbeille</button><button class="link" data-nav="decks">Gérer ${ic('chevronRight')}</button></span>
                 </div>
-                ${d.decks.length ? `<div class="dash-tools"><label class="input-icon dash-find">${ic('search')}<span class="sr-only">Rechercher un paquet</span><input class="input" type="search" placeholder="Rechercher un paquet..." data-input="dash-find" autocomplete="off" spellcheck="false"></label>
-                <label class="sort-pick"><span class="sr-only">Trier</span><select class="select" aria-label="Trier les paquets" data-input="deck-sort">${[['alpha', 'A à Z'], ['recent', 'Plus récents'], ['studied', 'Révisés récemment'], ['due', 'À revoir d\'abord'], ['manual', 'Mon ordre']].map(([v, l]) => `<option value="${v}" ${(['alpha', 'recent', 'studied', 'due', 'manual'].includes(d.settings.deckSort) ? d.settings.deckSort : 'recent') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
+                ${d.decks.length ? `<div class="dash-tools"><label class="input-icon dash-find">${ic('search')}<span class="sr-only">Rechercher un paquet</span><input class="input" type="search" placeholder="Rechercher un paquet…" data-input="dash-find" autocomplete="off" spellcheck="false"></label>
+                <span class="sort-pick">${this.sortBtn('deck-sort-menu', ['alpha', 'recent', 'studied', 'due', 'manual'].includes(d.settings.deckSort) ? d.settings.deckSort : 'recent')}</span></div>
                 <div id="dash-find-res" class="panel dl-results hidden"></div>
                 <div id="dash-decks" class="deck-grid ${this.deckCompact() ? 'compact' : ''}">${this.dashboardDeckCards()}</div>`
                     : `<div class="panel empty"><div class="empty-mascot">${leoSvg('ready', { state: 's0', intro: 'hello0', amb: 'aha0,read0,talk0' })}</div><p>Aucun paquet pour l'instant.</p><button class="btn btn-primary" style="margin-top:14px" data-action="new-deck">${ic('folderPlus')}Créer un paquet</button></div>`}
@@ -2052,9 +2052,9 @@ class SuperAnki {
                 <div><h2 class="page-title">Paquets &amp; Cartes</h2>
                 <p class="page-sub">Choisis un paquet pour gérer tes fiches et lancer une révision.</p></div>
                 <div class="head-tools">
-                    <button class="icon-btn" data-action="tool-trash" title="Corbeille (gardée 30 jours)" aria-label="Corbeille">${ic('trash')}</button>
-                    <button class="icon-btn" data-action="undo-global" title="Annuler la dernière modification (Ctrl+Z)" ${this.undoStack.length ? '' : 'disabled style="opacity:.35"'}>${ic('undo')}</button>
+                                        <button class="icon-btn" data-action="undo-global" title="Annuler la dernière modification (Ctrl+Z)" ${this.undoStack.length ? '' : 'disabled style="opacity:.35"'}>${ic('undo')}</button>
                     <button class="icon-btn" data-action="redo-global" title="Rétablir (Ctrl+Maj+Z)" ${this.redoStack.length ? '' : 'disabled style="opacity:.35"'}>${ic('redo')}</button>
+                    <button class="icon-btn" data-action="tool-trash" title="Corbeille (gardée 30 jours)" aria-label="Corbeille">${ic('trash')}</button>
                 </div>
             </div>
             <div class="decks-toolbar">
@@ -2065,17 +2065,12 @@ class SuperAnki {
             <div class="panel search-bar">
                 <div class="search-field ${ui.search ? 'has-value' : ''}">
                     <label class="input-icon">${ic('search')}<span class="sr-only">Rechercher</span>
-                        <input class="input" type="search" id="card-search" placeholder="Rechercher une carte..." value="${esc(ui.search)}" data-input="search" autocomplete="off" spellcheck="false" enterkeyhint="search">
+                        <input class="input" type="search" id="card-search" placeholder="Rechercher une carte…" value="${esc(ui.search)}" data-input="search" autocomplete="off" spellcheck="false" enterkeyhint="search">
                     </label>
                     <button class="search-clear" data-action="clear-search" aria-label="Effacer la recherche" title="Effacer (Échap)">${ic('x')}</button>
                 </div>
                 <details class="search-more" style="grid-column:1/-1" ${ui.sort !== 'auto' || ui.search ? 'open' : ''}><summary>Trier et filtrer</summary>
-                <label><span class="sr-only">Trier</span>
-                    <select class="select" data-input="sort">
-                        ${[['auto', 'Pertinence / récentes'], ['recent', 'Plus récentes'], ['alpha', 'Alphabétique (A → Z)'], ['alpha-rev', 'Alphabétique (Z → A)'], ['due', 'Prochaine révision'], ['hard', 'Plus difficiles d\'abord']]
-                            .map(([v, l]) => `<option value="${v}" ${ui.sort === v ? 'selected' : ''}>${l}</option>`).join('')}
-                    </select>
-                </label>
+                <span class="sort-pick">${this.sortBtn('card-sort-menu', ui.sort || 'auto')}</span>
                 <div class="quick-q" id="quick-q">${this.quickQueryHtml()}</div>
                 <details class="search-help"><summary>Astuces de recherche</summary><p>Plusieurs mots = tous requis · <code>"mot exact"</code> · <code>-exclure</code> · <code>deck:nom</code> · <code>tag:x</code> · <code>is:due</code> <code>is:new</code> <code>is:suspended</code> <code>is:marked</code> <code>is:leech</code> · <code>flag:1</code> · <code>prop:ivl&gt;30</code> · <code>added:7</code> · <code>rated:1</code> · accents et petites fautes tolérés.</p></details>
                 </details>
@@ -2191,7 +2186,7 @@ class SuperAnki {
         document.body.classList.toggle('deck-sheet', sheet && this.view === 'decks');
         box.innerHTML = `
             <div class="dl-sheet-head"><b>Choisir un paquet</b><button class="icon-btn" data-action="toggle-tree" aria-label="Fermer">${ic('x')}</button></div>
-            <div class="dl-find"><label class="input-icon">${ic('search')}<span class="sr-only">Rechercher un paquet</span><input class="input" id="deck-find" type="search" placeholder="Rechercher un paquet..." data-input="deck-find" autocomplete="off" spellcheck="false" value="${esc(ui.deckQ || '')}"></label></div>
+            <div class="dl-find"><label class="input-icon">${ic('search')}<span class="sr-only">Rechercher un paquet</span><input class="input" id="deck-find" type="search" placeholder="Rechercher un paquet…" data-input="deck-find" autocomplete="off" spellcheck="false" value="${esc(ui.deckQ || '')}"></label></div>
             <div id="deck-find-res" class="${ui.deckQ ? '' : 'hidden'}">${this.deckFinderHtml(ui.deckQ || '')}</div>
             <div id="deck-tree" class="${ui.deckQ ? 'hidden' : ''}">
             <div class="dl-title"><span>${q ? 'Résultats par paquet' : 'Paquets'}</span>${anyTree ? `<span class="dl-tools"><button data-action="tree-all" data-key="side" data-open="1" title="Tout déplier">${ic('chevronDown')}</button><button data-action="tree-all" data-key="side" data-open="0" title="Tout replier" style="transform:rotate(180deg)">${ic('chevronDown')}</button></span>` : ''}</div>
@@ -2870,7 +2865,7 @@ class SuperAnki {
                     <div class="muted small">Ta réponse : <b>${esc(typed.text) || '<i>(vide)</i>'}</b></div>
                </div>`
             : `<div class="type-box">
-                    <textarea class="textarea" id="type-answer" rows="2" style="min-height:64px" placeholder="Tape ta réponse puis Entrée..." data-input="type-answer"></textarea>
+                    <textarea class="textarea" id="type-answer" rows="2" style="min-height:64px" placeholder="Tape ta réponse puis Entrée…" data-input="type-answer"></textarea>
                </div>`) : '';
         const csIdx = Object.keys(CARD_SIZES).indexOf(this.data.settings.cardSize);
         const runPop = (s.run || 0) >= 3 && s._runShown !== s.run; s._runShown = s.run;
@@ -3471,7 +3466,7 @@ class SuperAnki {
                 <div class="field"><span class="label" id="cf-back-label">Verso · réponse</span>${this.editorHtml('cf-back', 'Réponse...')}</div>
                 <details class="field" ${card && (card.hint || card.detail || card.tags.length || card.suspended) ? 'open' : ''}>
                     <summary class="label" style="cursor:pointer;display:flex;align-items:center;gap:6px">${ic('chevronDown')}Plus d'options (indice, détails, tags${card ? ', suspendre' : ''})</summary>
-                    <div class="field" style="margin-top:12px"><label class="label" for="cf-hint">Indice (affiché sur demande avant la réponse)</label><input class="input" id="cf-hint" placeholder="Un petit coup de pouce..." value="${esc(card ? stripHtml(card.hint) : '')}"></div>
+                    <div class="field" style="margin-top:12px"><label class="label" for="cf-hint">Indice (affiché sur demande avant la réponse)</label><input class="input" id="cf-hint" placeholder="Un petit coup de pouce…" value="${esc(card ? stripHtml(card.hint) : '')}"></div>
                     <div class="field"><span class="label">Détails (repliés sous « En savoir plus »)</span>${this.editorHtml('cf-detail', 'Explication plus poussée...', true)}</div>
                     <div class="field"><label class="label" for="cf-tags">Tags (séparés par des virgules)</label><input class="input" id="cf-tags" placeholder="chapitre1, dates" value="${esc(card ? card.tags.join(', ') : '')}"></div>
                     ${card ? `<label class="field" style="display:flex;align-items:center;gap:12px;cursor:pointer"><span class="switch"><input type="checkbox" id="cf-susp" ${card.suspended ? 'checked' : ''}><span></span></span><span class="small"><b>Suspendre la carte</b><br><span class="muted">Elle ne sera plus proposée en révision, sans être supprimée.</span></span></label>` : ''}
@@ -3838,7 +3833,7 @@ class SuperAnki {
             title: meta.title,
             body: `<p class="muted small" style="margin-bottom:16px">${meta.desc}</p>
                 <div class="field"><span class="label">Cartes</span>
-                    <label class="input-icon" style="display:block;margin-bottom:8px">${ic('search')}<input class="input" id="pick-filter" placeholder="Filtrer les paquets..." autocomplete="off"></label>
+                    <label class="input-icon" style="display:block;margin-bottom:8px">${ic('search')}<input class="input" id="pick-filter" placeholder="Filtrer les paquets…" autocomplete="off"></label>
                     <div class="pick-list" id="pick-list">
                         ${item('all', '📂', 'Tous les paquets', mode === 'match' ? this.matchPool(null).length : this.data.cards.length + (mode === 'quiz' ? this.data.qcms.length : 0))}
                         ${item('errors', '🎯', 'Mes erreurs', mode === 'match' ? this.matchPool('errors').length : errCount)}
@@ -4210,8 +4205,8 @@ class SuperAnki {
                     { sep: true },
                     { icon: 'sliders', label: 'Options d\'étude du paquet', fn: () => this.handleAction('deck-options', { dataset: { deck: id } }) },
                     { icon: 'pencil', label: 'Modifier le paquet', fn: () => this.handleAction('edit-deck', { dataset: { deck: id } }) },
-                    { icon: 'reset', label: 'Remettre à zéro…', fn: () => this.handleAction('reset-deck', { dataset: { deck: id } }) },
-                    { icon: 'trash', label: 'Supprimer le paquet…', fn: () => this.handleAction('delete-deck', { dataset: { deck: id } }) }
+                    { icon: 'reset', label: 'Remettre à zéro…', danger: true, fn: () => this.handleAction('reset-deck', { dataset: { deck: id } }) },
+                    { icon: 'trash', label: 'Supprimer le paquet…', danger: true, fn: () => this.handleAction('delete-deck', { dataset: { deck: id } }) }
                 ]);
                 break;
             }
@@ -4260,7 +4255,7 @@ class SuperAnki {
                     { icon: 'quiz', label: 'Quiz (QCM)', fn: () => this.openModeLauncher('quiz', id) },
                     { icon: 'timer', label: 'Chrono', fn: () => this.openModeLauncher('chrono', id) },
                     { sep: true },
-                    { icon: 'reset', label: 'Remettre à zéro…', fn: () => this.handleAction('reset-deck', { dataset: { deck: id } }) }
+                    { icon: 'reset', label: 'Remettre à zéro…', danger: true, fn: () => this.handleAction('reset-deck', { dataset: { deck: id } }) }
                 ]);
                 break;
             }
@@ -4353,6 +4348,8 @@ class SuperAnki {
             case 'export-txt': this.exportTXT(); break;
             case 'open-library': this.openLibrary(); break;
             case 'deck-noop': break;
+            case 'deck-sort-menu': { const cur = ['alpha', 'recent', 'studied', 'due', 'manual'].includes(this.data.settings.deckSort) ? this.data.settings.deckSort : 'recent'; this.sortMenu(el, ['manual', 'alpha', 'recent', 'studied', 'due'], cur, k => { this.setSetting('deckSort', k); this.renderDashboard(); }); break; }
+            case 'card-sort-menu': this.sortMenu(el, ['alpha', 'alpharev', 'recent', 'due', 'hard', 'auto'], this.ui.sort || 'auto', k => { this.ui.sort = k; el.innerHTML = this.sortLabel(k); this.renderDeckPanel(); }); break;
             case 'lib-dismiss': this.setSetting('libSeen', true); this.renderDashboard(); break;
             case 'tips-dismiss': this.setSetting('tipsSeen', true); this.renderDashboard(); break;
             case 'toggle-deck': this.toggleOpen('side', ds.deck); this.renderDeckSidebar(); break;

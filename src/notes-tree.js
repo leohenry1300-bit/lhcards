@@ -4,7 +4,7 @@
    les tags, l'emoji, les modèles, l'export, les infos et la recherche dans une note.
    ============================================================ */
 const NB_EMOJIS = ['📘', '📗', '📙', '📕', '📒', '📝', '🧠', '💡', '🎯', '⭐', '🔥', '✅', '📌', '📚', '🎓', '✏️', '🧪', '🔬', '💼', '📈', '💰', '⚖️', '🌍', '🗣️', '🇬🇧', '🎧', '🩺', '🏠', '🎨', '🎵', '🚀', '❤️'];
-const NB_SORTS = [['alpha', 'A à Z', 'typeT'], ['recent', 'Récentes (modifiées)', 'clock'], ['created', 'Date de création', 'calendar'], ['manual', 'Mon ordre (glisser-déposer)', 'list']];
+const NB_SORT_KEYS = ['manual', 'alpha', 'recent', 'created'];
 const NB_TEMPLATES = [
     { name: 'Cours', emoji: '📘', title: 'Cours du ', blocks: [['h2', 'Objectifs'], ['p', ''], ['h2', 'Notions clés'], ['p', ''], ['h2', 'À retenir'], ['p', ''], ['h2', 'Questions'], ['todo', '']] },
     { name: 'Résumé de chapitre', emoji: '📝', title: 'Résumé : ', blocks: [['h2', 'Idée principale'], ['p', ''], ['h2', 'Plan du chapitre'], ['p', ''], ['p', '', 1], ['h2', 'Définitions'], ['p', ''], ['h2', 'Exemples'], ['p', '']] },
@@ -113,7 +113,7 @@ Object.assign(SuperAnki.prototype, {
         const lt = $('#nb-lp-title'); if (lt) lt.textContent = this.nbListTitle();
         const sb = $('#nb-sortbtn'); if (sb) sb.innerHTML = this.nbSortLabel();
     },
-    nbSortLabel() { const m = this.nbPrefs().sort, s = NB_SORTS.find(x => x[0] === m); return `${ic(s[2])}<span>${s[1].replace(/ \(.*\)/, '')}</span>`; },
+    nbSortLabel() { return this.sortLabel(this.nbPrefs().sort); },
 
     /* ---------- screen ---------- */
     renderNotes() {
@@ -121,13 +121,13 @@ Object.assign(SuperAnki.prototype, {
         if (ui.note && !n) ui.note = null;
         const open = !!(n || ui.nbFolder || ui.nbMem);
         if (open && ui.noteSelMode) { ui.noteSelMode = false; ui.noteSel = new Set(); }
-        const searchRow = `<div class="nb-searchrow"><label class="input-icon">${ic('search')}<input class="input" id="nb-search" type="search" placeholder="Chercher une note, un PDF…" value="${esc(ui.noteQ || '')}" autocomplete="off" enterkeyhint="search"></label></div>`;
-        const tools = `<span class="nb-tools"><button class="btn btn-soft" data-action="nb-sort-menu" id="nb-sortbtn" aria-label="Trier" title="Trier">${this.nbSortLabel()}</button><button class="btn btn-soft ${ui.noteSelMode ? 'on' : ''}" data-action="nb-sel-toggle" aria-label="Sélectionner plusieurs" title="Sélectionner plusieurs">${ic('checkSq')}<span>Sélection</span></button></span>`;
+        const searchRow = `<div class="nb-searchrow"><label class="input-icon">${ic('search')}<input class="input" id="nb-search" type="search" placeholder="Rechercher une note, un PDF…" value="${esc(ui.noteQ || '')}" autocomplete="off" enterkeyhint="search"></label></div>`;
+        const tools = `<span class="nb-tools"><button class="btn btn-soft sort-btn" data-action="nb-sort-menu" id="nb-sortbtn" aria-label="Trier" title="Trier">${this.nbSortLabel()}</button><button class="btn btn-soft ${ui.noteSelMode ? 'on' : ''}" data-action="nb-sel-toggle" aria-label="Sélectionner plusieurs" title="Sélectionner plusieurs">${ic('checkSq')}<span>Sélection</span></button></span>`;
         const side = open ? `
             <aside class="notes-side panel">
                 <div class="notes-side-head"><h2 class="page-title" style="margin:0">Notes</h2>
                     <span class="row-gap"><button class="btn btn-soft" data-action="pdf-import-btn" title="Importer un PDF">${ic('pdf')}<span>PDF</span></button><button class="btn btn-primary nb-newbig" data-action="nb-new-menu" id="nb-newbtn">${ic('plus')}<span>Nouveau</span>${ic('chevronDown')}</button></span></div>
-                <div class="nb-searchrow"><label class="input-icon">${ic('search')}<input class="input" id="nb-search" type="search" placeholder="Chercher une note, un PDF…" value="${esc(ui.noteQ || '')}" autocomplete="off" enterkeyhint="search"></label>${tools}</div>
+                <div class="nb-searchrow"><label class="input-icon">${ic('search')}<input class="input" id="nb-search" type="search" placeholder="Rechercher une note, un PDF…" value="${esc(ui.noteQ || '')}" autocomplete="off" enterkeyhint="search"></label>${tools}</div>
                 <div class="chip-row nb-chips" id="nb-chips">${this.nbChipsHtml()}</div>
                 <div id="nb-bulk">${this.nbBulkHtml()}</div>
                 <div id="nb-list" class="nb-tree">${this.noteListHtml()}</div>
@@ -173,7 +173,7 @@ Object.assign(SuperAnki.prototype, {
                 <button class="icon-btn" data-action="nb-more" title="Plus d'actions" aria-label="Plus d'actions">${ic('more')}</button>
             </div>
             ${crumbs || n.daily ? `<p class="nb-crumbs">${n.daily ? ic('calendar') + ' Note du jour' : ''}${n.daily && crumbs ? ' · ' : ''}${esc(crumbs)}</p>` : ''}
-            <div class="nb-findbar hidden" id="nb-findbar"><input class="input" id="nb-findin" placeholder="Chercher dans la note…" autocomplete="off"><span class="small muted" id="nb-findcount"></span><button class="icon-btn icon-btn-sm" data-action="nb-find-step" data-d="-1" aria-label="Précédent">${ic('chevronLeft')}</button><button class="icon-btn icon-btn-sm" data-action="nb-find-step" data-d="1" aria-label="Suivant">${ic('chevronRight')}</button><button class="icon-btn icon-btn-sm" data-action="nb-find" aria-label="Fermer">${ic('x')}</button></div>
+            <div class="nb-findbar hidden" id="nb-findbar"><input class="input" id="nb-findin" placeholder="Rechercher dans la note…" autocomplete="off"><span class="small muted" id="nb-findcount"></span><button class="icon-btn icon-btn-sm" data-action="nb-find-step" data-d="-1" aria-label="Précédent">${ic('chevronLeft')}</button><button class="icon-btn icon-btn-sm" data-action="nb-find-step" data-d="1" aria-label="Suivant">${ic('chevronRight')}</button><button class="icon-btn icon-btn-sm" data-action="nb-find" aria-label="Fermer">${ic('x')}</button></div>
             <div class="nb-tags" id="nb-tags">${this.nbTagsHtml(n)}</div>
             <div class="nb-blocks" id="nb-blocks">${this.nbBlocksHtml(n)}</div>
             <p class="nb-stats small faint" id="nb-stats">${st}</p>
@@ -260,7 +260,7 @@ Object.assign(SuperAnki.prototype, {
         const blocked = new Set(); ids.forEach(id => { blocked.add(id); this.noteDescendants(id).forEach(d => blocked.add(d)); });
         const m = this.openModal({
             title: ids.length > 1 ? `Déplacer ${ids.length} notes` : 'Déplacer la note', size: 'narrow',
-            body: `<label class="input-icon" style="display:block;margin-bottom:8px">${ic('search')}<input class="input" id="nm-q" placeholder="Chercher un dossier ou une note…" autocomplete="off"></label><div class="pick-list" id="nm-list"></div>`
+            body: `<label class="input-icon" style="display:block;margin-bottom:8px">${ic('search')}<input class="input" id="nm-q" placeholder="Rechercher un dossier ou une note…" autocomplete="off"></label><div class="pick-list" id="nm-list"></div>`
         });
         const paint = () => {
             const q = fold($('#nm-q', m).value.trim());
@@ -316,10 +316,7 @@ Object.assign(SuperAnki.prototype, {
             { icon: 'folderPlus', label: 'Nouveau dossier (paquet)…', fn: () => this.openDeckModal() }
         ]);
     },
-    nbSortMenu(anchor) {
-        const cur = this.nbPrefs().sort;
-        this.showMenu(anchor, NB_SORTS.map(([k, label, icon]) => ({ icon: k === cur ? 'check' : icon, label, fn: () => { this.nbPrefs().sort = k; this.nbPrefSave(); this.nbRefreshList(); } })));
-    },
+    nbSortMenu(anchor) { this.sortMenu(anchor, NB_SORT_KEYS, this.nbPrefs().sort, k => { this.nbPrefs().sort = k; this.nbPrefSave(); this.nbRefreshList(); }); },
 
     /* ---------- tags ---------- */
     nbTagAdd(raw) {

@@ -42,8 +42,8 @@ Object.assign(SuperAnki.prototype, {
                     <span class="help" style="margin-left:8px">Schéma, carte, anatomie, tableau...</span></div>
                 <div class="field"><div class="occ-wrap" id="oc-wrap"><div class="occ-stage" id="oc-stage"></div></div>
                     <p class="help" id="oc-help">Dessine des cadres sur ce que tu veux cacher (un cadre = une carte). Touche un cadre pour le supprimer.</p>
-                    <div class="row-gap" style="margin-top:8px"><button class="btn btn-soft btn-sm" id="oc-undo" type="button">${ic('undo')}Retirer le dernier</button><button class="btn btn-soft btn-sm" id="oc-clear" type="button">${ic('trash')}Tout effacer</button><span class="small muted" id="oc-count"></span></div></div>
-                <div class="field"><label class="label" for="oc-extra">Texte affiché avec la réponse (optionnel)</label><input class="input" id="oc-extra" placeholder="Ex : Source, explication..." value="${esc(card ? stripHtml(card.nf.extra) : '')}"></div>
+                    <div class="row-gap" style="margin-top:8px"><button class="btn btn-soft btn-sm" id="oc-undo" type="button">${ic('undo')}Retirer le dernier</button><button class="btn btn-danger-soft btn-sm" id="oc-clear" type="button">${ic('trash')}Tout effacer</button><span class="small muted" id="oc-count"></span></div></div>
+                <div class="field"><label class="label" for="oc-extra">Texte affiché avec la réponse (optionnel)</label><input class="input" id="oc-extra" placeholder="Ex : Source, explication…" value="${esc(card ? stripHtml(card.nf.extra) : '')}"></div>
                 <div class="field"><label class="label" for="oc-tags">Tags (séparés par des virgules)</label><input class="input" id="oc-tags" value="${esc(card ? card.tags.join(', ') : '')}"></div>`,
             foot: `${card ? `<button class="btn btn-danger-soft" id="oc-del" style="margin-right:auto">${ic('trash')}Supprimer</button>` : ''}<button class="btn btn-soft" data-close>Annuler</button><button class="btn btn-primary" id="oc-save">${ic('check')}Enregistrer</button>`
         });

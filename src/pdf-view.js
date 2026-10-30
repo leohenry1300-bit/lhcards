@@ -213,7 +213,7 @@ Object.assign(SuperAnki.prototype, {
         const pv = this.pv; this.closePopover(); { const tb = $('#pdf-tocbox'); if (tb) tb.remove(); }
         let m = $('#pdf-searchbox'); if (m) { m.remove(); return; }
         const box = document.createElement('div'); box.id = 'pdf-searchbox'; box.className = 'pdf-sheet';
-        box.innerHTML = `<div class="pdf-sheet-h"><input class="input" id="pdf-q" placeholder="Chercher dans le PDF…" autocomplete="off" enterkeyhint="search"><button class="icon-btn" data-action="pdf-search" aria-label="Fermer">${ic('x')}</button></div><div class="small faint" id="pdf-qst"></div><div class="pdf-results" id="pdf-res"></div>`;
+        box.innerHTML = `<div class="pdf-sheet-h"><input class="input" id="pdf-q" placeholder="Rechercher dans le PDF…" autocomplete="off" enterkeyhint="search"><button class="icon-btn" data-action="pdf-search" aria-label="Fermer">${ic('x')}</button></div><div class="small faint" id="pdf-qst"></div><div class="pdf-results" id="pdf-res"></div>`;
         $('.pdfv').appendChild(box);
         const q = $('#pdf-q', box); q.focus();
         let tm = null; q.addEventListener('input', () => { clearTimeout(tm); tm = setTimeout(() => this.pdfSearchRun(q.value), 220); });

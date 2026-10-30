@@ -25,7 +25,7 @@ Object.assign(SuperAnki.prototype, {
     quickOpen() {
         if (this.view === 'session' || this.view === 'exam') return;
         if ($('#quick-box')) { this.closeModal($('#quick-box').closest('.modal-back')); return; }
-        const m = this.openModal({ title: '', size: 'wide quick', body: `<div class="quick" id="quick-box"><label class="input-icon">${ic('search')}<input class="input" id="quick-q" type="search" placeholder="Chercher une note, un PDF, une carte, un paquet…" autocomplete="off" enterkeyhint="go"></label><div class="quick-list" id="quick-list" role="listbox"></div></div>`, foot: '' });
+        const m = this.openModal({ title: '', size: 'wide quick', body: `<div class="quick" id="quick-box"><label class="input-icon">${ic('search')}<input class="input" id="quick-q" type="search" placeholder="Rechercher une note, un PDF, une carte, un paquet…" autocomplete="off" enterkeyhint="go"></label><div class="quick-list" id="quick-list" role="listbox"></div></div>`, foot: '' });
         const q = $('#quick-q', m), list = $('#quick-list', m); let items = [], at = 0;
         const paint = () => {
             items = this.quickItems(q.value); at = clamp(at, 0, Math.max(0, items.length - 1)); let g = '';
