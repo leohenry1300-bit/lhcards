@@ -51,5 +51,6 @@ Object.assign(SuperAnki.prototype, {
     document.addEventListener('visibilitychange', ask);
     document.addEventListener('touchend', () => setTimeout(ask, 60), { passive: true });
     if (vv) { vv.addEventListener('scroll', ask, { passive: true }); vv.addEventListener('resize', ask, { passive: true }); }
+    setInterval(() => { if (!document.hidden) ask(); }, 400);   // also after a refresh / a page change, whatever the browser did meanwhile
     ask();
 })();

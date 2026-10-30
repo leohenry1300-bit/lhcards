@@ -1872,7 +1872,7 @@ body.zen .audio-bar { display: none !important; }
 
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: .55s; animation-timing-function: ease-in-out; }
 .topbar { view-transition-name: topbar; }
-.bottom-nav { view-transition-name: bottomnav; }
+/* (the bottom bar has no view-transition-name: on iPhone its snapshot could stay above the bottom edge after a refresh) */
 html[data-vt] .view-in-n { animation: none; }
 html[data-vt]::view-transition-old(root) { animation: vtOut .24s cubic-bezier(.4,0,.6,1) both; }
 html[data-vt]::view-transition-new(root) { animation: vtIn .34s cubic-bezier(.2,.8,.2,1) both; }
