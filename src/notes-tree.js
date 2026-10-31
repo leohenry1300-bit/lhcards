@@ -166,8 +166,8 @@ Object.assign(SuperAnki.prototype, {
         const back = this.nb && this.nb.back.length ? this.note(this.nb.back[this.nb.back.length - 1]) : null, bl = this.noteBacklinks(n), kids = this.noteKids(n.id);
         const crumbs = this.notePathLabel(n), st = this.noteStats(n);
         return `<div class="panel nb-editor" data-id="${esc(n.id)}">
+            <button class="nb-edge nb-sidebtn ${this.nbPrefs().sideOff ? '' : 'on'}" data-action="nb-side" title="${this.nbPrefs().sideOff ? 'Afficher la liste des notes' : 'Masquer la liste des notes'}" aria-label="Liste des notes">${ic('chevronLeft')}</button>
             <div class="nb-head">
-                <button class="icon-btn nb-sidebtn ${this.nbPrefs().sideOff ? '' : 'on'}" data-action="nb-side" title="${this.nbPrefs().sideOff ? 'Afficher la liste des notes' : 'Masquer la liste des notes'}" aria-label="Liste des notes">${ic('sidebar')}</button>
                 <button class="icon-btn" data-action="nb-close" title="${back ? `Retour à « ${esc(this.noteName(back))} »` : 'Retour à la liste'}" aria-label="Retour">${ic('arrowLeft')}</button>
                 <button class="nb-emoji" data-action="nb-emoji" title="Choisir l'emoji de la note" aria-label="Emoji de la note">${n.emoji ? esc(n.emoji) : ic('notebook')}</button>
                 <input class="nb-title" id="nb-title" maxlength="120" placeholder="Titre de la note" title="Double-clique (ou double-tape) pour renommer" value="${esc(n.title)}" ${n.title ? 'readonly' : ''} autocomplete="off" enterkeyhint="next">
@@ -298,9 +298,9 @@ Object.assign(SuperAnki.prototype, {
             { icon: 'star', label: n.fav ? 'Retirer des favoris' : 'Ajouter aux favoris', fn: () => { n.fav = !n.fav; this.save(); this.renderNotes(); } },
             { sep: true },
             { icon: 'plus', label: 'Ajouter une sous-note', fn: () => this.noteNewFrom(null, { parent: n.id }) },
-            ...(pf ? [] : [{ icon: 'sparkle', label: 'Cartes avec l\'IA…', fn: () => this.aiNoteCards(n.id) }, { icon: 'sparkle', label: 'Quiz avec l\'IA…', fn: () => this.aiNoteQuiz(n.id) }, { icon: 'sparkle', label: 'Résumé avec l\'IA…', fn: () => this.aiSummary(n.id) }, { icon: 'sparkle', label: 'Discuter avec cette note (IA)…', fn: () => this.aiChat(n.id) }]),
             { icon: 'copy', label: 'Dupliquer', fn: () => this.noteDuplicate(n.id) },
             { icon: 'folder', label: 'Déplacer…', fn: () => this.openNoteMove([n.id]) },
+            ...(pf ? [] : [{ sep: true }, { head: 'INTELLIGENCE ARTIFICIELLE' }, { icon: 'sparkle', label: 'Cartes avec l\'IA…', fn: () => this.aiNoteCards(n.id) }, { icon: 'sparkle', label: 'Quiz avec l\'IA…', fn: () => this.aiNoteQuiz(n.id) }, { icon: 'sparkle', label: 'Résumé avec l\'IA…', fn: () => this.aiSummary(n.id) }, { icon: 'sparkle', label: 'Discuter avec cette note (IA)…', fn: () => this.aiChat(n.id) }]),
             { sep: true },
             { icon: 'export', label: 'Exporter en Markdown (.md)', fn: () => this.noteExport(n) },
             { icon: 'export', label: 'Imprimer / PDF de la note…', fn: () => this.nbPrint(n) },

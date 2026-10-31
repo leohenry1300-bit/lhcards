@@ -41,6 +41,7 @@ Object.assign(SuperAnki.prototype, {
         if (action === 'tab-list') { if (this.pv) this.pv.prevNote = null; this.ui.note = null; this.ui.nbFolder = null; this.ui.nbMem = false; if (this.view === 'notes') this.renderNotes(); else this.go('notes'); return; }
         if (action === 'tab-open') { if (this.tabActive({ k, id })) return; if (k === 'mem' || k === 'folder') { if (this.pv) this.pv.prevNote = null; this.ui.note = null; this.ui.nbMem = k === 'mem'; this.ui.nbFolder = k === 'folder' ? id : null; if (this.view === 'notes') { this.renderNotes(); window.scrollTo(0, 0); } else this.go('notes'); return; } if (k === 'pdf') this.pdfOpen(id, { from: 'notes' }); else this.noteOpen(id, { push: false }); return; }
         if (action === 'tab-close') {
+            if (Date.now() - (this._tabCloseAt || 0) < 450) return; this._tabCloseAt = Date.now();   // a double tap / ghost click must never close the next tab too
             const t = this.tabsGet(), i = t.findIndex(x => x.k === k && x.id === id); if (i < 0) return; const was = this.tabActive(t[i]);
             t.splice(i, 1); this.tabsSave();
             if (!was) { this.tabsRender(); return; }

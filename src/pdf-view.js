@@ -47,12 +47,12 @@ Object.assign(SuperAnki.prototype, {
                 <button class="icon-btn" data-action="pdf-back" aria-label="Retour" title="Retour">${ic('arrowLeft')}</button>
                 <div class="pdfv-title"><b id="pdf-name" data-action="pdf-rename" title="Toucher pour renommer">${esc(p.name)}</b><small><span id="pdf-pg">…</span> <span id="pdf-sync"></span></small></div>
                 <button class="icon-btn" data-action="pdf-search" aria-label="Chercher dans le PDF" title="Chercher dans le PDF (Ctrl+F)">${ic('search')}</button>
-                <button class="icon-btn hide-n" data-action="pdf-study" aria-label="Étude du PDF" title="Étude du PDF : niveau, chapitres, progression">${ic('brain')}</button>
                 <button class="btn btn-primary btn-sm pdfv-prac" data-action="pdf-train" title="S'entraîner avec les cartes de ce PDF">${ic('play')}<span>Pratique</span></button>
+                <button class="btn btn-soft btn-sm pdfv-notebtn ${pv.notes ? 'on' : ''}" data-action="pdf-notes" aria-label="Note du PDF" aria-pressed="${!!pv.notes}" title="Afficher / masquer la note de ce PDF">${ic('note')}<span>Note</span></button>
                 <button class="icon-btn" data-action="pdf-toc" aria-label="Table des matières" title="Table des matières et pages">${ic('toc')}</button>
                 <button class="icon-btn hide-n ${pv.mode === 'text' ? 'on' : ''}" data-action="pdf-mode" aria-label="Lecteur de texte" title="Basculer entre le PDF fidèle et le texte réaffiché">${ic(pv.mode === 'text' ? 'file' : 'typeT')}</button>
                 <button class="icon-btn hide-n" data-action="pdf-read" aria-label="Lire à voix haute" title="Lire à voix haute">${ic('volume')}</button>
-                <button class="btn btn-soft btn-sm pdfv-notebtn ${pv.notes ? 'on' : ''}" data-action="pdf-notes" aria-label="Note du PDF" aria-pressed="${!!pv.notes}" title="Afficher / masquer la note de ce PDF">${ic('note')}<span>Note</span></button>
+                <button class="icon-btn hide-n" data-action="pdf-study" aria-label="Étude du PDF" title="Étude du PDF : niveau, chapitres, progression">${ic('brain')}</button>
                 <button class="icon-btn hide-n" data-action="pdf-focus" aria-label="Mode concentration" title="Mode concentration (plein écran)">${ic('fullscreen')}</button>
                 <button class="icon-btn" data-action="pdf-more" aria-label="Plus d'actions" title="Plus d'actions">${ic('more')}</button>
             </header>
@@ -438,7 +438,7 @@ Object.assign(SuperAnki.prototype, {
             'pdf-back': () => this.pdfBack(),
             'pdf-search': () => this.pdfSearchPanel(),
             'pdf-toc': () => this.pdfTocMenu(),
-            'pdf-side': () => this.pdfSwapSide(), 'pdf-docs': () => this.pdfDocsToggle(),
+            'pdf-side': () => this.pdfSwapSide(), 'pdf-docs': () => this.pdfDocsToggle(), 'pdf-dnew': () => this.noteNewFrom(null, {}), 'pdf-dpdf': () => this.pdfPick(''), 'pdf-dday': () => this.noteDaily(), 'pdf-dfil': () => { this.ui.noteType = ds.kind === 'type' ? ds.t : 'all'; this.ui.noteFav = ds.kind === 'fav'; this.pdfDocsApply(true); },
             'pdf-mode': () => { pv.mode = pv.mode === 'text' ? 'pdf' : 'text'; pv.p.mode = pv.mode; this.pdfShowMode(); },
             'pdf-read': () => this.pdfReadMenu(),
             'pdf-notes': () => this.pdfToggleNotes(),

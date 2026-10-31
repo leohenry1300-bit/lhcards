@@ -3592,3 +3592,27 @@ body.nb-selmode .nb-bar { display: none !important; }
 .pdfv-docsbtn.on { background: var(--primary-soft); color: var(--primary); }
 .pdfv.narrow .pdfv-docs { position: absolute; z-index: 70; left: 0; top: 0; bottom: 0; width: min(84%, 320px); box-shadow: 8px 0 30px rgba(0,0,0,.3); }
 .pdfv-body { position: relative; }
+
+/* ===== bandeau fin sur le bord gauche (liste des documents), niveaux, barre du bas ===== */
+.nb-edge { position: absolute; left: -17px; top: 0; bottom: 0; width: 14px; z-index: 30; display: none; place-items: center; border-radius: 8px; background: var(--surface-3); color: var(--text-faint); cursor: pointer; padding: 0; transition: background .15s, color .15s; }
+.nb-edge .i { width: 12px; height: 12px; transition: transform .2s; }
+.nb-edge:hover { background: var(--primary-soft); color: var(--primary); }
+.nb-edge.on .i { transform: none; } .nb-edge:not(.on) .i { transform: rotate(180deg); }
+.nb-editor { position: relative; }
+.nb-edge.nb-sidebtn { display: none; }
+@media (min-width: 900px) { .nb-edge.nb-sidebtn { display: grid; } }
+.pdfv-edge { position: relative; left: 0; flex: none; display: grid; width: 16px; border-radius: 0; border-right: 1px solid var(--border); z-index: 41; }
+.pdfd-search { margin: 0 0 8px; display: block; } .pdfd-act { display: flex; gap: 6px; margin-bottom: 8px; } .pdfd-act .btn { flex: 1; padding: 0 6px; }
+.pdfd-fil { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; } .pdfd-fil .chip { padding: 5px 8px; font-size: .74rem; } .nb-edge { border: 1px solid var(--border); } .nb-edge:hover .i { transform: scale(1.25); }
+.pdfv.narrow .pdfv-docs { left: 16px; }
+/* levels : one clean pill, hidden when the bar is reduced */
+.nb-lvl { display: inline-flex; flex-direction: column; align-items: center; min-width: 0; padding: 0 6px; }
+.nb-lvl { position: relative; }
+.nb-lvl button { width: 34px; height: 30px; margin: 0; border-radius: 0; background: transparent; color: var(--text); }
+.nb-lvl .nb-lvl-pill { display: inline-flex; border: 1px solid var(--border-strong, var(--border)); border-radius: 12px; overflow: hidden; background: var(--surface-2); }
+.nb-lvl .nb-lvl-pill button + button { border-left: 1px solid var(--border-strong, var(--border)); }
+.nb-lvl .nb-lvl-pill button:active { background: var(--primary-soft); color: var(--primary); }
+.nb-lvl small { font-size: .6rem; font-weight: 700; color: var(--text-faint); padding-top: 2px; }
+.nb-bar.min .nb-lvl { display: none !important; }
+/* the bottom bar: no blur on a phone (a blurred fixed bar can come loose while the page scrolls on iOS) */
+@media (max-width: 767px) { .bottom-nav, .bottom-nav::before { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; } }

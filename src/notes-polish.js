@@ -55,10 +55,11 @@ Object.assign(SuperAnki.prototype, {
     /* ---------- tabs : drag to reorder ---------- */
     tabsBindDrag() {
         if (document._tabDrag) return; document._tabDrag = true;
+        document.addEventListener('touchmove', e => { if (document._tabDragging) e.preventDefault(); }, { passive: false });   // once the long press has picked a tab up, the finger moves the tab, not the bar
         document.addEventListener('pointerdown', e => {
             const t = e.target.closest && e.target.closest('#doc-tabs .dt'); if (!t || e.target.closest('.dt-x') || e.button) return;
             const bar = t.parentElement, touch = e.pointerType !== 'mouse'; let on = false, timer = null, x0 = e.clientX, moved = false;
-            const start = () => { on = true; t.classList.add('dragging'); try { t.setPointerCapture(e.pointerId); } catch { /* ignore */ } };
+            const start = () => { on = true; document._tabDragging = true; t.classList.add('dragging'); try { t.setPointerCapture(e.pointerId); } catch { /* ignore */ } };
             if (touch) timer = setTimeout(() => { start(); try { navigator.vibrate && navigator.vibrate(8); } catch { /* ignore */ } }, 380); else start();
             const mv = ev => {
                 if (!on) { if (touch && Math.abs(ev.clientX - x0) > 8) { clearTimeout(timer); cleanup(); } return; }
@@ -69,7 +70,7 @@ Object.assign(SuperAnki.prototype, {
             };
             const cleanup = () => { document.removeEventListener('pointermove', mv, true); document.removeEventListener('pointerup', up, true); document.removeEventListener('pointercancel', up, true); };
             const up = () => {
-                clearTimeout(timer); cleanup(); t.classList.remove('dragging'); t.style.transform = '';
+                clearTimeout(timer); cleanup(); document._tabDragging = false; t.classList.remove('dragging'); t.style.transform = '';
                 if (on && moved) {
                     const order = [...bar.querySelectorAll('.dt')].map(d => d.dataset.k + '|' + d.dataset.id), cur = this.tabsGet();
                     this._dtabs = order.map(o => cur.find(x => x.k + '|' + x.id === o)).filter(Boolean); this.tabsSave();
@@ -85,22 +86,30 @@ Object.assign(SuperAnki.prototype, {
         const pv = this.pv, v = $('.pdfv'); if (!pv || !v) return;
         const P = this.pdfPrefs(); P.docs = force == null ? !P.docs : !!force; this.pdfPrefSave(); this.pdfDocsApply();
     },
-    pdfDocsApply() {
-        const v = $('.pdfv'); if (!v) return; const P = this.pdfPrefs(), on = !!P.docs;
-        v.classList.toggle('docs-on', on); const b = $('.pdfv-docsbtn'); if (b) { b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); b.title = on ? 'Masquer la liste des documents' : 'Afficher la liste des notes et des PDF'; }
-        let side = $('#pdf-docs'); if (!on) { if (side) side.remove(); setTimeout(() => this.pdfReflow && this.pdfReflow(), 60); return; }
-        if (!side) { side = document.createElement('aside'); side.id = 'pdf-docs'; side.className = 'pdfv-docs'; side.setAttribute('aria-label', 'Mes documents'); $('.pdfv-body').insertBefore(side, $('.pdfv-body').firstChild); }
-        side.innerHTML = `<div class="pdfd-head"><b>Mes documents</b><button class="icon-btn icon-btn-sm" data-action="pdf-docs" aria-label="Fermer la liste">${ic('x')}</button></div><div class="nb-tree">${this.noteListHtml()}</div>`;
-        setTimeout(() => this.pdfReflow && this.pdfReflow(), 60);
+    pdfDocsApply(keep) {
+        const v = $('.pdfv'), body = $('.pdfv-body'); if (!v || !body) return; const P = this.pdfPrefs(), on = !!P.docs;
+        v.classList.toggle('docs-on', on);
+        let edge = $('#pdf-edge'); if (!edge) { edge = document.createElement('button'); edge.id = 'pdf-edge'; edge.className = 'nb-edge pdfv-edge'; edge.dataset.action = 'pdf-docs'; body.insertBefore(edge, body.firstChild); }
+        edge.classList.toggle('on', on); edge.setAttribute('aria-pressed', on); edge.setAttribute('aria-label', on ? 'Masquer la liste des notes et des PDF' : 'Afficher la liste des notes et des PDF'); edge.title = on ? 'Masquer la liste des documents' : 'Afficher la liste des notes et des PDF'; edge.innerHTML = ic('chevronLeft');
+        let side = $('#pdf-docs'); if (!on) { if (side) side.remove(); if (!keep) setTimeout(() => this.pdfReflow && this.pdfReflow(), 60); return; }
+        if (!side) { side = document.createElement('aside'); side.id = 'pdf-docs'; side.className = 'pdfv-docs'; side.setAttribute('aria-label', 'Mes documents'); body.insertBefore(side, body.firstChild); }
+        const ui = this.ui, ty = ui.noteType || 'all', ch = (k, label, extra = '') => `<button class="chip ${(k === 'fav' ? ui.noteFav : (!ui.noteFav && ty === k)) ? 'active' : ''}" data-action="pdf-dfil" data-kind="${k === 'fav' ? 'fav' : 'type'}" data-t="${k}">${label}</button>`;
+        const qv = $('#pdfd-q', side) ? $('#pdfd-q', side).value : (ui.noteQ || '');
+        side.innerHTML = `<div class="pdfd-head"><b>Mes documents</b><button class="icon-btn icon-btn-sm" data-action="pdf-docs" aria-label="Fermer la liste">${ic('x')}</button></div>
+            <label class="input-icon pdfd-search">${ic('search')}<input class="input" id="pdfd-q" type="search" placeholder="Rechercher…" value="${esc(qv)}" autocomplete="off"></label>
+            <div class="pdfd-act"><button class="btn btn-soft btn-sm" data-action="pdf-dnew">${ic('plus')}Note</button><button class="btn btn-soft btn-sm" data-action="pdf-dpdf">${ic('pdf')}PDF</button><button class="btn btn-soft btn-sm" data-action="pdf-dday">${ic('calendar')}Jour</button></div>
+            <div class="pdfd-fil">${ch('fav', '★ Favoris')}${ch('all', 'Tout')}${ch('note', 'Notes')}${ch('pdf', 'PDF')}</div>
+            <div class="nb-tree" id="pdfd-list">${this.noteListHtml()}</div>`;
+        if (!keep) setTimeout(() => this.pdfReflow && this.pdfReflow(), 60);
     }
 });
 (() => {
     const wrap = (name, fn) => { const base = SuperAnki.prototype[name]; SuperAnki.prototype[name] = function (...a) { const r = base.apply(this, a); try { fn.call(this, a); } catch (e) { console.warn(e); } return r; }; };
     wrap('renderPdf', function () {
-        const top = $('.pdfv-top'); if (top && !$('.pdfv-docsbtn')) top.insertAdjacentHTML('afterbegin', `<button class="icon-btn pdfv-docsbtn" data-action="pdf-docs" aria-label="Liste des notes et des PDF" title="Afficher la liste des notes et des PDF">${ic('sidebar')}</button>`);
         this.pdfDocsApply(); this.tabsBindDrag();
     });
     wrap('renderNotes', function () { this.tabsBindDrag(); });
+    document.addEventListener('input', e => { if (e.target.id !== 'pdfd-q' || !window.app) return; app.ui.noteQ = e.target.value; const l = $('#pdfd-list'); if (l) l.innerHTML = app.noteListHtml(); });
     /* resize handles of a table (column width, row height) */
     document.addEventListener('pointerdown', e => {
         const h = e.target.closest && e.target.closest('.nb-cres, .nb-rres'); if (!h || !window.app || !app.ui.note) return;

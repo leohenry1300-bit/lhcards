@@ -140,7 +140,7 @@ Object.assign(SuperAnki.prototype, {
         let bar = $('#nb-bar');
         if (!open) { if (bar) bar.remove(); document.body.classList.remove('nb-open', 'nb-editing'); return; }
         if (!bar) document.body.insertAdjacentHTML('beforeend', `<div class="nb-bar" id="nb-bar" role="toolbar" aria-label="Mise en forme">
-    <div class="nb-lvl" role="group" aria-label="Niveau (retrait)" title="Retrait : remonter ou descendre d'un niveau"><button data-nb="out" title="Remonter d'un niveau" aria-label="Remonter d'un niveau">${ic('chevronLeft')}</button><button data-nb="in" title="Descendre d'un niveau" aria-label="Descendre d'un niveau">${ic('chevronRight')}</button><small>Niveau</small></div>
+    <div class="nb-lvl" role="group" aria-label="Niveau (retrait)" title="Retrait : remonter ou descendre d'un niveau"><span class="nb-lvl-pill"><button data-nb="out" title="Remonter d'un niveau" aria-label="Remonter d'un niveau">${ic('chevronLeft')}</button><button data-nb="in" title="Descendre d'un niveau" aria-label="Descendre d'un niveau">${ic('chevronRight')}</button></span><small>Niveau</small></div>
     <span class="nb-sep"></span>
     <button data-nb="card" title="Carte mémoire" aria-label="Carte mémoire">${ic('copy')}<span>Carte ▾</span></button>
     <button data-nb="fmt" title="Gras, italique, surligné, couleurs…" aria-label="Mise en forme"><b class="nb-aa">Aa</b><span>Texte ▾</span></button>
