@@ -3623,3 +3623,6 @@ body.nb-selmode .nb-bar { display: none !important; }
 .focus-w:not(.collapsed) .fw-chip { background: var(--surface-2, transparent); }
 .focus-w:not(.collapsed) .fw-chip.on { background: var(--primary); }
 body.in-session .focus-w:not(.collapsed) { opacity: 1 !important; }
+
+/* bottom bar: opaque (no page text showing through) and lowered by the measured gap when iOS leaves the layout viewport short (see tab-warm.js) */
+@media (max-width: 767px) { .bottom-nav { background-color: var(--surface-solid, #fff) !important; bottom: calc(-1 * var(--navgap, 0px)) !important; } }

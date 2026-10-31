@@ -35,3 +35,23 @@ Object.assign(SuperAnki.prototype, {
     document.addEventListener('focusin', upd);
     document.addEventListener('focusout', () => setTimeout(() => { upd(); if (!document.body.classList.contains('kb-open')) { const y = window.scrollY; window.scrollTo(0, y); } }, 120));
 })();
+
+/* Bottom bar guard : iOS sometimes leaves the page's "layout viewport" shorter than what is really visible (the bar then floats above the
+   bottom edge with page content showing under it). This only measures; when the visible area is clearly taller than the layout viewport (no zoom,
+   no rubber band, no keyboard) the bar is lowered by exactly that gap. A rubber band or a keyboard never counts (offsetTop / smaller height). */
+(() => {
+    if (!matchMedia('(pointer: coarse)').matches || !window.visualViewport) return;
+    const vv = window.visualViewport; let tm = 0;
+    const measure = () => {
+        const nav = document.querySelector('.bottom-nav'); if (!nav || getComputedStyle(nav).display === 'none') return;
+        const lay = window.innerHeight, vis = Math.round(vv.height + vv.offsetTop), ok = Math.abs(vv.scale - 1) < 0.02 && vv.offsetTop < 1;
+        const cur = parseFloat(document.documentElement.style.getPropertyValue('--navgap')) || 0, gap = ok ? vis - lay : 0, r = nav.getBoundingClientRect(), under = Math.round(vis - (r.bottom - cur));
+        window.__navDiag = { inner: lay, vv: Math.round(vv.height), top: Math.round(vv.offsetTop), scale: +vv.scale.toFixed(2), clientH: document.documentElement.clientHeight, screenH: screen.height, navBottom: Math.round(r.bottom), gapUnderBar: under, applied: 0 };
+        const fix = ok && under > 6 && under < 160 ? under : 0;
+        document.documentElement.style.setProperty('--navgap', fix + 'px'); window.__navDiag.applied = fix;
+    };
+    const soon = () => { clearTimeout(tm); tm = setTimeout(measure, 120); };
+    ['resize', 'orientationchange', 'pageshow', 'focusout', 'touchend', 'visibilitychange'].forEach(e => window.addEventListener(e, soon, { passive: true }));
+    vv.addEventListener('resize', soon); window.addEventListener('scroll', soon, { passive: true });
+    setTimeout(measure, 800); setTimeout(measure, 3000);
+})();
