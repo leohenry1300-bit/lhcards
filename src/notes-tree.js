@@ -3,12 +3,12 @@
    le tri, le glisser-déposer, la sélection multiple, le glisser sur une ligne pour agir, les menus,
    les tags, l'emoji, les modèles, l'export, les infos et la recherche dans une note.
    ============================================================ */
-const NB_EMOJIS = ['📘', '📗', '📙', '📕', '📒', '📝', '🧠', '💡', '🎯', '⭐', '🔥', '✅', '📌', '📚', '🎓', '✏️', '🧪', '🔬', '💼', '📈', '💰', '⚖️', '🌍', '🗣️', '🇬🇧', '🎧', '🩺', '🏠', '🎨', '🎵', '🚀', '❤️'];
+const NB_EMOJIS = ['📘', '📗', '📙', '📕', '📒', '📝', '🧠', '💡', '🎯', '⭐', '🔥', '✅', '📌', '📚', '🎓', '✏️', '🧪', '🔬', '💼', '📈', '💰', '⚖️', '🧾', '📄', '🔗'];
 const NB_SORT_KEYS = ['manual', 'alpha', 'recent', 'created'];
 const NB_TEMPLATES = [
     { name: 'Cours', emoji: '📘', title: 'Cours du ', blocks: [['h2', 'Objectifs'], ['p', ''], ['h2', 'Notions clés'], ['p', ''], ['h2', 'À retenir'], ['p', ''], ['h2', 'Questions'], ['todo', '']] },
-    { name: 'Résumé de chapitre', emoji: '📝', title: 'Résumé : ', blocks: [['h2', 'Idée principale'], ['p', ''], ['h2', 'Plan du chapitre'], ['p', ''], ['p', '', 1], ['h2', 'Définitions'], ['p', ''], ['h2', 'Exemples'], ['p', '']] },
-    { name: 'Fiche de révision', emoji: '🎯', title: 'Fiche : ', blocks: [['h2', 'À savoir par cœur'], ['p', ''], ['h2', 'Pièges à éviter'], ['p', ''], ['h2', 'Mes cartes'], ['p', 'Question >> Réponse']] },
+    { name: 'Résumé de chapitre', emoji: '📝', title: 'Résumé : ', blocks: [['h2', 'Idée principale'], ['p', ''], ['h2', 'Plan du chapitre'], ['p', ''], ['p', '', 1], ['h2', 'Définitions'], ['p', '']] },
+    { name: 'Fiche de révision', emoji: '🎯', title: 'Fiche : ', blocks: [['h2', 'À savoir par cœur'], ['p', ''], ['h2', 'Pièges à éviter'], ['p', ''], ['h2', 'Mes cartes'], ['p', 'Question :\nRéponse :']] },
     { name: 'To-do de la semaine', emoji: '✅', title: 'Semaine du ', blocks: [['h2', 'Cette semaine'], ['todo', ''], ['h2', 'Examens et rendus'], ['todo', ''], ['h2', 'Si j\'ai le temps'], ['todo', '']] }
 ];
 
@@ -73,37 +73,28 @@ Object.assign(SuperAnki.prototype, {
         if (r.kind === 'head') return `<div class="nb-headrow">${esc(r.label)}</div>`;
         if (r.kind === 'folder') {
             const d = r.d;
-            return `<div class="nb-wrap" data-kind="folder" data-id="${esc(d.id)}"><div class="nb-row nb-folder" style="--d:${r.depth}"><button class="nb-fold" data-action="nb-fold" data-id="${esc(d.id)}" aria-label="${r.open ? 'Replier' : 'Déplier'}">${ic(r.open ? 'chevronDown' : 'chevronRight')}</button><span class="nb-row-ico">${esc(d.emoji)}</span><span class="nb-row-t" data-action="nb-folder" data-id="${esc(d.id)}" title="Ouvrir la page du dossier"><b>${esc(d.name)}</b><small>${plural(r.count, 'note')}</small></span><button class="icon-btn icon-btn-sm" data-action="nb-new-in" data-deck="${esc(d.id)}" title="Nouvelle note dans ce dossier" aria-label="Nouvelle note dans ce dossier">${ic('plus')}</button></div></div>`;
+            return `<div class="nb-wrap" data-kind="folder" data-id="${esc(d.id)}"><div class="nb-row nb-folder" style="--d:${r.depth}"><button class="nb-fold" data-action="nb-fold" data-id="${esc(d.id)}" aria-label="${r.open ? 'Replier' : 'Déplier'}">${ic(r.open ? 'chevronDown' : 'chevronRight')}</button><span class="nb-row-ico">${d.emoji || '📁'}</span><span class="nb-row-t"><b>${esc(d.name)}</b><small>${plural(r.count || 0, 'note')}</small></span><span class="nb-row-d">${r.count ? `<span class="due-badge">${r.count}</span>` : ''}</span></div></div>`;
         }
         const n = r.n, first = n.b.find(b => b.x && b.t !== 'hr' && b.t !== 'img'), when = new Date(n.mod || n.created).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
         const sub = r.flat ? this.notePathLabel(n) || (first ? first.x : '') : (first ? first.x.replace(NB_LINK, (m, i) => i.replace(/^c:[^|]+\|/, '')) : 'Note vide');
         const checked = ui.noteSel && ui.noteSel.has(n.id), pf = this.pdfOfNote(n.id);
-        return `<div class="nb-wrap" data-kind="note" data-id="${esc(n.id)}"><div class="nb-row ${n.id === ui.note ? 'on' : ''} ${checked ? 'selected' : ''}" data-action="nb-open" data-id="${esc(n.id)}" data-kind="note" style="--d:${r.depth}">
-            ${sel ? `<span class="row-check ${checked ? 'on' : ''}">${checked ? ic('check') : ''}</span>` : ''}
-            ${r.kids ? `<button class="nb-fold" data-action="nb-fold" data-id="${esc(n.id)}" aria-label="${r.open ? 'Replier' : 'Déplier'}">${ic(r.open ? 'chevronDown' : 'chevronRight')}</button>` : '<span class="nb-fold none"></span>'}
-            <span class="nb-row-ico ${pf ? 'nb-row-pdf' : ''}">${pf ? ic('pdf') : n.emoji ? esc(n.emoji) : ic(n.daily ? 'calendar' : 'notebook')}</span>
-            <span class="nb-row-t"><b>${esc(this.noteName(n))}</b><small>${pf ? esc(this.pdfSubline(pf)) : esc(truncate(sub, 80))}</small>${n.tags.length ? `<span class="nb-tagline">${n.tags.slice(0, 3).map(t => `<i>#${esc(t)}</i>`).join('')}${n.tags.length > 3 ? `<i>+${n.tags.length - 3}</i>` : ''}</span>` : ''}</span>
-            <span class="nb-row-d">${n.pin ? ic('pin', 'nb-pin') : ''}${n.fav ? ic('star', 'i-fill') : ''}<small>${when}</small></span>
-            <button class="icon-btn icon-btn-sm nb-more-row" data-action="nb-row-menu" data-id="${esc(n.id)}" aria-label="Plus d'actions">${ic('more')}</button>
-            ${sel || r.flat ? '' : `<span class="nb-grip" data-action="nb-noop" title="Glisser pour déplacer" aria-label="Glisser pour déplacer">${ic('grip')}</span>`}
-        </div></div>`;
+        return `<div class="nb-wrap" data-kind="note" data-id="${esc(n.id)}"><div class="nb-row ${n.id === ui.note ? 'on' : ''} ${checked ? 'selected' : ''}" data-action="nb-open" data-id="${esc(n.id)}">${sel ? `<span class="row-check ${checked ? 'on' : ''}">${checked ? ic('check') : ''}</span>` : ''}${r.kids ? `<button class="nb-fold" data-action="nb-fold" data-id="${esc(n.id)}" aria-label="${r.open ? 'Replier' : 'Déplier'}">${ic(r.open ? 'chevronDown' : 'chevronRight')}</button>` : `<span class="nb-fold ph">${ic('chevronRight')}</span>`}<span class="nb-row-ico ${pf ? 'nb-row-pdf' : ''}">${pf ? ic('pdf') : n.emoji ? esc(n.emoji) : ic(n.daily ? 'calendar' : 'notebook')}</span><span class="nb-row-t"><b>${esc(this.noteName(n))}</b><small>${pf ? esc(this.pdfSubline(pf)) : esc(truncate(sub, 80))}</small>${n.tags.length ? `<span class="nb-tagline">${n.tags.slice(0, 2).map(t => `#${esc(t)}`).join(' ')}</span>` : ''}</span><span class="nb-row-d">${n.pin ? ic('pin', 'nb-pin') : ''}${n.fav ? ic('star', 'i-fill') : ''}<small>${when}</small></span><button class="icon-btn icon-btn-sm nb-more-row" data-action="nb-row-menu" data-id="${esc(n.id)}" aria-label="Plus d'actions">${ic('more')}</button>${sel || r.flat ? '' : `<span class="nb-grip" data-action="nb-noop" title="Glisser pour déplacer" aria-label="Glisser pour déplacer">${ic('grip')}</span>`}</div></div>`;
     },
     noteListHtml() {
         const rows = this.nbRows(), ui = this.ui;
-        if (!rows.length) return `<p class="small faint" style="padding:14px 4px">${ui.noteQ ? 'Aucune note ne correspond.' : ui.noteFav ? 'Aucune note favorite.' : ui.noteTag ? 'Aucune note avec ce tag.' : 'Aucune note pour l\'instant. Crée la première, ouvre la note du jour ou pars d\'un modèle.'}</p>`;
+        if (!rows.length) return `<p class="small faint" style="padding:14px 4px">${ui.noteQ ? 'Aucune note ne correspond.' : ui.noteFav ? 'Aucune note favorite.' : ui.noteTag ? 'Aucune note avec ce tag.' : 'Aucune note pour le moment.'}</p>`;
         return rows.map(r => this.nbRowHtml(r)).join('');
     },
     nbChipsHtml() {
         const ui = this.ui, tags = this.noteTagCounts().slice(0, 14);
-        const nPdf = this.data.pdfs.length, ty = ui.noteType || 'all', none = !ui.noteFav && !ui.noteTag, tc = (k, label, n) => `<button class="chip ${none && ty === k ? 'active' : ''}" data-action="nb-filter" data-kind="type" data-t="${k}">${label} <span class="count">${n}</span></button>`;
-        return `<button class="chip ${ui.noteFav ? 'active' : ''}" data-action="nb-filter" data-kind="fav">${ic('star', 'i-fill')} Favoris <span class="count">${this.data.notes.filter(x => x.fav).length}</span></button>${tc('all', 'Tout', this.data.notes.length)}${tc('note', ic('notebook') + ' Notes', this.data.notes.length - nPdf)}${tc('pdf', ic('pdf') + ' PDF', nPdf)}${tags.map(([t, c]) => `<button class="chip ${ui.noteTag && ui.noteTag.toLowerCase() === t.toLowerCase() ? 'active' : ''}" data-action="nb-filter" data-kind="tag" data-tag="${esc(t)}">#${esc(t)} <span class="count">${c}</span></button>`).join('')}`;
+        const nPdf = this.data.pdfs.length, ty = ui.noteType || 'all', none = !ui.noteFav && !ui.noteTag, tc = (k, label, n) => `<button class="chip ${none && ty === k ? 'active' : ''}" data-action="nb-filter" data-kind="${k}">${label}${n ? `<span class="count">${n}</span>` : ''}</button>`;
+        return `${tc('all', 'Tout', this.data.notes.length + this.data.pdfs.length)}${tc('note', 'Notes', this.data.notes.length)}${tc('pdf', 'PDF', this.data.pdfs.length)}${ui.noteFav ? `<button class="chip active" data-action="nb-filter" data-kind="fav">${ic('star', 'i-fill')} Favoris</button>` : ''}${tags.slice(0, 8).map(([tag, count]) => `<button class="chip ${ui.noteTag === tag ? 'active' : ''}" data-action="nb-filter" data-kind="tag" data-tag="${esc(tag)}">#${esc(tag)}<span class="count">${count}</span></button>`).join('')}`;
     },
     nbBulkHtml() {
         const ui = this.ui; if (!ui.noteSelMode) return '';
         const n = ui.noteSel ? ui.noteSel.size : 0, all = this.nbRows().filter(r => r.kind === 'note'), allOn = all.length && ui.noteSel && all.every(r => ui.noteSel.has(r.n.id));
         const b = (act, ico, label, cls = '') => `<button class="nbb ${cls}" data-action="nb-bulk" data-act="${act}" ${n ? '' : 'disabled'} title="${label}" aria-label="${label}">${ic(ico)}<span>${label}</span></button>`;
-        return `<div class="nb-bulk"><div class="nbb-top"><button class="icon-btn icon-btn-sm" data-action="nb-sel-exit" title="Quitter la sélection" aria-label="Quitter la sélection">${ic('x')}</button><b>${n ? plural(n, 'sélectionnée', 'sélectionnées') : 'Rien de sélectionné'}</b><button class="btn btn-soft btn-sm" data-action="nb-sel-all">${allOn ? 'Aucune' : 'Tout'}</button></div>
-            <div class="nbb-row">${b('move', 'folder', 'Déplacer')}${b('pin', 'pin', 'Épingler')}${b('del', 'trash', 'Supprimer', 'danger')}</div></div>`;
+        return `<div class="nb-bulk"><div class="nbb-top"><button class="icon-btn icon-btn-sm" data-action="nb-sel-exit" title="Quitter la sélection" aria-label="Quitter la sélection">${ic('x')}</button><span>${n} sélectionnée${n > 1 ? 's' : ''}</span><button class="chip ${allOn ? 'active' : ''}" data-action="nb-sel-all">Tout</button></div><div class="nbb-row">${b('move', 'folder', 'Déplacer')}${b('pin', 'pin', 'Épingler')}${b('del', 'trash', 'Supprimer', 'danger')}</div></div>`;
     },
     nbRefreshList() {
         const l = $('#nb-list'); if (l) l.innerHTML = this.noteListHtml();
@@ -123,6 +114,21 @@ Object.assign(SuperAnki.prototype, {
         if (open && ui.noteSelMode) { ui.noteSelMode = false; ui.noteSel = new Set(); }
         const searchRow = `<div class="nb-searchrow"><label class="input-icon">${ic('search')}<input class="input" id="nb-search" type="search" placeholder="Rechercher une note, un PDF…" value="${esc(ui.noteQ || '')}" autocomplete="off" enterkeyhint="search"></label></div>`;
         const tools = `<span class="nb-tools"><button class="btn btn-soft sort-btn" data-action="nb-sort-menu" id="nb-sortbtn" aria-label="Trier" title="Trier">${this.nbSortLabel()}</button><button class="btn btn-soft ${ui.noteSelMode ? 'on' : ''}" data-action="nb-sel-toggle" aria-label="Sélectionner plusieurs" title="Sélectionner plusieurs">${ic('checkSq')}<span>Sélection</span></button></span>`;
+        const emptyState = !this.data.notes.length && !this.data.pdfs.length && !ui.noteQ && !ui.noteFav && !ui.noteTag && !(ui.noteType && ui.noteType !== 'all') ? `
+            <div class="panel nb-empty">
+                <div class="nb-empty-head">
+                    <span class="nb-empty-ico" aria-hidden="true">📝</span>
+                    <div>
+                        <h3>Commencez par une première note</h3>
+                        <p>Centralisez vos cours, documents et fiches de révision au même endroit.</p>
+                    </div>
+                </div>
+                <div class="row-gap nb-empty-actions">
+                    <button class="btn btn-primary" data-action="nb-new-menu" aria-label="Créer une note">Nouvelle note</button>
+                    <button class="btn btn-soft" data-action="pdf-import-btn" aria-label="Importer un PDF">Importer un PDF</button>
+                    <button class="btn btn-soft" data-action="nb-daily" aria-label="Créer une note du jour">Note du jour</button>
+                </div>
+            </div>` : '';
         const side = open ? `
             <aside class="notes-side panel">
                 <div class="notes-side-head"><h2 class="page-title" style="margin:0">Notes</h2>
@@ -140,10 +146,11 @@ Object.assign(SuperAnki.prototype, {
                 <div class="decks-toolbar" id="nb-home">${this.nbHomeHtml()}</div>
                 <div class="panel search-bar nb-searchpanel">${searchRow}</div>
                 <div class="panel nb-listpanel">
+                    ${emptyState || `
                     <div class="chip-row nb-chips nb-lp-chips" id="nb-chips">${this.nbChipsHtml()}</div>
                     <div class="nb-lp-head"><b id="nb-lp-title">${this.nbListTitle()}</b>${tools}</div>
                     <div id="nb-bulk">${this.nbBulkHtml()}</div>
-                    <div id="nb-list" class="nb-tree">${this.noteListHtml()}</div>
+                    <div id="nb-list" class="nb-tree">${this.noteListHtml()}</div>`}
                 </div>
             </aside>`;
         $('#view-notes').innerHTML = `
@@ -167,14 +174,14 @@ Object.assign(SuperAnki.prototype, {
             <div class="nb-head">
                 <button class="icon-btn" data-action="nb-close" title="${back ? `Retour à « ${esc(this.noteName(back))} »` : 'Retour à la liste'}" aria-label="Retour">${ic('arrowLeft')}</button>
                 <button class="nb-emoji" data-action="nb-emoji" title="Choisir l'emoji de la note" aria-label="Emoji de la note">${n.emoji ? esc(n.emoji) : ic('notebook')}</button>
-                <input class="nb-title" id="nb-title" maxlength="120" placeholder="Titre de la note" title="Double-clique (ou double-tape) pour renommer" value="${esc(n.title)}" ${n.title ? 'readonly' : ''} autocomplete="off" enterkeyhint="next">
-                <button class="icon-btn nb-sidebtn ${this.nbPrefs().sideOff ? '' : 'on'}" data-action="nb-side" title="${this.nbPrefs().sideOff ? 'Afficher la liste des notes' : 'Masquer la liste des notes'}" aria-label="Liste des notes">${ic('sidebar')}</button>
+                <input class="nb-title" id="nb-title" maxlength="120" placeholder="Titre de la note" title="Double-clique (ou double-tape) pour renommer" value="${esc(n.title)}" ${n.title ? 'readonly' : ''}>
+                <button class="icon-btn nb-sidebtn ${this.nbPrefs().sideOff ? '' : 'on'}" data-action="nb-side" title="${this.nbPrefs().sideOff ? 'Afficher la liste des notes' : 'Masquer la liste des notes'}" aria-label="${this.nbPrefs().sideOff ? 'Afficher la liste des notes' : 'Masquer la liste des notes'}">${ic('panelLeft')}</button>
                 <button class="icon-btn" data-action="nb-find" title="Chercher dans la note (Ctrl+F)" aria-label="Chercher dans la note">${ic('search')}</button>
                 <button class="icon-btn ${n.fav ? 'nb-fav on' : 'nb-fav'}" data-action="nb-fav" title="Favori" aria-label="Favori">${ic('star', n.fav ? 'i-fill' : '')}</button>
                 <button class="icon-btn" data-action="nb-more" title="Plus d'actions" aria-label="Plus d'actions">${ic('more')}</button>
             </div>
             ${crumbs || n.daily ? `<p class="nb-crumbs">${n.daily ? ic('calendar') + ' Note du jour' : ''}${n.daily && crumbs ? ' · ' : ''}${esc(crumbs)}</p>` : ''}
-            <div class="nb-findbar hidden" id="nb-findbar"><input class="input" id="nb-findin" placeholder="Rechercher dans la note…" autocomplete="off"><span class="small muted" id="nb-findcount"></span><input class="input" id="nb-replin" placeholder="Remplacer par…" autocomplete="off"><button class="btn btn-soft btn-sm" data-action="nb-repl" data-all="0">Remplacer</button><button class="btn btn-soft btn-sm" data-action="nb-repl" data-all="1">Tout</button><button class="icon-btn icon-btn-sm" data-action="nb-find-step" data-d="-1" aria-label="Précédent">${ic('chevronLeft')}</button><button class="icon-btn icon-btn-sm" data-action="nb-find-step" data-d="1" aria-label="Suivant">${ic('chevronRight')}</button><button class="icon-btn icon-btn-sm" data-action="nb-find" aria-label="Fermer">${ic('x')}</button></div>
+            <div class="nb-findbar hidden" id="nb-findbar"><input class="input" id="nb-findin" placeholder="Rechercher dans la note…" autocomplete="off"><span class="small muted" id="nb-findcount"></span></div>
             <div class="nb-tags" id="nb-tags">${this.nbTagsHtml(n)}</div>
             <div class="nb-blocks" id="nb-blocks">${this.nbBlocksHtml(n)}</div>
             <p class="nb-stats small faint" id="nb-stats">${st}</p>
@@ -183,10 +190,10 @@ Object.assign(SuperAnki.prototype, {
         </div>`;
     },
     nbTagsHtml(n) {
-        return `${n.tags.map(t => `<span class="nb-tag">#${esc(t)}<button data-action="nb-tag-del" data-tag="${esc(t)}" aria-label="Retirer le tag ${esc(t)}">${ic('x')}</button></span>`).join('')}<input class="nb-tag-in" id="nb-tag-in" list="nb-taglist" placeholder="${n.tags.length ? '+ tag' : '+ Ajouter un tag (#cours, #examen…)'}" maxlength="30" autocomplete="off" enterkeyhint="done"><datalist id="nb-taglist">${this.noteTagCounts().filter(([t]) => !n.tags.includes(t)).map(([t]) => `<option value="${esc(t)}">`).join('')}</datalist>`;
+        return `${n.tags.map(t => `<span class="nb-tag">#${esc(t)}<button data-action="nb-tag-del" data-tag="${esc(t)}" aria-label="Retirer le tag ${esc(t)}">${ic('x')}</button></span>`).join('')}${this.nbTagInputHtml()}`;
     },
     nbSubsHtml(n, kids = this.noteKids(n.id)) {
-        return `<h4>Sous-notes${kids.length ? ` (${kids.length})` : ''}</h4>${kids.map(k => `<button class="nb-bl" data-action="nb-open" data-id="${esc(k.id)}"><span class="nb-row-ico">${k.emoji ? esc(k.emoji) : ic('notebook')}</span><span><b>${esc(this.noteName(k))}</b><small>${esc(truncate((k.b.find(b => b.x) || { x: 'Note vide' }).x, 80))}</small></span></button>`).join('')}<button class="btn btn-soft btn-sm" data-action="nb-new-sub" data-id="${esc(n.id)}" style="margin-top:6px">${ic('plus')}Ajouter une sous-note</button>`;
+        return `<h4>Sous-notes${kids.length ? ` (${kids.length})` : ''}</h4>${kids.map(k => `<button class="nb-bl" data-action="nb-open" data-id="${esc(k.id)}"><span class="nb-row-ico">${k.emoji ? esc(k.emoji) : ic('notebook')}</span><span>${esc(this.noteName(k))}</span></button>`).join('') || '<p class="small faint">Aucune sous-note.</p>'}`;
     },
     noteStats(n) { const words = noteText({ b: n.b, tags: [] }).split(/\s+/).filter(Boolean).length; return `${plural(words, 'mot')} · ${Math.max(1, Math.round(words / 200))} min de lecture`; },
 
@@ -206,8 +213,7 @@ Object.assign(SuperAnki.prototype, {
         if (!moving.length) return 0;
         const deckOf = dest.parent ? this.note(dest.parent).deckId : (dest.deckId || '');
         this.nbPrefs();
-        moving.forEach(id => { const n = this.note(id); n.parent = dest.parent || ''; n.deckId = deckOf; this.noteDescendants(id).forEach(d => { this.note(d).deckId = deckOf; }); [id, ...this.noteDescendants(id)].forEach(x => { this.nbCardsFollow(this.note(x)); const pf = this.pdfOfNote(x); if (pf) this.pdfMove(pf, deckOf); }); });   // the cards of a moved note follow it to its new folder
-        /* the order among the new neighbours */
+        moving.forEach(id => { const n = this.note(id); n.parent = dest.parent || ''; n.deckId = deckOf; this.noteDescendants(id).forEach(d => { this.note(d).deckId = deckOf; }); [id, ...this.noteDescendants(id)].forEach(x => { const z = this.note(x); if (z) z.mod = Date.now(); }); });
         const list = this.nbSortList(this.data.notes.filter(x => (x.parent || '') === (dest.parent || '') && x.deckId === deckOf && !moving.includes(x.id)));
         let at = list.length;
         if (ref && pos !== 'into') { const k = list.findIndex(x => x.id === ref); if (k >= 0) at = pos === 'before' ? k : k + 1; }
@@ -221,7 +227,7 @@ Object.assign(SuperAnki.prototype, {
         const all = new Set(); ids.forEach(id => { if (this.note(id)) { all.add(id); this.noteDescendants(id).forEach(d => all.add(d)); } });
         if (!all.size) return;
         const extra = all.size - ids.length;
-        if (extra > 0 && !(await this.confirm({ title: 'Supprimer aussi les sous-notes ?', message: `${ids.length > 1 ? 'Ces notes contiennent' : 'Cette note contient'} ${plural(extra, 'sous-note')} qui ${extra > 1 ? 'seront supprimées' : 'sera supprimée'} avec ${ids.length > 1 ? 'elles' : 'elle'}. Tu pourras annuler juste après.`, ok: 'Supprimer', danger: true }))) return;
+        if (extra > 0 && !(await this.confirm({ title: 'Supprimer aussi les sous-notes ?', message: `${ids.length > 1 ? 'Ces notes contiennent' : 'Cette note contient'} ${plural(extra, 'sous-note')}…`, confirm: 'Supprimer', cancel: 'Annuler' }))) return;
         this.nbIdle(true);
         const order = [...all];
         this.data.notes = this.data.notes.filter(x => !all.has(x.id));
@@ -229,12 +235,12 @@ Object.assign(SuperAnki.prototype, {
         if (all.has(this.ui.note)) { this.ui.note = null; if (this.nb) this.nb.back = []; }
         if (this.ui.noteSel) this.ui.noteSel.clear();
         if (this.view === 'notes') this.renderNotes();
-        this.toast(all.size > 1 ? `${plural(all.size, 'note')} supprimées` : 'Note supprimée', 'success', ic('trash'), { label: 'Annuler', fn: () => { order.forEach(id => this.trashRestore('note', id)); if (this.view === 'notes') this.renderNotes(); } });
+        this.toast(all.size > 1 ? `${plural(all.size, 'note')} supprimées` : 'Note supprimée', 'success', ic('trash'), { label: 'Annuler', fn: () => { order.forEach(id => this.trashRestore('note', id)); } });
     },
     noteDelete(id) { return this.noteDeleteMany([id]); },
     noteDuplicate(id) {
         const n = this.note(id); if (!n) return;
-        const copy = JSON.parse(JSON.stringify(n)); copy.b.forEach(b => { if (b.cd) { b.cd.id = uid('b'); b.cd.cid = []; b.cd.qid = ''; b.cd.sg = ''; b.cd.hm = []; b.cd.dead = false; } if (b.t === 'table') b.id = uid('b'); });   // the copy gets its own cards
+        const copy = JSON.parse(JSON.stringify(n)); copy.b.forEach(b => { if (b.cd) { b.cd.id = uid('b'); b.cd.cid = []; b.cd.qid = ''; b.cd.sg = ''; b.cd.hm = []; b.cd.dead = false; } if (b.t === 'todo') b.x = b.x; });
         const c = normalizeNote({ ...copy, id: uid('n'), title: `${n.title || 'Sans titre'} (copie)`, daily: '', pin: false, created: Date.now(), mod: 0, order: n.order + 1 });
         this.data.notes.push(c); this.nbCardSyncAll(c); this.save(); this.noteOpen(c.id);
         this.toast('Note dupliquée', 'success', ic('copy'));
@@ -252,22 +258,17 @@ Object.assign(SuperAnki.prototype, {
     },
     noteInfo(n) {
         const fmt = t => (t ? new Date(t).toLocaleString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-');
-        const links = this.noteLinks(n).length, bl = this.noteBacklinks(n).length, kids = this.noteDescendants(n.id).length, cards = this.noteLinks(n).filter(l => l.k === 'card').length;
-        const rows = [['Dossier', esc(n.deckId ? this.deckPath(n.deckId) : 'Sans dossier')], ['Créée le', fmt(n.created)], ['Modifiée le', fmt(n.mod)], ['Contenu', this.noteStats(n)], ['Liens sortants', `${links}${cards ? ` (dont ${plural(cards, 'carte')})` : ''}`], ['Rétroliens', String(bl)], ['Sous-notes', String(kids)], ['Tags', n.tags.length ? esc(n.tags.map(t => '#' + t).join(' ')) : '-']];
+        const rows = [['Dossier', esc(n.deckId ? this.deckPath(n.deckId) : 'Sans dossier')], ['Créée le', fmt(n.created)], ['Modifiée le', fmt(n.mod)], ['Contenu', this.noteStats(n)], ['Liens', this.noteLinks(n).length], ['Sous-notes', this.noteDescendants(n.id).length]];
         this.openModal({ title: 'Informations sur la note', size: 'narrow', body: rows.map(([k, v]) => `<div class="set-row"><div class="txt"><b>${k}</b></div><span>${v}</span></div>`).join('') });
     },
     openNoteMove(ids) {
         const first = this.note(ids[0]); if (!first) return;
         const blocked = new Set(); ids.forEach(id => { blocked.add(id); this.noteDescendants(id).forEach(d => blocked.add(d)); });
-        const m = this.openModal({
-            title: ids.length > 1 ? `Déplacer ${ids.length} notes` : 'Déplacer la note', size: 'narrow',
-            body: `<label class="input-icon" style="display:block;margin-bottom:8px">${ic('search')}<input class="input" id="nm-q" placeholder="Rechercher un dossier ou une note…" autocomplete="off"></label><div class="pick-list" id="nm-list"></div>`
-        });
+        const m = this.openModal({ title: ids.length > 1 ? `Déplacer ${ids.length} notes` : 'Déplacer la note', size: 'narrow', body: '<label class="input-icon" style="display:block;margin-bottom:8px">' + ic('search') + '<input class="input" id="nm-q" placeholder="Rechercher un dossier ou une note…" autocomplete="off"></label><div id="nm-list" class="pick-list"></div>' });
         const paint = () => {
             const q = fold($('#nm-q', m).value.trim());
-            const items = [{ k: 'deck', id: '', label: '🗂️ Sans dossier', depth: 0 }, ...this.sortedDecks().filter(d => !d.pdf).map(d => ({ k: 'deck', id: d.id, label: `${d.emoji} ${d.name}`, depth: this.deckChain(d.id).length - 1 })),
-                ...this.nbSortList(this.data.notes.filter(x => !blocked.has(x.id))).map(x => ({ k: 'note', id: x.id, label: `${x.emoji || '📄'} ${this.noteName(x)}`, depth: 0, sub: this.notePathLabel(x) }))];
-            $('#nm-list', m).innerHTML = items.filter(i => !q || fold(i.label + (i.sub || '')).includes(q)).slice(0, 80).map(i => `<button class="pick-item ${(i.k === 'deck' && !first.parent && i.id === first.deckId) || (i.k === 'note' && i.id === first.parent) ? 'active' : ''}" data-k="${i.k}" data-id="${esc(i.id)}" style="padding-left:${12 + i.depth * 14}px">${esc(i.label)}${i.k === 'note' ? ` <span class="faint small">· sous-note${i.sub ? ' · ' + esc(truncate(i.sub, 30)) : ''}</span>` : ''}</button>`).join('') || '<p class="small faint">Rien ne correspond.</p>';
+            const items = [{ k: 'deck', id: '', label: '🗂️ Sans dossier', depth: 0 }, ...this.sortedDecks().filter(d => !d.pdf).map(d => ({ k: 'deck', id: d.id, label: `${d.emoji} ${d.name}`, depth: 0, sub: '' })), ...this.nbSortList(this.data.notes.filter(x => !blocked.has(x.id))).map(x => ({ k: 'note', id: x.id, label: `${x.emoji || '📄'} ${this.noteName(x)}`, depth: 0, sub: this.notePathLabel(x) }))];
+            $('#nm-list', m).innerHTML = items.filter(i => !q || fold(i.label + (i.sub || '')).includes(q)).slice(0, 80).map(i => `<button class="pick-item" data-k="${i.k}" data-id="${i.id}">${i.label}${i.sub ? `<small>${esc(i.sub)}</small>` : ''}</button>`).join('');
         };
         paint(); $('#nm-q', m).addEventListener('input', paint);
         m.addEventListener('click', e => {
@@ -281,7 +282,7 @@ Object.assign(SuperAnki.prototype, {
     },
     openNoteEmoji() {
         const n = this.note(this.ui.note); if (!n) return;
-        const m = this.openModal({ title: 'Emoji de la note', size: 'narrow', body: `<div class="emoji-grid">${NB_EMOJIS.map(e => `<button type="button" class="${e === n.emoji ? 'active' : ''}" data-e="${e}" aria-label="${e}">${e}</button>`).join('')}</div><button class="btn btn-soft btn-block" data-e="" style="margin-top:12px">${ic('x')}Aucun emoji</button>` });
+        const m = this.openModal({ title: 'Emoji de la note', size: 'narrow', body: `<div class="emoji-grid">${NB_EMOJIS.map(e => `<button type="button" class="${e === n.emoji ? 'active' : ''}" data-e="${esc(e)}">${esc(e)}</button>`).join('')}</div>` });
         m.addEventListener('click', e => { const b = e.target.closest('[data-e]'); if (!b) return; n.emoji = b.dataset.e; this.save(); this.closeModal(m); this.renderNotes(); });
     },
 
@@ -291,18 +292,18 @@ Object.assign(SuperAnki.prototype, {
         const pf = this.pdfOfNote(n.id);
         this.showMenu(anchor, [
             ...extra,
-            ...(pf ? [{ icon: 'pdf', label: 'Ouvrir le PDF', fn: () => this.pdfOpen(pf.id, { from: 'notes' }) }, { icon: 'export', label: 'Exporter le PDF annoté', fn: () => this.pdfExportAnnotated(pf) }, { icon: 'export', label: 'Exporter l\'original', fn: () => this.pdfExportOriginal(pf) }, { sep: true }] : []),
+            ...(pf ? [{ icon: 'pdf', label: 'Ouvrir le PDF', fn: () => this.pdfOpen(pf.id, { from: 'notes' }) }, { icon: 'export', label: 'Exporter le PDF annoté', fn: () => this.pdfExportAnnota(pf.id) }] : []),
             { icon: 'pin', label: n.pin ? 'Désépingler' : 'Épingler en haut', fn: () => { n.pin = !n.pin; this.save(); this.renderNotes(); } },
             { icon: 'star', label: n.fav ? 'Retirer des favoris' : 'Ajouter aux favoris', fn: () => { n.fav = !n.fav; this.save(); this.renderNotes(); } },
             { sep: true },
             { icon: 'plus', label: 'Ajouter une sous-note', fn: () => this.noteNewFrom(null, { parent: n.id }) },
-            ...(pf ? [] : [{ icon: 'sparkle', label: 'Cartes avec l\'IA…', fn: () => this.aiNoteCards(n.id) }, { icon: 'sparkle', label: 'Quiz avec l\'IA…', fn: () => this.aiNoteQuiz(n.id) }, { icon: 'sparkle', label: 'Résumé avec l\'IA…', fn: () => this.aiSummary(n.id) }, { icon: 'sparkle', label: 'Discuter avec cette note (IA)…', fn: () => this.aiChat(n.id) }]),
+            ...(pf ? [] : [{ icon: 'sparkle', label: 'Cartes avec l\'IA…', fn: () => this.aiNoteCards(n.id) }, { icon: 'sparkle', label: 'Quiz avec l\'IA…', fn: () => this.aiNoteQuiz(n.id) }]),
             { icon: 'copy', label: 'Dupliquer', fn: () => this.noteDuplicate(n.id) },
             { icon: 'folder', label: 'Déplacer…', fn: () => this.openNoteMove([n.id]) },
             { sep: true },
             { icon: 'export', label: 'Exporter en Markdown (.md)', fn: () => this.noteExport(n) },
             { icon: 'cloud', label: 'Partager…', fn: () => this.noteShare(n) },
-            { icon: 'file', label: 'Copier le texte', fn: () => { navigator.clipboard && navigator.clipboard.writeText(this.noteAsText(n)).then(() => this.toast('Texte copié', 'success', ic('copy'))).catch(() => this.toast('Copie impossible ici.', 'warning')); } },
+            { icon: 'file', label: 'Copier le texte', fn: () => { navigator.clipboard && navigator.clipboard.writeText(this.noteAsText(n)).then(() => this.toast('Texte copié', 'success', ic('copy'))); } },
             { icon: 'info', label: 'Informations', fn: () => this.noteInfo(n) },
             { sep: true },
             { icon: 'trash', label: 'Supprimer', danger: true, fn: () => this.noteDeleteMany([n.id]) }
@@ -312,7 +313,7 @@ Object.assign(SuperAnki.prototype, {
         this.showMenu(anchor, [
             { icon: 'plus', label: 'Note vide', fn: () => this.noteNewFrom(null, ctx) },
             { icon: 'pdf', label: 'Importer un PDF…', fn: () => this.pdfPick(ctx.deckId || '') },
-            { icon: 'file', label: 'Importer un document (Word, PowerPoint, Excel, texte)…', fn: () => { const n = this.noteNew('Document', {}); this.go('notes'); this.noteOpen(n.id); setTimeout(() => this.nbFilePick(0, true), 200); } },
+            { icon: 'file', label: 'Importer un document…', fn: () => { const n = this.noteNew('Document', {}); this.go('notes'); this.noteOpen(n.id); } },
             { sep: true },
             ...NB_TEMPLATES.map(t => ({ icon: 'file', label: `${t.emoji} ${t.name}`, fn: () => this.noteNewFrom(t, ctx) })),
             { sep: true },
@@ -411,7 +412,7 @@ Object.assign(SuperAnki.prototype, {
             if (!moved) {
                 if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return;
                 moved = true; this._dragging = true; this.nbDeactivate(); document.body.classList.add('nb-dragging');
-                const row = this.nbEl(i); ghost = document.createElement('div'); ghost.className = 'nb-ghost nb-ghost-b'; ghost.textContent = n.b[i].x || '…'; ghost.style.left = row.getBoundingClientRect().left + 'px'; ghost.style.width = row.offsetWidth + 'px'; document.body.appendChild(ghost);
+                const row = this.nbEl(i); ghost = document.createElement('div'); ghost.className = 'nb-ghost nb-ghost-b'; ghost.textContent = n.b[i].x || '…'; ghost.style.left = row.getBoundingClientRect().left + 'px'; ghost.style.top = row.getBoundingClientRect().top + 'px'; document.body.appendChild(ghost);
                 for (let k = i; k < end; k++) { const r = this.nbEl(k); if (r) r.classList.add('dragging'); }
             }
             ev.preventDefault();
@@ -468,7 +469,7 @@ Object.assign(SuperAnki.prototype, {
         const before = x.slice(0, s), mid = x.slice(s, e), after = x.slice(e);
         let nx, caret;
         const re = isHl ? /==(?:\{(?:[ygbp]|#[0-9a-f]{6})\})?$/i : null;
-        if (isHl && re.test(before) && after.startsWith('==')) { const m = re.exec(before); nx = before.slice(0, m.index) + mid + after.slice(2); caret = m.index + mid.length; if (m[0] !== tok) { nx = before.slice(0, m.index) + tok + mid + tok2 + after.slice(2); caret = m.index + tok.length + mid.length + tok2.length; } }
+        if (isHl && re.test(before) && after.startsWith('==')) { const m = re.exec(before); nx = before.slice(0, m.index) + mid + after.slice(2); caret = m.index + mid.length; }
         else if (!isHl && before.endsWith(tok) && after.startsWith(tok2) && mid) { nx = before.slice(0, -tok.length) + mid + after.slice(tok2.length); caret = before.length - tok.length + mid.length; }
         else if (mid) { nx = before + tok + mid + tok2 + after; caret = e + tok.length + tok2.length; }
         else { nx = before + tok + tok2 + after; caret = s + tok.length; }
@@ -492,23 +493,23 @@ Object.assign(SuperAnki.prototype, {
             this.noteOpen(ds.id);
         }
         else if (action === 'nb-fold') { const P = this.nbPrefs(); if (P.closed[ds.id]) delete P.closed[ds.id]; else P.closed[ds.id] = 1; this.nbPrefSave(); this.nbRefreshList(); }
-        else if (action === 'nb-side') { const P = this.nbPrefs(); P.sideOff = !P.sideOff; this.nbPrefSave(); const sh = $('.notes-shell'); if (sh) sh.classList.toggle('side-off', !!P.sideOff); const b = $('.nb-sidebtn'); if (b) { b.classList.toggle('on', !P.sideOff); b.title = P.sideOff ? 'Afficher la liste des notes' : 'Masquer la liste des notes'; } }
+        else if (action === 'nb-side') { const P = this.nbPrefs(); P.sideOff = !P.sideOff; this.nbPrefSave(); const sh = $('.notes-shell'); if (sh) sh.classList.toggle('side-off', !!P.sideOff); }
         else if (action === 'nb-close') {
             this.nbIdle(true); const back = this.nb && this.nb.back.pop();
             if (back && this.note(back)) { ui.note = back; this.nb.hist = []; this.nb.redo = []; } else ui.note = null;
             this.renderNotes();
         }
         else if (action === 'nb-fav') { const n = this.note(ui.note); if (n) { n.fav = !n.fav; this.save(); this.renderNotes(); } }
-        else if (action === 'nb-filter') { ui.noteType = ds.kind === 'type' ? ds.t : 'all'; ui.noteFav = ds.kind === 'fav'; ui.noteTag = ds.kind === 'tag' ? (ui.noteTag && ui.noteTag.toLowerCase() === ds.tag.toLowerCase() ? '' : ds.tag) : ''; this.nbRefreshList(); }
+        else if (action === 'nb-filter') { ui.noteType = ds.kind === 'type' ? ds.t : 'all'; ui.noteFav = ds.kind === 'fav'; ui.noteTag = ds.kind === 'tag' ? (ui.noteTag && ui.noteTag.toLowerCase() === ds.tag ? '' : ds.tag) : ''; this.nbRefreshList(); }
         else if (action === 'nb-sort-menu') this.nbSortMenu(el);
-        else if (action === 'nb-sel-toggle') { ui.noteSelMode = !ui.noteSelMode; ui.noteSel = new Set(); this.nbRefreshList(); const b = $('[data-action=nb-sel-toggle]'); if (b) { b.classList.toggle('btn-primary', ui.noteSelMode); b.classList.toggle('btn-soft', !ui.noteSelMode); } }
-        else if (action === 'nb-sel-exit') { ui.noteSelMode = false; ui.noteSel = new Set(); this.nbRefreshList(); const b = $('[data-action=nb-sel-toggle]'); if (b) { b.classList.remove('btn-primary'); b.classList.add('btn-soft'); } }
+        else if (action === 'nb-sel-toggle') { ui.noteSelMode = !ui.noteSelMode; ui.noteSel = new Set(); this.nbRefreshList(); }
+        else if (action === 'nb-sel-exit') { ui.noteSelMode = false; ui.noteSel = new Set(); this.nbRefreshList(); }
         else if (action === 'nb-sel-all') { const all = this.nbRows().filter(r => r.kind === 'note').map(r => r.n.id); ui.noteSel = ui.noteSel && all.length && all.every(i => ui.noteSel.has(i)) ? new Set() : new Set(all); this.nbRefreshList(); }
         else if (action === 'nb-bulk') {
             const ids = [...(ui.noteSel || [])]; if (!ids.length) return;
             if (ds.act === 'del') this.noteDeleteMany(ids).then(() => { ui.noteSelMode = false; this.nbRefreshList(); });
             else if (ds.act === 'move') this.openNoteMove(ids);
-            else if (ds.act === 'pin') { const all = ids.every(id => this.note(id).pin); ids.forEach(id => { this.note(id).pin = !all; }); this.save(); this.nbRefreshList(); this.toast(all ? 'Notes désépinglées' : 'Notes épinglées', 'success', ic('pin')); }
+            else if (ds.act === 'pin') { const all = ids.every(id => this.note(id).pin); ids.forEach(id => { this.note(id).pin = !all; }); this.save(); this.nbRefreshList(); this.toast(all ? 'Désépinglé' : 'Épinglé', 'success', ic('pin')); }
         }
         else if (action === 'nb-row-menu') this.nbNoteMenu(el, ds.id);
         else if (action === 'nb-swipe') {
