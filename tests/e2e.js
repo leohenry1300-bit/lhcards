@@ -1764,6 +1764,17 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         ok('Notes: YouTube video (start time, embed, ⏱ minutes), attached files kept on the device (not garbage-collected), Word document converted to a note with its original', med.video && med.iframe && med.ts && med.conv && med.chip && med.blob && med.gcKeeps, JSON.stringify(med));
     }
 
+    const shr = await page.evaluate(async () => {
+        const a = window.app, did = 'dshare';
+        a.data.decks.push({ id: did, name: 'Partage test', emoji: '📘', description: '', created: 1, parent: null, opts: null, mod: 0 });
+        a.change('t', [], () => { a.createNote({ type: 'cloze', deckId: did, front: 'Le {{c1::chat}} dort', back: '', hint: '', detail: '', tags: [] }); a.createNote({ type: 'rev', deckId: did, front: 'x', back: 'y', hint: '', detail: '', tags: [] }); return []; }, { decks: true });
+        const col = await a.shareCode(did), p1 = await a.shareParseCode(col.code), p2 = await a.shareParseBytes(new Uint8Array(await (await a.shareFileBlob(did)).arrayBuffer()));
+        const c0 = a.data.cards.length; a.confirm = async () => true; await a.shareReceive(p1);
+        const now = Date.now(), cid = a.data.cards[0].id; for (let k = 0; k < 3; k++) a.data.revlog.push([now - k * 86400000, cid, 1 + k, 1, 0, 5, 2000]);
+        const r = a.recapData();
+        return { codeOk: col.code.length > 10 && col.total === 2, p1: !!p1 && p1.d.length === 1, p2: !!p2 && p2.d.length === 1, added: a.data.cards.length - c0, recap: !!r && r.n >= 3 && r.days >= 2 && /^<div class="recap-tiles">/.test(a.recapHtml(r, false).trim()) };
+    });
+    ok('Vague 5: deck shared as link/QR code and .lhcards file (read back, added as new cards), weekly recap computed from the review log', shr.codeOk && shr.p1 && shr.p2 && shr.added === 3 && shr.recap, JSON.stringify(shr));
     ok('no script error, no missing file', errs.length === 0, errs.slice(0, 4).join(' | '));
     console.log(R.join('\n') + `\n\n${R.length - failed}/${R.length} checks passed`);
     await browser.close(); server.close(); process.exit(failed ? 1 : 0);

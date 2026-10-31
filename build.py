@@ -255,7 +255,7 @@ for _old in (ROOT / "lazy").glob("toeic-photos.*.js"):
 (ROOT / "lazy" / _photos_name).write_text(_photos_js, encoding="utf-8")
 LAZY = {"toeicPhotos": "lazy/" + _photos_name}
 # The PDF libraries (vendor/): copied to lazy/ under a name that contains their fingerprint, loaded only when a PDF is opened.
-for _key, _src in (("pdfjs", "pdf.min.js"), ("pdfworker", "pdf.worker.min.js"), ("pdflib", "pdf-lib.min.js")):
+for _key, _src in (("pdfjs", "pdf.min.js"), ("pdfworker", "pdf.worker.min.js"), ("pdflib", "pdf-lib.min.js"), ("qrgen", "qrcode.js"), ("qrscan", "jsQR.js")):
     _b = (ROOT / "vendor" / _src).read_bytes()
     _stem = _src[:-3]
     _nm = _stem + "." + _hl.sha1(_b).hexdigest()[:8] + ".js"
@@ -355,6 +355,8 @@ const LAZY = {json.dumps(LAZY)};   /* files loaded when needed (see loadLazy) */
 {read("ai.js")}
 {read("ai-pro.js")}
 {read("pdf-study.js")}
+{read("recap.js")}
+{read("share.js")}
 {read("boot.js")}
 if ("serviceWorker" in navigator && /^https?:/.test(location.protocol)) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {{}}));
 </script>

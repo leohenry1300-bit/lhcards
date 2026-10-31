@@ -1952,6 +1952,7 @@ class SuperAnki {
                 </div>
             </div>
 
+            ${this.recapCardHtml()}
             ${this.filtersHtml()}
             <div>
                 <div class="section-head">
@@ -3669,6 +3670,7 @@ class SuperAnki {
                     <select class="select" id="im-deck">${this.sortedDecks().map(d => `<option value="${esc(d.id)}" ${d.id === cur ? 'selected' : ''}>${esc(d.emoji)} ${esc(this.deckPath(d.id))}</option>`).join('')}<option value="__new">+ Nouveau paquet...</option></select></div>
                 <div class="field hidden" id="im-newdeck-wrap"><label class="label" for="im-newdeck">Nom du nouveau paquet</label><input class="input" id="im-newdeck" placeholder="Ex : Vocabulaire anglais"></div>
                 <div class="field"><span class="label">Fichier</span><button class="btn btn-soft btn-block" id="im-file">${ic('file')}Choisir un fichier TXT / CSV</button></div>
+                <div class="field"><span class="label">Ou un paquet reçu</span><button class="btn btn-soft btn-block" id="im-share">${ic('export')}Recevoir un paquet partagé (.lhcards, lien, QR)</button></div>
                 <div class="field"><span class="label">Ou un paquet Anki</span><button class="btn btn-soft btn-block" id="im-apkg">${ic('layers')}Importer un fichier .apkg</button><p class="help">Anki : Fichier › Exporter › « Paquet Anki (.apkg) », en cochant « Prendre en charge les anciennes versions d'Anki ». Les cartes arrivent comme neuves.</p></div>
                 <div class="field"><label class="label" for="im-text">... ou colle tes fiches ici</label><textarea class="textarea" id="im-text" rows="6" placeholder="Capitale de l'Italie ; Rome&#10;H2O ; L'eau"></textarea>
                     <div class="im-tr"><button class="btn btn-soft btn-sm" id="im-ai" type="button">${ic('sparkle')}Créer les fiches avec l'IA</button><button class="btn btn-soft btn-sm hidden" id="im-ai-undo" type="button">Remettre mon texte</button><span class="help" id="im-ai-st">Colle un cours dans la zone, l'IA propose des fiches que tu relis avant d'importer.</span></div>
@@ -3754,6 +3756,7 @@ class SuperAnki {
             };
             input.click();
         });
+        $('#im-share', m).addEventListener('click', () => { this.closeModal(m); this.shareReceiveOpen(); });
         $('#im-apkg', m).addEventListener('click', () => {
             const input = $('#hidden-file');
             input.accept = '.apkg,.colpkg,application/zip';
@@ -4229,6 +4232,7 @@ class SuperAnki {
                     { icon: 'quiz', label: 'Quiz (QCM)', fn: () => this.openModeLauncher('quiz', id) },
                     { icon: 'timer', label: 'Chrono', fn: () => this.openModeLauncher('chrono', id) },
                     { sep: true },
+                    { icon: 'export', label: 'Partager le paquet…', fn: () => this.shareDeckOpen(id) },
                     { icon: 'sliders', label: 'Options d\'étude du paquet', fn: () => this.handleAction('deck-options', { dataset: { deck: id } }) },
                     { icon: 'pencil', label: 'Modifier le paquet', fn: () => this.handleAction('edit-deck', { dataset: { deck: id } }) },
                     { icon: 'reset', label: 'Remettre à zéro…', danger: true, fn: () => this.handleAction('reset-deck', { dataset: { deck: id } }) },
@@ -4281,6 +4285,7 @@ class SuperAnki {
                     { icon: 'quiz', label: 'Quiz (QCM)', fn: () => this.openModeLauncher('quiz', id) },
                     { icon: 'timer', label: 'Chrono', fn: () => this.openModeLauncher('chrono', id) },
                     { sep: true },
+                    { icon: 'export', label: 'Partager le paquet…', fn: () => this.shareDeckOpen(id) },
                     { icon: 'reset', label: 'Remettre à zéro…', danger: true, fn: () => this.handleAction('reset-deck', { dataset: { deck: id } }) }
                 ]);
                 break;
@@ -4524,7 +4529,7 @@ class SuperAnki {
             case 'tool-check': this.checkDatabase(); break;
             case 'fsrs-optimize': this.fsrsOptimizeModal(ds.id || ''); break;
             case 'fsrs-reset': this.fsrsReset(ds.id || ''); break;
-            default: if (action.startsWith('tq-')) this.toeicAction(action, el); else if (action.startsWith('qcm-')) this.qcmAction(action, el); else if (action.startsWith('mg-')) this.matchAction(action, el); else if (action.startsWith('nb-')) this.noteAction(action, el, e); else if (action.startsWith('pf-')) this.profileAction(action, el); else if (action.startsWith('ai-')) this.aiAction(action, el); else if (action.startsWith('pdf-')) this.pdfAction(action, el, e); else if (action.startsWith('tab-')) this.tabAction(action, el); break;
+            default: if (action.startsWith('tq-')) this.toeicAction(action, el); else if (action.startsWith('qcm-')) this.qcmAction(action, el); else if (action.startsWith('mg-')) this.matchAction(action, el); else if (action.startsWith('nb-')) this.noteAction(action, el, e); else if (action.startsWith('pf-')) this.profileAction(action, el); else if (action.startsWith('ai-')) this.aiAction(action, el); else if (action.startsWith('recap-')) this.recapAction(action); else if (action.startsWith('share-')) this.shareAction(action, el); else if (action.startsWith('pdf-')) this.pdfAction(action, el, e); else if (action.startsWith('tab-')) this.tabAction(action, el); break;
         }
     }
     startQuizFromIds(ids, count, chrono, title) {
