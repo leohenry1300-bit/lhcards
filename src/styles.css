@@ -3494,3 +3494,7 @@ mark.nb-hl-p{background:color-mix(in srgb,#f472b6 50%,transparent)}
 .recap-card { margin-top: 14px; }
 .sh-qr { background: #fff; padding: 10px; border-radius: 14px; max-width: 300px; margin: 8px auto; } .sh-qr svg { width: 100%; height: auto; display: block; }
 .recap-sec p b { white-space: nowrap; }
+
+/* no rubber band at the ends of a page: during the bounce the browser moves the page and the bar fixed to the bottom no longer sits on the edge */
+html, body { overscroll-behavior: none; }
+.bottom-nav { transform: none !important; }
