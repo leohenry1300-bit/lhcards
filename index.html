@@ -63,3 +63,29 @@
 }
 
 .cloze { color: var(--primary); font-weight: 800; background: color-mix(in srgb, var(--primary) 14%, transparent); border-radius: 5px; padding: 0 5px; }
+
+/* Notes empty state refinements */
+.notes-side.nb-page .panel.nb-listpanel {
+  position: relative;
+  overflow: hidden;
+}
+.notes-side.nb-page .panel.nb-listpanel .nb-empty {
+  margin: 0;
+  border-radius: 0;
+  border-width: 0;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 7%, var(--surface)), var(--surface-2));
+}
+.notes-side.nb-page .panel.nb-listpanel .nb-empty::before {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 40%;
+  background: linear-gradient(to top, color-mix(in srgb, var(--primary) 8%, transparent), transparent);
+  pointer-events: none;
+}
+
+@media (max-width: 767px) {
+  .notes-side.nb-page .panel.nb-listpanel {
+    padding: 0;
+  }
+}
