@@ -27,6 +27,7 @@ function normalizeNoteBlock(x) {
             id: String(c.id || uid('b')), cid: toArray(c.cid).map(String).slice(0, 12), qid: c.qid ? String(c.qid) : '', hm: toArray(c.hm).slice(0, 40).map(h => ({ t: String(h && h.t || '').slice(0, 200), n: Math.max(1, Math.round(num(h && h.n, 1))) })), sg: String(c.sg || '').slice(0, 2000), so: c.so !== false, dead: !!c.dead, vd: c.vd !== false };
     }
     if (t === 'todo' && x.done) b.done = true;
+    if (t === 'todo' && /^\d{4}-\d\d-\d\d$/.test(String(x.due || ''))) b.due = String(x.due);
     if (t === 'img') { b.src = String(x.src || ''); if (!/^(media:[a-z0-9]+|data:image\/[a-z+.-]+;base64,.+)$/i.test(b.src)) return null; }
     if (x.c) b.c = true;
     return b;
@@ -175,7 +176,7 @@ Object.assign(SuperAnki.prototype, {
             : b.t === 'p' || b.t === 'quote' ? `<button class="nb-bul ${kids ? 'kids' : ''} ${b.c ? 'fold' : ''}" data-nbk="bul" aria-label="${kids ? (b.c ? 'Déplier' : 'Replier') : 'Puce'}"><i></i></button>` : '<span class="nb-nogut"></span>';
         let body;
         if (b.t === 'hr') body = '<hr class="nb-hr">';
-        else if (b.t === 'img') body = `<figure class="nb-img"><img src="${esc(b.src)}" alt=""><button class="icon-btn icon-btn-sm nb-img-x" data-nbk="imgx" aria-label="Retirer l'image">${ic('x')}</button></figure>`;
+        else if (b.t === 'img') body = `<figure class="nb-img"><img src="${esc(b.src)}" alt=""><span class="nb-img-tools"><button class="icon-btn icon-btn-sm" data-nbk="imgcrop" aria-label="Rogner l'image" title="Rogner">${ic('crop')}</button><button class="icon-btn icon-btn-sm" data-nbk="imgocc" aria-label="Masquer une zone (cartes)" title="Masquer une zone pour faire des cartes">${ic('eye')}</button><button class="icon-btn icon-btn-sm nb-img-x" data-nbk="imgx" aria-label="Retirer l'image">${ic('x')}</button></span></figure>`;
         else if (b.t === 'table') body = this.nbTableHtml(b);
         else if (b.t === 'toc') body = this.nbTocHtml(n);
         else if (b.t === 'video') body = this.nbVideoHtml(b);
@@ -183,7 +184,7 @@ Object.assign(SuperAnki.prototype, {
         else if (cd) body = this.nbCardLineHtml(n, i, q);
         else body = `<div class="nb-view">${b.t === 'math' ? `<span class="nb-mth">${nbMathHtml(esc(b.x)) || '<span class="faint">Formule : x^2 + \\frac{a}{b}</span>'}</span>` : this.inlineHtml(b.x, q)}</div><div class="nb-t" contenteditable="${NB_CE}" role="textbox" aria-multiline="false" spellcheck="true" autocapitalize="sentences"></div>`;
         const cls = `nb nb-${b.t} ${b.done ? 'done' : ''} ${hide[i] ? 'hid' : ''} ${cd ? 'has-card' : ''} ${owner >= 0 ? 'in-card in-' + om : ''}`;
-        return `<div class="${cls}" data-i="${i}" ${cd ? `data-bid="${esc(cd.id)}"` : ''} style="--d:${b.d}">${gut}<div class="nb-body">${body}</div></div>`;
+        return `<div class="${cls}" data-i="${i}" ${cd ? `data-bid="${esc(cd.id)}"` : ''} style="--d:${b.d}">${gut}<div class="nb-body">${body}</div>${b.t === 'todo' ? this.nbDueChip(b) : ''}</div>`;
     },
     nbNumOf(b, i) { let k = 1; for (let j = i - 1; j >= 0; j--) { if (b[j].d > b[i].d) continue; if (b[j].d === b[i].d && b[j].t === 'num') k++; else break; } return k; },
     nbTocHtml(n) {
@@ -450,6 +451,9 @@ Object.assign(SuperAnki.prototype, {
             { sep: true },
             { ico: 'play', label: 'Vidéo (YouTube, Vimeo, mp4)…', fn: () => this.nbVideoPrompt(i) },
             { ico: 'export', label: 'Joindre un fichier (Word, Excel, audio, vidéo…)…', fn: () => this.nbFilePick(i) },
+            { ico: 'mic', label: 'Enregistrer un audio…', fn: () => this.nbAudioRecord(i) },
+            ...(this.note(this.ui.note).b[i] && this.note(this.ui.note).b[i].t === 'todo' ? [{ ico: 'calendar', label: 'Date limite de cette case…', fn: () => this.nbDuePrompt(i) }] : []),
+            { ico: 'export', label: 'Imprimer / enregistrer en PDF…', fn: () => this.nbPrint(this.note(this.ui.note)) },
             { ico: 'sparkle', label: 'Écrire avec l\'IA…', fn: () => this.aiWriteBlocks(i) },
             { ico: 'clock', label: 'Insérer une minute de vidéo (⏱)', fn: () => this.nbInsertText(i, '⏱0:00') },
             { sep: true },
@@ -537,6 +541,9 @@ Object.assign(SuperAnki.prototype, {
             else if (kind === 'fplay') this.nbFilePlay(k.closest('.nb-file'), b);
             else if (kind === 'fconv') this.nbFileBlob(b).then(async bl => { if (!bl) { this.toast('Ce fichier n\'est pas sur cet appareil.', 'warning'); return; } await this.nbConvertFile(new File([bl], b.name, { type: b.mime }), b, await bl.arrayBuffer()); });
             else if (k && k.classList.contains('nb-ts')) { const box = [...document.querySelectorAll('#nb-blocks .nb-vid-box, #nb-blocks video')].filter(el => el.closest('.nb') && Number(el.closest('.nb').dataset.i) < i).pop() || document.querySelector('#nb-blocks .nb-vid-box, #nb-blocks video'); if (box) { if (box.tagName === 'VIDEO') { box.currentTime = Number(k.dataset.ts); box.play(); } else this.nbVideoPlay(box, Number(k.dataset.ts)); box.scrollIntoView({ block: 'center', behavior: 'smooth' }); } else this.toast('Aucune vidéo avant cette ligne.', 'warning'); }
+            else if (kind === 'imgcrop') this.nbImageCrop(i);
+            else if (kind === 'imgocc') this.nbImageOcclude(i);
+            else if (kind === 'due') this.nbDuePrompt(i);
             else if (kind === 'tmenu') this.nbTableMenu(k, i);
             else if (kind === 'trow') this.nbOp(() => { b.rows.push(b.rows[0].map(() => '')); }, null);
             else if (kind === 'tcol') { if (b.rows[0].length >= 8) this.toast('8 colonnes au maximum.', 'warning'); else this.nbOp(() => { b.rows.forEach(r => r.push('')); }, null); }

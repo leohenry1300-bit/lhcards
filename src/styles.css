@@ -3520,3 +3520,13 @@ html, body { overscroll-behavior: none; }
 .al-go .al-t { flex: 1; min-width: 0; overflow-wrap: anywhere; } .al-go b { white-space: nowrap; color: var(--text-faint); font-size: .8rem; }
 .al-dot { flex: none; width: 12px; height: 12px; border-radius: 50%; margin-top: 5px; border: 1px solid rgba(0,0,0,.25); }
 .al-list { display: flex; flex-direction: column; gap: 6px; } .al-list > * + * { margin-top: 0 !important; }
+
+/* Notes: image tools, due date, one bar at a time */
+.nb-img { position: relative; }
+.nb-img-tools { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; }
+.nb-img-tools .icon-btn { background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow); }
+.nb-img-tools .nb-img-x { position: static; }
+.nb-due { margin-left: auto; align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; font-size: .75rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--surface-2, transparent); border: 1px solid var(--border); color: var(--text-faint); white-space: nowrap; }
+.nb-due .i { width: 13px; height: 13px; } .nb-due.late { color: var(--due, #dc2626); border-color: currentColor; }
+body.nb-selmode .nb-bar { display: none !important; }
+.nb-img { min-width: 140px; } .nb-img img { display: block; }

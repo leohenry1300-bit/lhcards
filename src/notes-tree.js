@@ -303,6 +303,7 @@ Object.assign(SuperAnki.prototype, {
             { icon: 'folder', label: 'Déplacer…', fn: () => this.openNoteMove([n.id]) },
             { sep: true },
             { icon: 'export', label: 'Exporter en Markdown (.md)', fn: () => this.noteExport(n) },
+            { icon: 'export', label: 'Imprimer / PDF de la note…', fn: () => this.nbPrint(n) },
             { icon: 'cloud', label: 'Partager…', fn: () => this.noteShare(n) },
             { icon: 'file', label: 'Copier le texte', fn: () => { navigator.clipboard && navigator.clipboard.writeText(this.noteAsText(n)).then(() => this.toast('Texte copié', 'success', ic('copy'))).catch(() => this.toast('Copie impossible ici.', 'warning')); } },
             { icon: 'info', label: 'Informations', fn: () => this.noteInfo(n) },

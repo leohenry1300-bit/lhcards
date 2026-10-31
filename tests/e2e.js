@@ -1546,6 +1546,24 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     }
 
 
+    {   /* Notes : image (rogner, masquer une zone), date limite d'une case, impression, audio, une seule barre à la fois */
+        const nt = await page.evaluate(async () => {
+            const a = app, w = ms => new Promise(r => setTimeout(r, ms)), out = {};
+            a.go('notes'); a.noteDaily(); await w(700);
+            const c = document.createElement('canvas'); c.width = 200; c.height = 120; const x = c.getContext('2d'); x.fillStyle = '#4f46e5'; x.fillRect(0, 0, 200, 120);
+            const ref = a.addMedia(c.toDataURL('image/png')), n = a.note(a.ui.note);
+            n.b = [{ t: 'h1', x: 'Titre', d: 0 }, { t: 'img', src: ref, d: 0 }, { t: 'todo', x: 'Faire', d: 0, due: '2020-01-01' }, { t: 'p', x: 'fin', d: 0 }]; a.nbRender(); await w(500);
+            out.btns = document.querySelectorAll('[data-nbk=imgcrop],[data-nbk=imgocc]').length >= 2; out.due = !!document.querySelector('.nb-due.late');
+            document.querySelector('[data-nbk=imgocc]').click(); await w(300); out.occ = !!document.querySelector('#oc-stage img'); a.closeModal();
+            document.querySelector('[data-nbk=imgcrop]').click(); await w(300); out.crop = !!document.getElementById('ic-img'); a.closeModal();
+            const h = a.nbPrintHtml(a.note(a.ui.note)); out.print = /<h1[^>]*>Titre/.test(h) && /avant le/.test(h) && /<img/.test(h);
+            a.nbAudioRecord(3); await w(200); out.audio = !!document.getElementById('au-main'); a.closeModal();
+            return out;
+        });
+        ok('Notes: image crop + hide-a-zone buttons, to-do due date (late in red), print/PDF of the note, audio recorder window', nt.btns && nt.due && nt.occ && nt.crop && nt.print && nt.audio, JSON.stringify(nt));
+    }
+
+
     {   /* IA lot 3 : quiz → QCM à relire, lecture d'un PDF scanné par images */
         await page.route('https://api.anthropic.com/**', r => {
             const body = r.request().postData() || '';
