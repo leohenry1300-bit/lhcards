@@ -392,7 +392,7 @@ function normalizeCard(c) {
         nid: c.nid ? String(c.nid) : '', kind: ['rev', 'cloze', 'occl', 'custom'].includes(c.kind) ? c.kind : 'basic', ord: Math.max(0, num(c.ord, 0)),
         nf: c.nf && typeof c.nf === 'object' ? { front: sanitizeHtml(c.nf.front || ''), back: sanitizeHtml(c.nf.back || ''), text: sanitizeHtml(c.nf.text || ''), extra: sanitizeHtml(c.nf.extra || ''), ...(c.nf.t ? { t: String(c.nf.t), f: Object.fromEntries(Object.entries(c.nf.f && typeof c.nf.f === 'object' ? c.nf.f : {}).map(([k, v]) => [String(k).slice(0, 40), sanitizeHtml(v || '')])) } : {}) } : null,
         fs: c.fs && num(c.fs.s, 0) > 0 ? { s: num(c.fs.s), d: clamp(num(c.fs.d, 5), 1, 10), t: num(c.fs.t, 0) } : null,
-        ls: Array.isArray(c.ls) && c.ls.length ? c.ls.map(x => String(x).slice(0, 300)).slice(0, 30) : null, ta: !!c.ta, src: c.src && typeof c.src === 'object' ? (c.src.pdf ? { pdf: String(c.src.pdf), pid: String(c.src.pid || ''), t: String(c.src.t || '').slice(0, 300) } : c.src.n ? { n: String(c.src.n), b: String(c.src.b || '') } : null) : null,
+        ls: Array.isArray(c.ls) && c.ls.length ? c.ls.map(x => String(x).slice(0, 300)).slice(0, 30) : null, ta: !!c.ta, src: c.src && typeof c.src === 'object' ? (c.src.pdf ? { pdf: String(c.src.pdf), pid: String(c.src.pid || ''), t: String(c.src.t || '').slice(0, 300), ...(c.src.chk ? { chk: 1 } : {}) } : c.src.n ? { n: String(c.src.n), b: String(c.src.b || '') } : null) : null,
         mod: num(c.mod, 0)
     };
 }
@@ -2900,7 +2900,7 @@ class SuperAnki {
                 <div class="fc-top">
                     <span class="tag" title="${esc(deck ? this.deckPath(deck.id) : '')}">${esc(deck ? deck.emoji + ' ' + this.deckPath(deck.id).split(' › ').slice(-2).join(' › ') : '')}</span>
                     <span class="fc-size" role="group" aria-label="Taille du texte"><button class="fc-size-btn" data-action="card-size" data-d="-1" aria-label="Texte plus petit" title="Texte plus petit" ${csIdx === 0 ? 'disabled' : ''}>A<small>−</small></button><button class="fc-size-btn" data-action="card-size" data-d="1" aria-label="Texte plus grand" title="Texte plus grand" ${csIdx >= Object.keys(CARD_SIZES).length - 1 ? 'disabled' : ''}>A<small>+</small></button></span>
-                    ${card.src && this.note(card.src.n) ? `<button class="fc-src" data-action="card-src" data-card="${esc(card.id)}" title="Voir dans le cours" aria-label="Voir dans le cours">${ic('notebook')}<span>Cours</span></button>` : card.src && card.src.pdf && this.pdf(card.src.pdf) ? `<button class="fc-src" data-action="card-src" data-card="${esc(card.id)}" title="Voir dans le PDF" aria-label="Voir dans le PDF">${ic('pdf')}<span>PDF</span></button>` : ''}
+                    ${card.src && this.note(card.src.n) ? `<button class="fc-src" data-action="card-src" data-card="${esc(card.id)}" title="Voir dans le cours" aria-label="Voir dans le cours">${ic('notebook')}<span>Cours</span></button>` : card.src && card.src.pdf && this.pdf(card.src.pdf) ? `<button class="fc-src" data-action="card-src" data-card="${esc(card.id)}" title="${card.src.chk ? 'Voir dans le PDF : source à vérifier' : 'Voir dans le PDF'}" aria-label="Voir dans le PDF">${ic('pdf')}<span>PDF${card.src.chk ? ' ⚠' : ''}</span></button>` : ''}
                     <span class="tiny faint fc-badges">${card.flag ? `<span style="color:${FLAGS[card.flag].color}" title="${FLAGS[card.flag].name}">${ic('flag', 'i-flag')}</span>` : ''}${card.marked ? `<span style="color:#eab308" title="Marquée">${ic('star', 'i-fill')}</span>` : ''}${card.state === 'new' ? 'Nouvelle' : card.errors ? `${ic('target')} ${plural(card.errors, 'erreur')}` : ''}</span>
                 </div>
                 <div class="fc-content fc-front rich">${card.front}</div>
@@ -3702,7 +3702,7 @@ class SuperAnki {
             const sym = { basic: '→', rev: '⇄', cloze: '[…]' };
             const line = r => {
                 const f = r.kind === 'cloze' ? stripHtml(r.front).replace(CLOZE_RE, '[…]') : stripHtml(r.front), b = r.kind === 'cloze' ? stripHtml(r.back) : stripHtml(r.back);
-                return `<label class="im-row ${r.dup ? 'dup' : ''}"><input type="checkbox" data-im="${r.n}|${esc(r.key)}" ${r.on ? 'checked' : ''}><span class="im-sym">${sym[r.kind]}</span><span class="im-t"><b>${esc(truncate(f, 70))}</b>${b ? ` <span class="faint">${r.kind === 'cloze' ? '+' : sym.basic}</span> ${esc(truncate(b, 70))}` : ''}</span>${r.dup ? `<span class="im-badge">${r.dup === 'existing' ? 'déjà dans ce paquet' : 'répétée ici'}</span>` : ''}${r.kind !== 'basic' ? `<span class="im-badge ok">${plural(cnt(r), 'carte')}</span>` : ''}</label>`;
+                return `<label class="im-row ${r.dup ? 'dup' : ''}"><input type="checkbox" data-im="${r.n}|${esc(r.key)}" ${r.on ? 'checked' : ''}><span class="im-sym">${sym[r.kind]}</span><span class="im-t"><b>${esc(truncate(f, 70))}</b>${b ? ` <span class="faint">${r.kind === 'cloze' ? '+' : sym.basic}</span> ${esc(truncate(b, 70))}` : ''}</span>${r.dup ? `<span class="im-badge">${r.dup === 'existing' ? 'déjà dans ce paquet' : 'répétée ici'}</span>` : ''}${r.kind !== 'basic' ? `<span class="im-badge ok">${plural(cnt(r), 'carte')}</span>` : ''}${(sr => sr ? (sr.chk ? '<span class="im-badge" style="color:var(--due)">⚠ source à vérifier</span>' : '<span class="im-badge ok">source ✓</span>') : '')(opts.srcs && opts.srcs[aiSrcKey(r.front)])}</label>`;
             };
             prev.innerHTML = rows.length || sk.length
                 ? `<b>${plural(cards, 'carte')} à importer</b>${rows.length !== cards ? ` (${plural(rows.length, 'ligne')} lue${rows.length > 1 ? 's' : ''})` : ''}${dups ? ` · ${plural(dups, 'doublon')} signalé${dups > 1 ? 's' : ''} et décoché${dups > 1 ? 's' : ''}` : ''}${sk.length ? ` · <span style="color:var(--due)">${plural(sk.length, 'ligne ignorée', 'lignes ignorées')}</span>` : ''}
@@ -3792,10 +3792,11 @@ class SuperAnki {
                 rows.forEach((r, i) => {
                     const did = useDecks && r.deck ? deckFor(r.deck) : deckId;
                     if (r.kind === 'basic') {
-                        const c = { id: uid('c'), ...freshCard(), deckId: did, front: r.front, back: r.back, hint: r.hint || '', detail: '', tags: r.tags || [], created: now + i, nid: '', kind: 'basic', ord: 0, nf: null };
+                        const sr = opts.srcs && opts.srcs[aiSrcKey(r.front)], c = { id: uid('c'), ...freshCard(), deckId: did, front: r.front, back: r.back, hint: r.hint || '', detail: '', tags: [...(r.tags || []), ...(sr && sr.ch ? [`ch-${sr.ch}`] : [])], created: now + i, nid: '', kind: 'basic', ord: 0, nf: null, src: sr ? { pdf: sr.pdf, pid: sr.pid, t: sr.t, ...(sr.chk ? { chk: 1 } : {}) } : null };
                         this.data.cards.push(c); ids.push(c.id); made++;
                     } else {
-                        const got = this.createNote({ type: r.kind, deckId: did, front: r.front, back: r.back, hint: '', detail: '', tags: r.tags || [] }) || [];
+                        const sr = opts.srcs && opts.srcs[aiSrcKey(r.front)], got = this.createNote({ type: r.kind, deckId: did, front: r.front, back: r.back, hint: '', detail: '', tags: [...(r.tags || []), ...(sr && sr.ch ? [`ch-${sr.ch}`] : [])] }) || [];
+                        if (sr) got.forEach(id => { this.card(id).src = { pdf: sr.pdf, pid: sr.pid, t: sr.t, ...(sr.chk ? { chk: 1 } : {}) }; });
                         got.forEach(id => ids.push(id)); made += got.length;
                     }
                 });

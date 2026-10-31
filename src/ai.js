@@ -13,6 +13,7 @@ const AI_PROVIDERS = {
     custom: { name: 'Compatible OpenAI (Groq, OpenRouter, Ollama…)', short: 'Perso', model: '', site: 'groq.com, openrouter.ai, ou ollama.com pour une IA sur ton ordinateur', custom: true }
 };
 const AI_CHUNK = 12000;       // characters per request
+const aiSrcKey = f => fold(stripHtml(f).replace(/\{\{(?:c\d+::)?/g, '').replace(/\}\}/g, '')).replace(/[^a-z0-9]+/g, '');
 const AI_MAX_CHARS = 60000;   // above this the text is cut (and the user is told)
 const AI_TAG = 'généré-par-ia';
 const AiStore = {
@@ -191,19 +192,47 @@ Object.assign(SuperAnki.prototype, {
     },
     aiExistingFronts(deckId) { if (!deckId) return []; const ids = new Set(this.descendantIds(deckId)); return this.data.cards.filter(c => ids.has(c.deckId)).slice(-40).map(c => truncate(stripHtml(c.kind === 'cloze' && c.nf ? c.nf.text : c.front).replace(CLOZE_RE, '…'), 70)); },
     /* the whole flow: confirm → send → lines. `text` is the course text, `label` says where it comes from. Resolves with the lines (or null). */
-    async aiCardsFrom(text, { label = 'Texte', pages = 0, count = 20, hint = '', deckId = '' } = {}) {
+    async aiCardsFrom(text, { label = 'Texte', pages = 0, count = 20, hint = '', deckId = '', sections = null } = {}) {
         const avoid = this.aiExistingFronts(deckId);
         if (!this.aiReady()) { this.aiNeedKey(); return null; }
-        const { chunks, cut, chars } = this.aiChunks(text);
+        const pdfMode = /\[page \d+\]/.test(String(text));   // text read from a PDF : each line of the answer says which page and which words of the course it comes from
+        /* one part per chapter (when the PDF has a plan), else the text as a whole */
+        let parts = sections && sections.length > 1 ? sections : [{ text, count }], cut = false, chars = 0;
+        const share = Math.floor(AI_MAX_CHARS / parts.length);
+        if (parts.length > 1) parts = parts.map(x => { const t = String(x.text); if (t.length > share) cut = true; return { ...x, text: t.slice(0, share) }; });
+        const jobsSrc = [];
+        parts.forEach(x => { const c = this.aiChunks(x.text); if (c.cut) cut = true; chars += c.chars; const per = Math.max(3, Math.ceil((x.count || count) / c.chunks.length)); c.chunks.forEach(ch => jobsSrc.push({ ch, per, title: x.title || '' })); });
         if (chars < 40) { this.toast('Pas assez de texte pour créer des fiches.', 'warning'); return null; }
-        const per = Math.max(3, Math.ceil(count / chunks.length));
-        const system = 'Tu crées des fiches de révision pour un étudiant. Réponds UNIQUEMENT par des lignes, une fiche par ligne, sans titre ni commentaire. Formats permis, à VARIER selon le contenu : "question >> réponse" (notions, causes, comparaisons), "terme <> définition" (paires qu\'on doit savoir dans les deux sens, vocabulaire), ou une phrase avec le mot clé entre doubles accolades, par exemple "Le {{trou}} est…" (faits, chiffres, dates, listes). Règles : une seule idée par fiche, question précise et autonome (compréhensible sans le texte), jamais de question oui/non, réponse courte, priorité à l\'essentiel qui tombe à l\'examen, uniquement ce qui est dit dans le texte (n\'invente rien), même langue que le texte. Si le texte ne contient rien d\'utile à retenir, réponds exactement NONE.';
-        const jobs = chunks.map(ch => ({ system, prompt: `Crée au maximum ${per} fiches à partir de ce texte :${hint ? '\n(' + hint + ')' : ''}${avoid.length ? `\n(Fiches qui existent déjà, ne les répète pas : ${avoid.join(' ; ')})` : ''}\n\n${ch}`, maxTokens: 2500 }));
-        const out = await this.aiRun({ title: 'Cartes avec l\'IA', what: label, chars, pages, preview: chunks[0], jobs, note: cut ? `Le texte est très long : seuls les ${AI_MAX_CHARS.toLocaleString('fr-FR')} premiers caractères sont envoyés.` : '' });
+        const srcRule = pdfMode ? ' Termine CHAQUE ligne par " @@ N | citation" : N est le numéro de la page où se trouve l\'information (indiqué par [page N] dans le texte) et citation = 4 à 12 mots COPIÉS tels quels du texte, sans rien changer.' : '';
+        const system = 'Tu crées des fiches de révision pour un étudiant. Réponds UNIQUEMENT par des lignes, une fiche par ligne, sans titre ni commentaire. Formats permis, à VARIER selon le contenu : "question >> réponse" (notions, causes, comparaisons), "terme <> définition" (paires qu\'on doit savoir dans les deux sens, vocabulaire), ou une phrase avec le mot clé entre doubles accolades, par exemple "Le {{trou}} est…" (faits, chiffres, dates, listes). Règles : une seule idée par fiche, question précise et autonome (compréhensible sans le texte), jamais de question oui/non, réponse courte, priorité à l\'essentiel qui tombe à l\'examen, uniquement ce qui est dit dans le texte (n\'invente rien), même langue que le texte. Si le texte ne contient rien d\'utile à retenir, réponds exactement NONE.' + srcRule;
+        const jobs = jobsSrc.map(j => ({ system, prompt: `Crée au maximum ${j.per} fiches à partir de ce texte${j.title ? ` (chapitre « ${j.title} »)` : ''} :${hint ? '\n(' + hint + ')' : ''}${avoid.length ? `\n(Fiches qui existent déjà, ne les répète pas : ${avoid.join(' ; ')})` : ''}\n\n${j.ch}`, maxTokens: 2500 }));
+        const note = cut ? `Le texte est très long : seuls ${AI_MAX_CHARS.toLocaleString('fr-FR')} caractères au plus sont envoyés${parts.length > 1 ? ' (répartis sur les chapitres)' : ' (le début)'}. Choisis moins de pages pour tout couvrir.` : '';
+        const out = await this.aiRun({ title: 'Cartes avec l\'IA', what: label, chars, pages, preview: jobsSrc[0].ch, jobs, note });
         if (!out) return null;
-        const lines = [...new Set(out.flatMap(o => this.aiCleanLines(o)))];
-        if (!lines.length) { this.toast('L\'IA n\'a rien trouvé à retenir dans ce texte.', 'warning'); return null; }
+        const seen = new Set(), list = [];
+        out.forEach((o, ji) => String(o || '').split('\n').forEach(raw => {
+            const m = /\s*@@\s*(\d+)\s*\|\s*(.*)$/.exec(raw), body = m ? raw.slice(0, m.index) : raw;
+            const line = this.aiCleanLines(body)[0]; if (!line || seen.has(line)) return;
+            seen.add(line); list.push({ line, page: m ? Number(m[1]) : 0, quote: m ? m[2].replace(/^["«»\s]+|["«»\s]+$/g, '') : '', chapter: parts.length > 1 ? parts.findIndex(x => x.title === jobsSrc[ji].title) : -1 });
+        }));
+        if (!list.length) { this.toast('L\'IA n\'a rien trouvé à retenir dans ce texte.', 'warning'); return null; }
+        const lines = list.map(x => x.line); lines.meta = list;
         return lines;
+    },
+    /* the words the model quoted must really be on the page it names (else the page is corrected, or the card is flagged « source à vérifier ») */
+    aiSources(p, text, list, chapters = null) {
+        const norm = t => fold(t).replace(/[^a-z0-9]+/g, ' ').trim(), pg = {};
+        String(text).split(/\[page (\d+)\]\n?/).forEach((t, i, a) => { if (i % 2 === 0 && i > 0) pg[a[i - 1]] = norm(t); });
+        const srcs = {};
+        list.forEach(x => {
+            const row = parseImport(x.line)[0]; if (!row || !x.page) return;
+            const q = norm(x.quote); let page = x.page, ok = q.length >= 8 && !!pg[page] && pg[page].includes(q);
+            if (!ok && q.length >= 8) { const f = Object.keys(pg).find(k => pg[k].includes(q)); if (f) { page = Number(f); ok = true; } }
+            const g = p.pg.find(y => y.k === 'p' && y.n === page); if (!g) return;
+            const ch = chapters && x.chapter >= 0 && chapters[x.chapter] ? chapters[x.chapter].id : '';
+            srcs[aiSrcKey(row.front)] = { pdf: p.id, pid: g.id, t: x.quote.slice(0, 120), ...(ok ? {} : { chk: 1 }), ...(ch ? { ch } : {}) };
+        });
+        return srcs;
     },
     /* choose the pages of the open PDF, read their text. Resolves { a, b, pages, text, vals } or null.
        `extra` is html with controls carrying data-v="name" (their values come back in `vals`). */
@@ -237,8 +266,16 @@ Object.assign(SuperAnki.prototype, {
         const lv = this.stLevelInfo(this.pv.p), dn = st.n || lv.cards;
         const r = await this.aiPdfRange({ title: 'Cartes avec l\'IA', range: st.range, extra: `<label class="field"><span class="label">Nombre de fiches</span><select class="select" data-v="n">${[10, 20, 40].map(v => `<option value="${v}" ${v === dn ? 'selected' : ''}>Environ ${v}</option>`).join('')}</select></label>` });
         if (!r) return;
-        const p = this.pv.p, lines = await this.aiCardsFrom(r.text, { label: `PDF « ${p.name} »`, pages: r.pages, count: Number(r.vals.n), hint: lv.cardsHint, deckId: p.pdeck || '' });
-        if (lines) this.openImportModal({ text: lines.join('\n'), ai: true, deckId: p.pdeck || '', tags: st.ch ? [`ch-${st.ch}`] : [] });
+        const p = this.pv.p, n = Number(r.vals.n);
+        /* with a study plan (chapters), the cards are made chapter by chapter: the whole course is covered, not only its beginning */
+        const byPage = {}; r.text.split(/\[page (\d+)\]\n?/).forEach((t, i, a) => { if (i % 2 === 0 && i > 0) byPage[a[i - 1]] = t; });
+        const chs = st.ch ? [] : ((p.study && p.study.ch) || []).filter(c => c.b >= r.a && c.a <= r.b).sort((x, y) => x.a - y.a);
+        const sections = chs.length > 1 ? chs.map(c => { let t = ''; for (let i = Math.max(r.a, c.a); i <= Math.min(r.b, c.b); i++) if (byPage[i]) t += `[page ${i}]\n${byPage[i]}\n\n`; return { title: c.t, text: t, count: Math.ceil(n / chs.length) }; }).filter(x => x.text.trim()) : null;
+        const lines = await this.aiCardsFrom(r.text, { label: `PDF « ${p.name} »`, pages: r.pages, count: n, hint: lv.cardsHint, deckId: p.pdeck || '', sections });
+        if (!lines) return;
+        const srcs = this.aiSources(p, r.text, lines.meta || [], sections ? chs.filter(c => sections.some(x => x.title === c.t)) : null);
+        if (st.ch) Object.values(srcs).forEach(v => { v.ch = st.ch; });
+        this.openImportModal({ text: lines.join('\n'), ai: true, deckId: p.pdeck || '', tags: st.ch ? [`ch-${st.ch}`] : [], srcs });
     },
     /* ---------- summary → written in the note, with [[page N]] links ---------- */
     aiBlocksFromSummary(raw, p) {

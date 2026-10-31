@@ -429,7 +429,7 @@ Object.assign(SuperAnki.prototype, {
             items.push({ icon: 'pencil', label: 'Modifier', kbd: 'E', fn: () => this.openCardModal(c.id) });
             items.push({ icon: 'info', label: 'Informations sur la carte', kbd: 'I', fn: () => this.openCardInfo(c.id) });
             if (this.noteOfCard(c)) items.push({ icon: 'notebook', label: 'Voir dans le cours', fn: () => this.openCardSource(c.id) });
-            else if (c.src && c.src.pdf && this.pdf(c.src.pdf)) items.push({ icon: 'pdf', label: 'Voir dans le PDF', fn: () => this.openCardSource(c.id) });
+            else if (c.src && c.src.pdf && this.pdf(c.src.pdf)) items.push({ icon: 'pdf', label: c.src.chk ? 'Voir dans le PDF (source à vérifier)' : 'Voir dans le PDF', fn: () => this.openCardSource(c.id) });
             items.push({ sep: true });
         }
         items.push({ flags: true });

@@ -1506,6 +1506,26 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     }
 
 
+    {   /* IA : les cartes d'un PDF gardent la page + la citation ; une citation inventée = « source à vérifier » */
+        const real = await page.evaluate(async () => { const a = app, w = ms => new Promise(r => setTimeout(r, ms)); if (!a.pv) { await a.pdfOpen(a.data.pdfs[0].id); await w(2000); } const t = await a.pdfPageText(1); return t.replace(/\s+/g, ' ').trim().split(' ').slice(0, 8).join(' '); });
+        await page.route('https://api.anthropic.com/**', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ content: [{ type: 'text', text: `Question vraie ? >> Réponse A @@ 1 | ${real}\nQuestion inventée ? >> Réponse B @@ 1 | ce texte ne figure pas du tout dans le document` }] }) }));
+        const sc = await page.evaluate(async () => {
+            const out = {}, a = app, w = ms => new Promise(r => setTimeout(r, ms));
+            localStorage.setItem('lh_ai', JSON.stringify({ provider: 'anthropic', keys: { anthropic: 'sk-x' }, models: {} }));
+            const pdfId = a.pv.p.id; a.aiPdfCards().catch(e => { out.err = String(e); }); await w(400); document.getElementById('aipg-go').click(); await w(900);
+            document.getElementById('ai-send').click(); await w(1200);
+            const txt = (document.getElementById('im-preview') || {}).textContent || '';
+            out.badges = /source ✓/.test(txt) && /source à vérifier/.test(txt);
+            document.getElementById('im-go').click(); await w(500);
+            const c1 = a.data.cards.find(c => c.front.includes('Question vraie')), c2 = a.data.cards.find(c => c.front.includes('Question inventée'));
+            out.src = !!c1 && !!c1.src && c1.src.pdf === pdfId && !c1.src.chk && !!c2 && !!c2.src && c2.src.chk === 1;
+            localStorage.removeItem('lh_ai');
+            return out;
+        });
+        ok('IA: PDF cards keep page + quote (verified in the page text), an invented quote is flagged "source à vérifier"', sc.badges && sc.src, JSON.stringify(sc));
+    }
+
+
     {   /* IA lot 3 : quiz → QCM à relire, lecture d'un PDF scanné par images */
         await page.route('https://api.anthropic.com/**', r => {
             const body = r.request().postData() || '';
