@@ -3616,3 +3616,10 @@ body.nb-selmode .nb-bar { display: none !important; }
 .nb-bar.min .nb-lvl { display: none !important; }
 /* the bottom bar: no blur on a phone (a blurred fixed bar can come loose while the page scrolls on iOS) */
 @media (max-width: 767px) { .bottom-nav, .bottom-nav::before { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; } }
+
+/* Temps de concentration : le bloc déplié est bien opaque et lisible (plus de transparence du thème) */
+.focus-w:not(.collapsed) { background: var(--surface-solid, #fff) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; border: 1.5px solid var(--border-strong) !important; box-shadow: 0 18px 50px rgba(0,0,0,.34), 0 2px 8px rgba(0,0,0,.18) !important; opacity: 1 !important; color: var(--text); }
+.focus-w:not(.collapsed) .fw-title small { color: var(--text); opacity: .75; }
+.focus-w:not(.collapsed) .fw-chip { background: var(--surface-2, transparent); }
+.focus-w:not(.collapsed) .fw-chip.on { background: var(--primary); }
+body.in-session .focus-w:not(.collapsed) { opacity: 1 !important; }
