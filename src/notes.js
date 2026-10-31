@@ -102,6 +102,7 @@ Object.assign(SuperAnki.prototype, {
         this.nbIdle(true);
         this.ui.note = id; this.ui.nbMem = false; this.nb = Object.assign(this.nb || { back: [] }, { hist: [], redo: [], active: -1, burst: 0, find: null, hits: [] });
         if (n.b.some(b => b.cd) && this.nbCardSyncAll(n)) this.save();
+        if (this.view === 'pdf' && this.pv) this.pv.prevNote = id;   // leaving a PDF must not send you back to the note you had before (tab click)
         if (this.view !== 'notes') this.go('notes'); else this.renderNotes();
         if (focus === 'title') setTimeout(() => { const t = $('#nb-title'); if (t) t.focus(); }, 80);
         else if (focus === 'end') setTimeout(() => { const nn = this.note(id); if (nn) this.nbActivate(this.nbLastText(nn), 'end'); }, 80);

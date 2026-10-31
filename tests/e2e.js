@@ -1200,7 +1200,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         const rn = await page.evaluate(async () => {
             const a = app, w = ms => new Promise(r => setTimeout(r, ms)), pv = a.pv, out = {}; pv.annotate = true; a.pdfRefreshTools();
             a.pdfGoto(1, '', true); await w(800); document.querySelector('[data-action=pdf-tool][data-t=pen]').click(); await w(200);
-            out.panel = !!document.querySelector('#pdf-panel .pdfp-grid') && document.querySelectorAll('#pdf-panel .pdfp-o.sw').length === 24 && !!document.querySelector('#pdf-panel input[data-optin=penc]');
+            out.panel = !!document.querySelector('#pdf-panel .pdfp-grid') && document.querySelectorAll('#pdf-panel .pdfp-o.sw').length === 24 && !!document.querySelector('#pdf-panel .pdfp-cp .cpk-wheelbox .cpk-hex');
             document.querySelector('#pdf-panel [data-k=penc][data-v="#e11d48"]').click(); out.pen = pv.pen.c === '#e11d48';
             const pid = pv.p.pg[0].id; a.pdfEdit(() => { a.pdfAnnAdd(pid, { t: 'sh', k: 's', x: 0.2, y: 0.5, w: 0.2, h: 0.1, c: '#000000', sw: 0.004, f: '#fde047' }); a.pdfAnnAdd(pid, { t: 'ar', k: 'b', x1: 0.1, y1: 0.7, x2: 0.6, y2: 0.72, c: '#e11d48', w: 0.004 }); a.pdfAnnAdd(pid, { t: 'dr', c: '#facc15', w: 0.026, op: 0.4, p: [[0.1, 0.3], [0.5, 0.3]] }); });
             await w(300); out.svg = !!document.querySelector('.pdfp[data-i="0"] polygon.sh') && !!document.querySelector('.pdfp[data-i="0"] path.ar') && !!document.querySelector('.pdfp[data-i="0"] path.dr[stroke-opacity="0.4"]');
@@ -1212,6 +1212,22 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
             return out;
         });
         ok('PDF tools à la RemNote: option panels (24 colours + HEX), shapes, arrows and translucent marker are saved and exported, "select everything" + delete in one go (undoable)', rn.panel && rn.pen && rn.svg && rn.kept && rn.exp && rn.sel && rn.del && rn.undo, JSON.stringify(rn));
+        {   /* PDF : clicking a document tab from a PDF opens that tab; Texte/Note options; one colour panel with a foldable wheel */
+            const t = await page.evaluate(async () => {
+                const a = app, w = ms => new Promise(r => setTimeout(r, ms)), o = {};
+                const pdfId = a.pv && a.pv.p.id, n = a.noteNew('Onglet test'); a.tabsAdd('note', n.id);
+                document.querySelector('.dt[data-k=note][data-id="' + n.id + '"]') ? 0 : a.tabsRender();
+                const el = document.querySelector('.dt[data-k=note][data-id="' + n.id + '"]'); o.tab = !!el; if (el) { el.click(); await w(600); }
+                o.landed = a.view === 'notes' && a.ui.note === n.id;
+                a.pdfOpen(pdfId); await w(1500);
+                a.pdfOpts().tool; a.pv.tool = 'text'; a.pdfPanelOpen('text'); await w(100);
+                o.txt = !!document.querySelector('#pdf-panel [data-k=txs]') && !!document.querySelector('#pdf-panel .cpk-wheelbox') && !!document.querySelector('#pdf-panel .pdfp-drag');
+                a.pv.tool = 'note'; a.pdfPanelOpen('note'); await w(100); o.nt = !!document.querySelector('#pdf-panel [data-k=ntc]');
+                a.pdfPanelClose(); a.pv.tool = 'select'; a.pv.prevNote = null; a.ui.note = null; a.data.notes = a.data.notes.filter(x => x.id !== n.id); a._dtabs = (a._dtabs || []).filter(x => x.id !== n.id); a.tabsSave(); o.noEraserT = !/M4 7V4h16v3/.test(ICONS.eraser);
+                return o;
+            });
+            ok('PDF: a click on a document tab opens it (not the Notes list), Texte/Note have their options, colours = one panel with a foldable wheel, the eraser no longer looks like a T', t.tab && t.landed && t.txt && t.nt && t.noEraserT, JSON.stringify(t));
+        }
         /* the annotated PDF is a real PDF: opened again with pdf.js, highlight pixel + text + extra page */
         const ex = await page.evaluate(async () => {
             const a = app, p = a.pv.p, { bytes } = await a.pdfAnnotatedBytes(p), out = {};
@@ -1536,8 +1552,8 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
             a.pdfAnnList(); await w(200);
             const rows0 = document.querySelectorAll('.al-go').length; document.querySelector('[data-al=flt][data-c="#86efac"]').click(); await w(100);
             out.list = rows0 === 2 && document.querySelectorAll('.al-go').length === 1; a.closeModal();
-            const P = a.pdfPrefs(); P.night = true; P.crop = 0.1; a.pdfReflow(); await w(600);
-            out.view = document.querySelector('.pdfv').classList.contains('night') && /inset/.test(a.pv.pages[0].el.style.clipPath); P.night = false; P.crop = 0; a.pdfReflow(); await w(300);
+            const P = a.pdfPrefs(); P.night = true; a.pdfApplyView(); await w(300);
+            out.view = document.querySelector('.pdfv').classList.contains('night') && a.pdfCropv() === 0; P.night = false; a.pdfApplyView(); await w(300);
             a.pdfAreaToNote({ pid: g.id, rect: [0.1, 0.1, 0.6, 0.3], text: 'x' }); await w(200); out.note = a.pdfNoteOf(p).b.some(b => b.t === 'img');
             a.pdfAreaOcclude({ pid: g.id, rect: [0.1, 0.1, 0.6, 0.3], text: 'x' }); await w(300); out.occ = !!document.querySelector('#oc-stage img'); a.closeModal();
             return out;

@@ -30,7 +30,7 @@ function normalizePdfAnn(a) {
     const o = { i: String(a.i || uid('a')), t, c: /^#[0-9a-f]{6}$/i.test(String(a.c || '')) ? String(a.c) : '#fde047', m: num(a.m, 0) };
     const r4 = v => Math.round(num(v, 0) * 10000) / 10000;
     if (t === 'hl') { o.r = toArray(a.r).slice(0, 60).map(r => toArray(r).slice(0, 4).map(r4)).filter(r => r.length === 4); o.s = String(a.s || '').slice(0, 2000); if (!o.r.length) return null; }
-    else if (t === 'tx' || t === 'nt') { o.x = r4(a.x); o.y = r4(a.y); o.w = Math.max(0.05, r4(a.w || 0.4)); o.s = String(a.s || '').slice(0, 2000); o.fs = clamp(num(a.fs, 14), 8, 60); o.b = !!a.b; o.f = ['s', 'r', 'm'].includes(a.f) ? a.f : 's'; o.bg = /^#[0-9a-f]{6}$/i.test(String(a.bg || '')) ? String(a.bg) : ''; }
+    else if (t === 'tx' || t === 'nt') { o.x = r4(a.x); o.y = r4(a.y); o.w = Math.max(0.05, r4(a.w || 0.4)); o.s = String(a.s || '').slice(0, 2000); o.fs = clamp(num(a.fs, 14), 8, 60); o.b = !!a.b; o.f = ['s', 'r', 'm'].includes(a.f) ? a.f : 's'; o.bg = /^#[0-9a-f]{6}$/i.test(String(a.bg || '')) ? String(a.bg) : ''; o.rot = Math.round(clamp(num(a.rot, 0), -180, 180) * 10) / 10; }
     else if (t === 'sh') { o.k = ['r', 'o', 't', 'd', 's', 'h'].includes(a.k) ? a.k : 'r'; o.x = r4(a.x); o.y = r4(a.y); o.h = r4(a.h); o.w = Math.max(0.003, r4(a.w)); o.sw = clamp(num(a.sw, 0.004), 0.0008, 0.05); o.f = /^#[0-9a-f]{6}$/i.test(String(a.f || '')) ? String(a.f) : ''; }
     else if (t === 'ar') { o.k = ['a', 'b', 'l'].includes(a.k) ? a.k : 'a'; o.x1 = r4(a.x1); o.y1 = r4(a.y1); o.x2 = r4(a.x2); o.y2 = r4(a.y2); o.w = clamp(num(a.w, 0.004), 0.0008, 0.05); }
     else { o.w = clamp(num(a.w, 0.004), 0.0008, 0.05); o.op = clamp(num(a.op, 1), 0.1, 1); o.p = toArray(a.p).slice(0, 4000).map(p => toArray(p).slice(0, 2).map(r4)).filter(p => p.length === 2); if (o.p.length < 1) return null; }
@@ -321,7 +321,7 @@ Object.assign(SuperAnki.prototype, {
                     const [x1, y1] = map(a.x, a.y), size = a.fs * (Vw / 600), maxW = Math.max(40, a.w * Vw), font = await fontOf(a);
                     if (a.t === 'tx' && a.bg) { const hh = size * 1.25 * Math.max(1, Math.ceil(font.widthOfTextAtSize(safe(a.s), size) / maxW)); pg.drawRectangle({ x: x1 - 2, y: y1 - hh - 2, width: maxW + 4, height: hh + 4, color: col(a.bg) }); }
                     if (rot) warned++;
-                    if (a.t === 'nt') pg.drawRectangle({ x: x1 - 3, y: y1 - 3 - size * 1.2 * Math.max(1, Math.ceil(font.widthOfTextAtSize(safe(a.s), size) / maxW)), width: maxW + 6, height: size * 1.2 * Math.max(1, Math.ceil(font.widthOfTextAtSize(safe(a.s), size) / maxW)) + 6, color: rgb(1, 0.96, 0.62), borderColor: rgb(0.85, 0.7, 0.1), borderWidth: 0.6 });
+                    if (a.t === 'nt') pg.drawRectangle({ x: x1 - 3, y: y1 - 3 - size * 1.2 * Math.max(1, Math.ceil(font.widthOfTextAtSize(safe(a.s), size) / maxW)), width: maxW + 6, height: size * 1.2 * Math.max(1, Math.ceil(font.widthOfTextAtSize(safe(a.s), size) / maxW)) + 6, color: col(a.c || '#fde047'), borderColor: rgb(0.55, 0.45, 0.1), borderWidth: 0.6 });
                     pg.drawText(safe(a.s), { x: x1, y: y1 - size, size, font, color: a.t === 'nt' ? rgb(0.2, 0.15, 0) : col(a.c === '#fde047' ? '#111827' : a.c), maxWidth: maxW, lineHeight: size * 1.2 });
                 }
             }

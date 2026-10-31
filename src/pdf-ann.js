@@ -85,10 +85,10 @@ Object.assign(SuperAnki.prototype, {
         const x = $('.pdfx', el), have = new Map($$('.pdfa-box', x).map(b => [b.dataset.i, b]));
         list.filter(a => a.t === 'tx' || a.t === 'nt').forEach(a => {
             let b = have.get(a.i); have.delete(a.i);
-            if (!b) { b = document.createElement('div'); b.dataset.i = a.i; b.innerHTML = `<div class="pdfa-grip" data-grip title="Déplacer">${ic('grip')}</div><div class="pdfa-t" contenteditable="true" spellcheck="false" role="textbox" aria-label="Texte"></div><div class="pdfa-rs" data-rs title="Largeur"></div><div class="pdfa-tb"><button data-action="pdf-bsize" data-d="-1" aria-label="Plus petit">A−</button><button data-action="pdf-bsize" data-d="1" aria-label="Plus grand">A+</button><button data-action="pdf-bold" aria-label="Gras"><b>G</b></button><button data-action="pdf-bfont" aria-label="Police">Aa</button><button data-action="pdf-bcolor" aria-label="Couleurs"><i></i></button><button data-action="pdf-bdel" aria-label="Supprimer">${ic('trash')}</button></div>`; x.appendChild(b); }
-            b.className = `pdfa-box ${a.t}`; b.style.cssText = `left:${a.x * 100}%;top:${a.y * 100}%;width:${a.w * 100}%;font-size:calc(var(--pw) * ${a.fs / 600});font-family:${a.f === 'r' ? 'Georgia,"Times New Roman",serif' : a.f === 'm' ? 'ui-monospace,Menlo,Consolas,monospace' : 'inherit'};font-weight:${a.b ? 800 : 400};${a.t === 'tx' ? `color:${a.c === '#fde047' ? '#111827' : a.c};${a.bg ? `background:${a.bg};` : ''}` : ''}`;
+            if (!b) { b = document.createElement('div'); b.dataset.i = a.i; b.innerHTML = `<div class="pdfa-grip" data-grip title="Déplacer">${ic('grip')}</div><div class="pdfa-t" contenteditable="true" spellcheck="false" role="textbox" aria-label="Texte"></div><div class="pdfa-rs" data-rs title="Agrandir"></div><div class="pdfa-ro" data-ro title="Tourner">${ic('redo')}</div><div class="pdfa-tb"><button data-action="pdf-bsize" data-d="-1" aria-label="Plus petit">A−</button><button data-action="pdf-bsize" data-d="1" aria-label="Plus grand">A+</button>${a.t === 'tx' ? '<button data-action="pdf-bold" aria-label="Gras"><b>G</b></button><button data-action="pdf-bfont" aria-label="Police">Aa</button>' : '<button data-action="pdf-brot" aria-label="Remettre droit" title="Remettre droit">↺</button>'}<button data-action="pdf-bcolor" aria-label="Couleurs"><i></i></button><button data-action="pdf-bdel" aria-label="Supprimer">${ic('trash')}</button></div>`; x.appendChild(b); }
+            b.className = `pdfa-box ${a.t}`; b.style.cssText = `left:${a.x * 100}%;top:${a.y * 100}%;width:${a.w * 100}%;font-size:calc(var(--pw) * ${a.fs / 600});font-family:${a.f === 'r' ? 'Georgia,"Times New Roman",serif' : a.f === 'm' ? 'ui-monospace,Menlo,Consolas,monospace' : 'inherit'};font-weight:${a.b ? 800 : 400};${a.rot ? `transform:rotate(${a.rot}deg);transform-origin:50% 50%;` : ''}${a.t === 'nt' ? `--nc:${/^#[0-9a-f]{6}$/i.test(a.c) ? a.c : '#fde047'};` : ''}${a.t === 'tx' ? `color:${a.c === '#fde047' ? '#111827' : a.c};${a.bg ? `background:${a.bg};` : ''}` : ''}`;
             const t = $('.pdfa-t', b); if (document.activeElement !== t && t.textContent !== a.s) t.textContent = a.s;
-            const i = $('.pdfa-tb i', b); if (i) i.style.background = a.t === 'nt' ? '#fde047' : (a.c === '#fde047' ? '#111827' : a.c);
+            const i = $('.pdfa-tb i', b); if (i) i.style.background = a.t === 'nt' ? (a.c || '#fde047') : (a.c === '#fde047' ? '#111827' : a.c);
         });
         have.forEach(b => b.remove());
     },
@@ -250,8 +250,9 @@ Object.assign(SuperAnki.prototype, {
                 if (['shape', 'arrow', 'pick'].includes(t) && this.pdfShapeDown(e, ov, pgEl, pg, pid, t)) return; const r = pg.ch / pg.cw, start = this.pdfPt(e, pgEl);
                 try { ov.setPointerCapture(e.pointerId); } catch { /* ignore */ }
                 if (t === 'text' || t === 'note') {
-                    this.pdfEdit(() => this.pdfAnnAdd(pid, { t: t === 'text' ? 'tx' : 'nt', c: t === 'text' ? '#111827' : '#fde047', x: clamp(start[0], 0, 0.8), y: clamp(start[1], 0, 0.94), w: t === 'text' ? 0.34 : 0.3, s: '', fs: 14 }));
-                    const a = (P.p.ann[pid] || []).slice(-1)[0]; P.tool = 'select'; this.pdfRefreshTools();
+                    const o = this.pdfOpts(), d = t === 'text' ? o.tx : o.nt;
+                    this.pdfEdit(() => this.pdfAnnAdd(pid, t === 'text' ? { t: 'tx', c: d.c, bg: d.bg, b: d.b, f: d.f, fs: d.fs, x: clamp(start[0], 0, 0.8), y: clamp(start[1], 0, 0.94), w: 0.34, s: '' } : { t: 'nt', c: d.c, fs: d.fs, x: clamp(start[0] - 0.12, 0, 0.7), y: clamp(start[1] - 0.03, 0, 0.9), w: 0.26, s: '', rot: 0 }));
+                    const a = (P.p.ann[pid] || []).slice(-1)[0];   // the tool stays active: the next touch puts another text / note
                     setTimeout(() => { const b = $(`.pdfa-box[data-i="${a.i}"] .pdfa-t`, pgEl); if (b) b.focus(); }, 30); return;
                 }
                 if (t === 'pen' || t === 'marker') {
@@ -326,10 +327,10 @@ Object.assign(SuperAnki.prototype, {
             });
             /* a text box or margin note : move (grip), widen (corner), write */
             root.addEventListener('pointerdown', e => {
-                const P = pv(); if (!P) return; const grip = e.target.closest('[data-grip]'), rs = e.target.closest('[data-rs]'); if (!grip && !rs) return;
+                const P = pv(); if (!P) return; const grip = e.target.closest('[data-grip]'), rs = e.target.closest('[data-rs]'), ro = e.target.closest('[data-ro]'); if (!grip && !rs && !ro) return;
                 const box = e.target.closest('.pdfa-box'), pgEl = box.closest('.pdfp'), pg = P.pages[Number(pgEl.dataset.i)], a = this.pdfAnnOf(pg.g.id, box.dataset.i); if (!a) return;
-                e.preventDefault(); const before = this.pdfSnap(), p0 = this.pdfPt(e, pgEl), x0 = a.x, y0 = a.y, w0 = a.w; box.classList.add('moving');
-                const mv = ev => { const q = this.pdfPt(ev, pgEl); if (grip) { a.x = clamp(x0 + q[0] - p0[0], 0, 0.95); a.y = clamp(y0 + q[1] - p0[1], 0, 0.97); box.style.left = a.x * 100 + '%'; box.style.top = a.y * 100 + '%'; } else { a.w = clamp(w0 + q[0] - p0[0], 0.08, 1 - a.x); box.style.width = a.w * 100 + '%'; } };
+                e.preventDefault(); const before = this.pdfSnap(), p0 = this.pdfPt(e, pgEl), x0 = a.x, y0 = a.y, w0 = a.w; box.classList.add('moving'); const rc = box.getBoundingClientRect(), cx = rc.left + rc.width / 2, cy = rc.top + rc.height / 2;
+                const mv = ev => { const q = this.pdfPt(ev, pgEl); if (ro) { let ang = Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI + 90; if (ang > 180) ang -= 360; if (Math.abs(ang) < 5) ang = 0; else if (ev.shiftKey) ang = Math.round(ang / 15) * 15; a.rot = Math.round(ang * 10) / 10; box.style.transform = a.rot ? `rotate(${a.rot}deg)` : ''; } else if (grip) { a.x = clamp(x0 + q[0] - p0[0], 0, 0.95); a.y = clamp(y0 + q[1] - p0[1], 0, 0.97); box.style.left = a.x * 100 + '%'; box.style.top = a.y * 100 + '%'; } else { a.w = clamp(w0 + q[0] - p0[0], 0.08, 1 - a.x); box.style.width = a.w * 100 + '%'; } };
                 const up = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); box.classList.remove('moving'); a.m = Date.now(); if (this.pv === P) this.pdfCommit(before); };
                 window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
             });
@@ -374,6 +375,7 @@ Object.assign(SuperAnki.prototype, {
             'pdf-blank': () => this.pdfBlankMenu(el),
             'pdf-bsize': () => { if (a) this.pdfEdit(() => { a.fs = clamp(a.fs + 2 * Number(ds.d), 8, 60); a.m = Date.now(); }); },
             'pdf-bdel': () => { if (a) this.pdfEdit(() => this.pdfAnnDel(pg.g.id, a.i)); },
+            'pdf-brot': () => { if (a) this.pdfEdit(() => { a.rot = 0; a.m = Date.now(); }); },
             'pdf-bold': () => { if (a) this.pdfEdit(() => { a.b = !a.b; a.m = Date.now(); }); },
             'pdf-bfont': () => { if (a) this.pdfEdit(() => { a.f = a.f === 's' ? 'r' : a.f === 'r' ? 'm' : 's'; a.m = Date.now(); }); },
             'pdf-bcolor': () => { if (!a) return; const old = $('.pdfa-pal', box); if (old) { old.remove(); return; }
@@ -422,32 +424,36 @@ Object.assign(SuperAnki.prototype, {
 
     /* ---------- the menu "Plus" ---------- */
     pdfMoreMenu(anchor) {
-        const pv = this.pv, p = pv.p, pr = this.pdfPrefs(), n = Object.values(p.ann).flat().length;
+        const pv = this.pv, p = pv.p, pr = this.pdfPrefs(), narrow = !this.pdfWide();
         this.showMenu(anchor, [
-            { icon: 'brain', label: 'Étude du PDF (chapitres, progression)…', fn: () => this.stPanel() },
-            { icon: 'pencil', label: 'Renommer le PDF', fn: () => this.pdfRenameDialog(p) },
             { icon: 'list', label: 'Mes annotations (liste, filtre couleur)…', fn: () => this.pdfAnnList() },
-            { icon: 'flag', label: 'Signets…', fn: () => this.pdfBookmarks() },
-            { icon: 'moon', label: 'Affichage (nuit, 2 pages, marges)…', fn: () => this.pdfViewMenu(anchor) },
+            { icon: 'flag', label: 'Signets (marque-pages)…', fn: () => this.pdfBookmarks() },
+            ...(narrow ? [   // on a phone the header has no room: these live here (on a computer they are buttons at the top)
+                { sep: true },
+                { icon: 'brain', label: 'Étude du PDF (chapitres, progression)…', fn: () => this.stPanel() },
+                { icon: pv.mode === 'text' ? 'file' : 'typeT', label: pv.mode === 'text' ? 'Revenir au PDF fidèle' : 'Lecteur de texte (réaffiche le texte)', fn: () => this.pdfAction('pdf-mode', anchor) },
+                { icon: 'volume', label: 'Lire à voix haute…', fn: () => this.pdfReadMenu(anchor) },
+                { icon: 'fullscreen', label: 'Mode concentration', fn: () => this.pdfFocus() }
+            ] : []),
+            { sep: true },
             { icon: 'note', label: 'Extraire mes annotations dans la note', fn: () => this.pdfExtract() },
-            { icon: pv.mode === 'text' ? 'file' : 'typeT', label: pv.mode === 'text' ? 'Revenir au PDF fidèle' : 'Lecteur de texte (réaffiche le texte)', fn: () => this.pdfAction('pdf-mode', anchor) },
-            { icon: 'sparkle', label: 'Cartes avec l\'IA…', fn: () => this.aiPdfCards() },
-            { icon: 'sparkle', label: 'Image à masquer par IA (cette page)…', fn: () => this.aiOcclude() },
-            { icon: 'sparkle', label: 'Quiz avec l\'IA…', fn: () => this.aiPdfQuiz() },
-            { icon: 'sparkle', label: 'Lire ce PDF avec l\'IA (scanné)…', fn: () => this.aiOcr() },
-            { icon: 'sparkle', label: 'Résumé avec l\'IA…', fn: () => this.aiSummary() },
-            { icon: 'sparkle', label: 'Discuter avec le cours (IA)…', fn: () => this.aiChat() },
-            { icon: 'volume', label: 'Lire à voix haute…', fn: () => this.pdfReadMenu(anchor) },
-            { icon: 'fullscreen', label: 'Mode concentration', fn: () => this.pdfFocus() },
             { icon: 'trash', label: `Annotations effacées${p.trash.length ? ` (${p.trash.length})` : ''}`, fn: () => this.pdfTrashPanel() },
+            ...(pv.mode === 'text' ? [{ icon: 'typeT', label: 'Texte plus grand', fn: () => { pr.fs = clamp(pr.fs + 0.12, 0.8, 1.8); this.pdfPrefSave(); $('#pdf-text').style.fontSize = `${1.02 * pr.fs}rem`; } }, { icon: 'typeT', label: 'Texte plus petit', fn: () => { pr.fs = clamp(pr.fs - 0.12, 0.8, 1.8); this.pdfPrefSave(); $('#pdf-text').style.fontSize = `${1.02 * pr.fs}rem`; } }] : []),
+            { sep: true },
+            { head: 'INTELLIGENCE ARTIFICIELLE' },
+            { icon: 'sparkle', label: 'Cartes avec l\'IA…', fn: () => this.aiPdfCards() },
+            { icon: 'sparkle', label: 'Résumé avec l\'IA…', fn: () => this.aiSummary() },
+            { icon: 'sparkle', label: 'Quiz avec l\'IA…', fn: () => this.aiPdfQuiz() },
+            { icon: 'sparkle', label: 'Discuter avec le cours (IA)…', fn: () => this.aiChat() },
+            { icon: 'sparkle', label: 'Image à masquer par IA (cette page)…', fn: () => this.aiOcclude() },
+            { icon: 'sparkle', label: 'Lire ce PDF avec l\'IA (scanné)…', fn: () => this.aiOcr() },
             { sep: true },
             { icon: 'export', label: 'Exporter le PDF annoté', fn: () => this.pdfExportAnnotated(p) },
             { icon: 'export', label: 'Exporter l\'original', fn: () => this.pdfExportOriginal(p) },
             { sep: true },
-            ...(pv.mode === 'text' ? [{ icon: 'typeT', label: 'Texte plus grand', fn: () => { pr.fs = clamp(pr.fs + 0.12, 0.8, 1.8); this.pdfPrefSave(); $('#pdf-text').style.fontSize = `${1.02 * pr.fs}rem`; } }, { icon: 'typeT', label: 'Texte plus petit', fn: () => { pr.fs = clamp(pr.fs - 0.12, 0.8, 1.8); this.pdfPrefSave(); $('#pdf-text').style.fontSize = `${1.02 * pr.fs}rem`; } }] : []),
-            { icon: 'trash', label: 'Supprimer des pages…', danger: true, fn: () => this.pdfDeletePages() },
+            { icon: 'pencil', label: 'Renommer le PDF', fn: () => this.pdfRenameDialog(p) },
             { icon: 'info', label: 'Informations', fn: () => this.pdfInfo() },
-            { sep: true },
+            { icon: 'trash', label: 'Supprimer des pages…', danger: true, fn: () => this.pdfDeletePages() },
             { icon: 'trash', label: 'Supprimer le PDF…', danger: true, fn: () => this.pdfDeleteAsk(p) }
         ]);
     },

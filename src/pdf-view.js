@@ -52,8 +52,7 @@ Object.assign(SuperAnki.prototype, {
                 <button class="icon-btn hide-n" data-action="pdf-read" aria-label="Lire à voix haute" title="Lire à voix haute">${ic('volume')}</button>
                 <button class="icon-btn hide-n" data-action="pdf-study" aria-label="Étude du PDF" title="Étude du PDF : niveau, chapitres, progression">${ic('brain')}</button>
                 <button class="btn btn-primary btn-sm pdfv-prac" data-action="pdf-train" title="S'entraîner avec les cartes de ce PDF">${ic('play')}<span>Pratique</span></button>
-                <button class="icon-btn hide-n" data-action="pdf-side" aria-label="Note à gauche ou à droite" title="Mettre la note à gauche / à droite">${ic('columns')}</button>
-                <button class="icon-btn ${pv.notes ? 'on' : ''}" data-action="pdf-notes" aria-label="Notes" title="Afficher / masquer la note du PDF">${ic('note')}</button>
+                <button class="btn btn-soft btn-sm pdfv-notebtn ${pv.notes ? 'on' : ''}" data-action="pdf-notes" aria-label="Note du PDF" aria-pressed="${!!pv.notes}" title="Afficher / masquer la note de ce PDF">${ic('note')}<span>Note</span></button>
                 <button class="icon-btn hide-n" data-action="pdf-focus" aria-label="Mode concentration" title="Mode concentration (plein écran)">${ic('fullscreen')}</button>
                 <button class="icon-btn" data-action="pdf-more" aria-label="Plus d'actions" title="Plus d'actions">${ic('more')}</button>
             </header>
@@ -179,7 +178,7 @@ Object.assign(SuperAnki.prototype, {
         const n = this.pdfNoteOf(pv.p); this.ui.note = n.id;
         this.nb = Object.assign(this.nb || { back: [] }, { hist: [], redo: [], active: -1, burst: 0, find: null, hits: [] });
         if (n.b.some(b => b.cd) && this.nbCardSyncAll(n)) this.save(false);
-        box.innerHTML = `<div class="pdfn-head"><span class="nb-row-ico">${n.emoji ? esc(n.emoji) : '📝'}</span><b>${esc(this.noteName(n))}</b><button class="icon-btn icon-btn-sm pdfn-close" data-action="pdf-notes" aria-label="Fermer la note">${ic('chevronDown')}</button></div>
+        box.innerHTML = `<div class="pdfn-head"><span class="nb-row-ico">${n.emoji ? esc(n.emoji) : '📝'}</span><b>${esc(this.noteName(n))}</b><button class="icon-btn icon-btn-sm hide-n" data-action="pdf-side" aria-label="Mettre la note de l'autre côté" title="Mettre la note de l'autre côté">${ic('columns')}</button><button class="icon-btn icon-btn-sm pdfn-close" data-action="pdf-notes" aria-label="Fermer la note">${ic('chevronDown')}</button></div>
             <div class="nb-editor pdfn-ed" data-id="${esc(n.id)}"><div class="nb-blocks" id="nb-blocks">${this.nbBlocksHtml(n)}</div></div>`;
         this.nbBind($('#view-pdf')); this.nbBarEnsure(true); this.resolveMedia(box);
     },
@@ -198,7 +197,7 @@ Object.assign(SuperAnki.prototype, {
         const pv = this.pv; pv.notes = on === undefined ? !pv.notes : on; this.pdfPrefs().notes = pv.notes; this.pdfPrefSave();
         const v = $('.pdfv'); if (v) { v.classList.toggle('with-notes', pv.notes); v.classList.remove('drawer-closed', 'drawer-half', 'drawer-full'); v.classList.add('drawer-' + (pv.notes ? (pv.drawer === 'closed' ? 'half' : pv.drawer) : 'closed')); }
         if (pv.notes && pv.drawer === 'closed') pv.drawer = 'half';
-        const b = $('[data-action=pdf-notes]'); if (b) b.classList.toggle('on', pv.notes);
+        const b = $('.pdfv-notebtn'); if (b) { b.classList.toggle('on', pv.notes); b.setAttribute('aria-pressed', !!pv.notes); }
         setTimeout(() => { if (this.pv === pv && pv.mode !== 'text') { this.pdfSizePages(); pv.pages.forEach(pg => { if (pg.state) { this.pdfUnrender(pg); this.pdfRenderPage(pg); } }); } }, 80);
     },
     pdfDrawer(state) { const pv = this.pv; pv.drawer = state; this.pdfPrefs().drawer = state; this.pdfPrefSave(); const v = $('.pdfv'); if (v) { v.classList.remove('drawer-closed', 'drawer-half', 'drawer-full'); v.classList.add('drawer-' + state); } },

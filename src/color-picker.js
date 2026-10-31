@@ -16,20 +16,20 @@ Object.assign(SuperAnki.prototype, {
     cpRemember(c) { try { localStorage.setItem('lh_colors', JSON.stringify([c, ...this.cpRecent().filter(x => x !== c)].slice(0, 8))); } catch { /* ignore */ } },
     cpClose() { const o = document.getElementById('cpk'); if (o) o.remove(); document.removeEventListener('pointerdown', this._cpOut, true); },
     /* opts: anchor, title, cur (#hex or ''), none (offer « aucune »), swatches (replace the grid), onPick(hex | '') */
-    colorPicker({ anchor, title = 'Couleur', cur = '', none = false, swatches = CP_SWATCHES, onPick }) {
-        this.cpClose();
-        const el = document.createElement('div'); el.id = 'cpk'; el.className = 'cpk'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', title);
+    colorPicker({ anchor, title = 'Couleur', cur = '', none = false, swatches = CP_SWATCHES, onPick, host = null, grid = true, wheelOpen = false, onWheel = null }) {
+        if (!host) this.cpClose();
+        const el = host || document.createElement('div'); if (!host) { el.id = 'cpk'; el.className = 'cpk'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', title); }
         const hsv = cpHex(cur) ? cpHex2hsv(cpHex(cur)) : [210, 0.8, 0.9]; let color = cpHex(cur) || cpHsv2hex(...hsv);
         const canEye = !!window.EyeDropper, recent = this.cpRecent();
-        el.innerHTML = `<div class="cpk-h"><b>${esc(title)}</b><button class="icon-btn" data-cp="x" aria-label="Fermer">${ic('x')}</button></div>
-            <div class="cpk-grid">${none ? `<button class="cpk-sw none" data-cp="none" aria-label="Aucune couleur" title="Aucune"></button>` : ''}${swatches.map(c => `<button class="cpk-sw ${c === cur ? 'on' : ''}" style="background:${c}" data-c="${c}" aria-label="${c}"></button>`).join('')}</div>
+        el.innerHTML = `${host ? '' : `<div class="cpk-h" title="Glisse pour déplacer"><span class="cpk-grip">${ic('grip')}</span><b>${esc(title)}</b><button class="icon-btn" data-cp="x" aria-label="Fermer">${ic('x')}</button></div>`}
+            ${grid ? `<div class="cpk-grid">${none ? `<button class="cpk-sw none" data-cp="none" aria-label="Aucune couleur" title="Aucune"></button>` : ''}${swatches.map(c => `<button class="cpk-sw ${c === cur ? 'on' : ''}" style="background:${c}" data-c="${c}" aria-label="${c}"></button>`).join('')}</div>` : (none ? `<div class="cpk-grid"><button class="cpk-sw none" data-cp="none" aria-label="Aucune couleur" title="Aucune"></button></div>` : '')}
             ${recent.length ? `<div class="cpk-lab">Dernières couleurs</div><div class="cpk-grid">${recent.map(c => `<button class="cpk-sw" style="background:${c}" data-c="${c}" aria-label="${c}"></button>`).join('')}</div>` : ''}
-            <details class="cpk-wheelbox"><summary>Roue chromatique</summary>
+            <details class="cpk-wheelbox" ${wheelOpen ? 'open' : ''}><summary>Roue chromatique</summary>
                 <canvas class="cpk-wheel" width="180" height="180" aria-label="Roue des couleurs"></canvas>
-                <label class="cpk-lab">Luminosité <input type="range" class="cpk-v" min="0" max="100" value="${Math.round(hsv[2] * 100)}"></label></details>
+                <label class="cpk-lab">Luminosité <input type="range" class="cpk-v" min="0" max="100" value="${Math.round(hsv[2] * 100)}"></label>${host ? '' : '</details>'}
             <div class="cpk-row"><span class="cpk-prev" style="background:${color}"></span><input class="input cpk-hex" value="${color.slice(1).toUpperCase()}" maxlength="7" autocomplete="off" spellcheck="false" aria-label="Code HEX"><button class="btn btn-primary btn-sm" data-cp="ok">${ic('check')}Choisir</button></div>
-            <div class="cpk-row"><button class="btn btn-soft btn-sm" data-cp="eye">${ic('pipette')}Pipette</button>${this.pv ? `<button class="btn btn-soft btn-sm" data-cp="eyepdf">${ic('file')}Dans le PDF</button>` : ''}<button class="btn btn-soft btn-sm" data-cp="eyeimg">${ic('image')}Dans une image</button></div>`;
-        document.body.appendChild(el);
+            <div class="cpk-row"><button class="btn btn-soft btn-sm" data-cp="eye">${ic('pipette')}Pipette</button>${this.pv ? `<button class="btn btn-soft btn-sm" data-cp="eyepdf">${ic('file')}Dans le PDF</button>` : ''}<button class="btn btn-soft btn-sm" data-cp="eyeimg">${ic('image')}Dans une image</button></div>${host ? '</details>' : ''}`;
+        if (!host) document.body.appendChild(el);
         const prev = $('.cpk-prev', el), hexIn = $('.cpk-hex', el), cv = $('.cpk-wheel', el), vr = $('.cpk-v', el), ctx = cv.getContext('2d');
         const set = (c, fromHex) => { color = c; prev.style.background = c; if (!fromHex) hexIn.value = c.slice(1).toUpperCase(); };
         const drawWheel = () => { const W = 180, img = ctx.createImageData(W, W), R = W / 2; for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) { const dx = x - R, dy = y - R, d = Math.hypot(dx, dy), i = (y * W + x) * 4; if (d > R) { img.data[i + 3] = 0; continue; } const h = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360, c = cpHsv2hex(h, d / R, hsv[2]), n = parseInt(c.slice(1), 16); img.data[i] = n >> 16; img.data[i + 1] = (n >> 8) & 255; img.data[i + 2] = n & 255; img.data[i + 3] = 255; } ctx.putImageData(img, 0, 0); const px = R + Math.cos(hsv[0] * Math.PI / 180) * hsv[1] * R, py = R + Math.sin(hsv[0] * Math.PI / 180) * hsv[1] * R; ctx.beginPath(); ctx.arc(px, py, 7, 0, 7); ctx.lineWidth = 2.5; ctx.strokeStyle = '#fff'; ctx.stroke(); ctx.lineWidth = 1; ctx.strokeStyle = '#000'; ctx.stroke(); };
@@ -37,7 +37,7 @@ Object.assign(SuperAnki.prototype, {
         let drag = false; cv.addEventListener('pointerdown', e => { drag = true; cv.setPointerCapture(e.pointerId); wheelAt(e); }); cv.addEventListener('pointermove', e => { if (drag) wheelAt(e); }); cv.addEventListener('pointerup', () => { drag = false; });
         vr.addEventListener('input', () => { hsv[2] = vr.value / 100; set(cpHsv2hex(...hsv)); drawWheel(); });
         hexIn.addEventListener('input', () => { const c = cpHex(hexIn.value); if (c) { set(c, true); Object.assign(hsv, cpHex2hsv(c)); vr.value = Math.round(hsv[2] * 100); drawWheel(); } });
-        const finish = c => { this.cpClose(); if (c) this.cpRemember(c); onPick(c); };
+        const finish = c => { if (!host) this.cpClose(); if (c) this.cpRemember(c); onPick(c); };
         const useImage = async src => { const c = await this.cpPickFromImage(src); if (c) { set(c); Object.assign(hsv, cpHex2hsv(c)); vr.value = Math.round(hsv[2] * 100); drawWheel(); } };
         el.addEventListener('click', async e => {
             const b = e.target.closest('button'); if (!b) return;
@@ -53,7 +53,14 @@ Object.assign(SuperAnki.prototype, {
         el.addEventListener('pointerdown', e => { if (!e.target.closest('input, summary, canvas')) e.preventDefault(); });   // keep the text selection of the editor
         drawWheel();
         const place = () => { const r = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: innerWidth / 2 - 130, right: innerWidth / 2 + 130, top: innerHeight / 2, bottom: innerHeight / 2 }, w = el.offsetWidth, h = el.offsetHeight; el.style.left = `${clamp(r.left, 8, innerWidth - w - 8)}px`; const below = r.bottom + 8 + h <= innerHeight - 8; el.style.top = `${below ? r.bottom + 8 : Math.max(8, r.top - h - 8)}px`; };
-        place(); el.querySelector('.cpk-wheelbox').addEventListener('toggle', place);
+        el.querySelector('.cpk-wheelbox').addEventListener('toggle', e => { if (onWheel) onWheel(e.target.open); if (!host) place(); });
+        if (host) return;
+        place();
+        /* the box can be moved: drag its title */
+        const hd = $('.cpk-h', el); let dx0 = 0, dy0 = 0, l0 = 0, t0 = 0, drag2 = false;
+        hd.addEventListener('pointerdown', e => { if (e.target.closest('button')) return; drag2 = true; dx0 = e.clientX; dy0 = e.clientY; l0 = el.offsetLeft; t0 = el.offsetTop; hd.setPointerCapture(e.pointerId); e.preventDefault(); });
+        hd.addEventListener('pointermove', e => { if (!drag2) return; el.style.left = `${clamp(l0 + e.clientX - dx0, 4, innerWidth - el.offsetWidth - 4)}px`; el.style.top = `${clamp(t0 + e.clientY - dy0, 4, innerHeight - 60)}px`; });
+        hd.addEventListener('pointerup', () => { drag2 = false; }); hd.addEventListener('pointercancel', () => { drag2 = false; });
         this._cpOut = e => { if (!el.contains(e.target) && !(anchor && anchor.contains && anchor.contains(e.target)) && !e.target.closest('.modal-back')) this.cpClose(); };
         setTimeout(() => document.addEventListener('pointerdown', this._cpOut, true), 50);
     },

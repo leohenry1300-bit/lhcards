@@ -11,7 +11,7 @@ Object.assign(ICONS, {
 const PDF_CROPS = [['Aucun', 0], ['Léger', 0.05], ['Moyen', 0.1], ['Fort', 0.15]];
 Object.assign(SuperAnki.prototype, {
     /* ---------- display: night mode, two pages (computer), cropped margins ---------- */
-    pdfCropv() { const c = Number(this.pdfPrefs().crop) || 0; return PDF_CROPS.some(x => x[1] === c) ? c : 0; },
+    pdfCropv() { return 0; },   // (margins: no more buttons, always « Aucun »)
     pdfTwoOn() { const sc = $('#pdf-scroll'); return !!this.pdfPrefs().two && this.pdfWide() && !!sc && sc.clientWidth >= 820 && this.pv && this.pv.mode !== 'text'; },
     pdfCssWidth() {
         const sc = $('#pdf-scroll'), cw = Math.max(220, (sc ? sc.clientWidth : 360) - (this.pdfWide() ? 36 : 12));
@@ -36,15 +36,11 @@ Object.assign(SuperAnki.prototype, {
         pv.pages.forEach(pg => { const r = pg.el.getBoundingClientRect(), s = sc.getBoundingClientRect(); if (r.bottom > s.top - s.height && r.top < s.bottom + s.height) this.pdfRenderPage(pg); });
     },
     pdfViewMenu(anchor) {
-        const P = this.pdfPrefs(), c = this.pdfCropv(), wide = this.pdfWide();
+        const P = this.pdfPrefs(), wide = this.pdfWide();
         this.showMenu(anchor, [
-            { icon: 'moon', label: P.night ? 'Mode nuit : activé' : 'Mode nuit (réviser le soir)', fn: () => { P.night = !P.night; this.pdfPrefSave(); this.pdfApplyView(); } },
-            ...(wide ? [{ icon: 'columns', label: P.two ? 'Deux pages côte à côte : activé' : 'Deux pages côte à côte', fn: () => { P.two = !P.two; this.pdfPrefSave(); this.pdfReflow(); } }] : []),
-            { sep: true },
-            ...PDF_CROPS.map(([l, v]) => ({ icon: 'crop', label: `Marges recadrées : ${l}${v === c ? ' ✓' : ''}`, fn: () => { P.crop = v; this.pdfPrefSave(); this.pdfReflow(); } })),
-            { sep: true },
-            { icon: 'flag', label: 'Signets…', fn: () => this.pdfBookmarks() },
-            { icon: 'list', label: 'Mes annotations…', fn: () => this.pdfAnnList() }
+            { head: 'AFFICHAGE' },
+            { icon: 'moon', label: P.night ? 'Mode nuit : activé ✓' : 'Mode nuit (pour le soir)', fn: () => { P.night = !P.night; this.pdfPrefSave(); this.pdfApplyView(); } },
+            ...(wide ? [{ icon: 'columns', label: P.two ? 'Deux pages côte à côte : activé ✓' : 'Deux pages côte à côte', fn: () => { P.two = !P.two; this.pdfPrefSave(); this.pdfReflow(); } }] : [])
         ]);
     },
 
@@ -60,7 +56,7 @@ Object.assign(SuperAnki.prototype, {
     pdfBookmarks() {
         const pv = this.pv; if (!pv) return; const p = pv.p; p.bm = p.bm || [];
         const num = pid => this.pdfPageIndex(p, pid) + 1;
-        const m = this.openModal({ title: `${ic('flag')} Signets`, size: 'narrow', body: '<div id="bm-root"></div>' });
+        const m = this.openModal({ title: `${ic('flag')} Signets`, size: 'narrow', body: '<p class="small faint" style="margin:0 0 12px">Un signet est un <b>marque-page</b> : pose un drapeau sur une page importante (une formule, un schéma, là où tu t\'es arrêté) et reviens-y en un toucher depuis cette liste. Max. 8 par PDF.</p><div id="bm-root"></div>' });
         const paint = () => {
             $('#bm-root', m).innerHTML = `<button class="btn btn-primary btn-block" data-bm="add" ${p.bm.length >= 8 ? 'disabled' : ''}>${ic('plus')}Ajouter un signet à la page ${this.pdfCurrent() + 1}</button>
                 <div class="al-list" style="margin-top:12px">${p.bm.length ? p.bm.filter(b => num(b.pid) > 0).sort((a, b) => num(a.pid) - num(b.pid)).map(b => `<div class="row-gap" style="align-items:center"><button class="btn btn-soft" style="flex:1;justify-content:flex-start" data-bm="go" data-id="${esc(b.id)}">${ic('flag')}<span>${esc(b.t || 'Page ' + num(b.pid))} · p. ${num(b.pid)}</span></button><button class="icon-btn icon-btn-sm" data-bm="ren" data-id="${esc(b.id)}" aria-label="Renommer">${ic('pencil')}</button><button class="icon-btn icon-btn-sm" data-bm="del" data-id="${esc(b.id)}" aria-label="Retirer">${ic('x')}</button></div>`).join('') : '<p class="small muted">Aucun signet. Marque jusqu\'à 8 pages clés (définitions, schémas, formules…).</p>'}</div>`;

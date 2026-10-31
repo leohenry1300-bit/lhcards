@@ -9,11 +9,17 @@ Object.assign(ICONS, {
 });
 const PDF_GRID = ['#e11d48', '#f87171', '#f472b6', '#ea580c', '#fb923c', '#f59e0b', '#facc15', '#fbbf24', '#10b981', '#84cc16', '#047857', '#0f766e', '#5eead4', '#38bdf8', '#3b82f6', '#1e3a8a', '#f0abfc', '#818cf8', '#a855f7', '#7e22ce', '#9ca3af', '#92400e', '#374151', '#000000'];
 const PDF_TOOLS2 = [
-    ['select', 'textcursor', 'Surligner', 'Surligner du texte (sélectionne-le, puis choisis une couleur)', true], ['pick', 'pick', 'Sélection', 'Sélectionner des annotations pour les déplacer, dupliquer ou supprimer', true],
-    ['hand', 'hand', 'Main', 'Déplacer la page · toucher le haut = monter, le bas = descendre', false], ['marker', 'highlighter', 'Marqueur', 'Marqueur libre (traits transparents)', true],
-    ['area', 'area', 'Zone', 'Choisir une zone (schéma, tableau…) pour la citer ou en faire une carte', false], ['pen', 'pen', 'Stylo', 'Dessiner ou écrire à la main', true],
-    ['eraser', 'eraser', 'Gomme', 'Effacer', true], ['shape', 'shapes', 'Formes', 'Rectangle, cercle, triangle, losange, étoile…', true], ['arrow', 'arrowdiag', 'Flèche', 'Flèches et lignes', true],
-    ['text', 'typeT', 'Écrire', 'Toucher n\'importe où sur la page pour écrire du texte', false], ['note', 'note', 'Note', 'Ajouter une note dans la marge', false]
+    ['select', 'textcursor', 'Surligner', 'Surligner du texte (sélectionne-le, puis choisis une couleur)', true],
+    ['hand', 'hand', 'Main', 'Déplacer la page · toucher le haut = monter, le bas = descendre', false],
+    ['pick', 'pick', 'Sélection', 'Sélectionner des annotations pour les déplacer, dupliquer ou supprimer', true],
+    ['area', 'area', 'Zone', 'Choisir une zone (schéma, tableau…) pour la citer ou en faire une carte', false],
+    ['marker', 'highlighter', 'Marqueur', 'Marqueur libre (traits transparents)', true],
+    ['pen', 'pen', 'Stylo', 'Dessiner ou écrire à la main', true],
+    ['eraser', 'eraser', 'Gomme', 'Effacer', true],
+    ['shape', 'shapes', 'Formes', 'Rectangle, cercle, triangle, losange, étoile…', true],
+    ['arrow', 'arrowdiag', 'Flèche', 'Flèches et lignes', true],
+    ['text', 'typeT', 'Texte', 'Toucher n\'importe où sur la page pour écrire du texte', true],
+    ['note', 'note', 'Note', 'Poser une note adhésive (glisser, tourner, agrandir, couleur)', true]
 ];
 const PDF_THICK = [0.0018, 0.004, 0.009], PDF_MK_THICK = [0.014, 0.026, 0.045];
 const PDF_SHAPES = [['r', 'Rectangle', '<rect x="4" y="6" width="16" height="12" rx="1"/>'], ['o', 'Cercle', '<circle cx="12" cy="12" r="8"/>'], ['t', 'Triangle', '<path d="M12 4 21 20H3z"/>'], ['d', 'Losange', '<path d="M12 3 21 12 12 21 3 12z"/>'], ['h', 'Hexagone', '<path d="M7 4h10l5 8-5 8H7l-5-8z"/>'], ['s', 'Étoile', '<path d="m12 3 2.7 5.8 6.3.8-4.6 4.4 1.2 6.3L12 17.2 6.4 20.3l1.2-6.3L3 9.6l6.3-.8z"/>']];
@@ -21,25 +27,25 @@ const PDF_SHAPES = [['r', 'Rectangle', '<rect x="4" y="6" width="16" height="12"
 Object.assign(SuperAnki.prototype, {
     pdfOpts() {
         const pv = this.pv; pv.color = pv.color || PDF_COLORS[0]; pv.pen = pv.pen || { c: '#000000', w: PDF_THICK[1] }; pv.mk = pv.mk || { c: '#facc15', w: PDF_MK_THICK[1], op: 0.4 };
-        pv.sh = pv.sh || { k: 'r', c: '#000000', w: PDF_THICK[1], f: '' }; pv.ar = pv.ar || { k: 'a', c: '#e11d48', w: PDF_THICK[1] }; pv.er = pv.er || { size: 0.016, mode: 'part', back: false };
+        pv.sh = pv.sh || { k: 'r', c: '#000000', w: PDF_THICK[1], f: '' }; pv.ar = pv.ar || { k: 'a', c: '#e11d48', w: PDF_THICK[1] }; pv.er = pv.er || { size: 0.016, mode: 'part', back: false }; pv.tx = pv.tx || { c: '#111827', fs: 14, b: false, f: 's', bg: '' }; pv.nt = pv.nt || { c: '#fde047', fs: 14 };
         return pv;
     },
     pdfToolsHtml() {
         const pv = this.pdfOpts(); if (!pv) return ''; const t = pv.tool, hasSel = pv.sel && this.pdfSelCount() > 0;
-        const dotOf = id => id === 'pen' ? pv.pen.c : id === 'marker' ? pv.mk.c : id === 'shape' ? pv.sh.c : id === 'arrow' ? pv.ar.c : id === 'select' ? pv.color : '';
+        const dotOf = id => id === 'pen' ? pv.pen.c : id === 'marker' ? pv.mk.c : id === 'shape' ? pv.sh.c : id === 'arrow' ? pv.ar.c : id === 'select' ? pv.color : id === 'text' ? pv.tx.c : id === 'note' ? pv.nt.c : '';
         const tb = ([id, ico, label, tip, opt]) => `<button class="pdft-b ${t === id ? 'on' : ''}" data-action="pdf-tool" data-t="${id}" title="${tip}" aria-label="${label}" aria-pressed="${t === id}">${ic(ico)}<span>${label}</span>${opt ? '<i class="pdft-caret"></i>' : ''}${dotOf(id) ? `<em class="pdft-dot" style="background:${dotOf(id)}"></em>` : ''}</button>`;
         const small = window.innerWidth <= 767, more = typeof PDF_MORE !== 'undefined' ? PDF_MORE : [], shown = small ? PDF_TOOLS2.filter(x => !more.includes(x[0]) || x[0] === t) : PDF_TOOLS2;
         const moreBtn = small ? `<button class="pdft-b ${more.includes(t) ? '' : ''}" data-action="pdf-more-tools" title="Plus d'outils (stylo, marqueur, formes, flèches, note, sélection)" aria-label="Plus d'outils">${ic('more')}<span>Plus</span></button>` : '';
-        return `<div class="pdft-group">${shown.map(tb).join('')}${moreBtn}</div><span class="pdft-sep"></span>
+        return `<div class="pdft-group">${shown.map((x, k) => tb(x) + ((x[0] === 'area' || x[0] === 'arrow') && k < shown.length - 1 ? '<span class="pdft-sep"></span>' : '')).join('')}${moreBtn}</div><span class="pdft-sep"></span>
             <div class="pdft-group"><button class="pdft-i" data-action="pdf-undo" title="Annuler (Ctrl+Z)" aria-label="Annuler" ${pv.undo.length ? '' : 'disabled'}>${ic('undo')}</button><button class="pdft-i" data-action="pdf-redo" title="Rétablir (Ctrl+Maj+Z)" aria-label="Rétablir" ${pv.redo.length ? '' : 'disabled'}>${ic('redo')}</button></div><span class="pdft-sep"></span>
             <div class="pdft-group"><button class="pdft-i" data-action="pdf-zoom" data-d="-1" aria-label="Zoom arrière" title="Zoom arrière">${ic('minus')}</button><b class="pdft-z" id="pdf-zoomv">${Math.round(pv.zoom * 100)} %</b><button class="pdft-i" data-action="pdf-zoom" data-d="1" aria-label="Zoom avant" title="Zoom avant">${ic('plus')}</button></div><span class="pdft-sep"></span>
-            <div class="pdft-group"><button class="pdft-i" data-action="pdf-view" title="Affichage : mode nuit, deux pages, marges, signets, mes annotations" aria-label="Affichage">${ic('eye')}</button><button class="pdft-i" data-action="pdf-blank" title="Ajouter une page blanche" aria-label="Ajouter une page blanche">${ic('pageadd')}</button><button class="pdft-i" data-action="pdf-pos" title="Placer la barre d'outils (haut, bas, gauche, droite)" aria-label="Placer la barre d'outils">${ic('columns')}</button><button class="pdft-i pdft-close" data-action="pdf-annotate" title="Fermer les outils" aria-label="Fermer les outils">${ic('x')}</button></div>`;
+            <div class="pdft-group"><button class="pdft-i" data-action="pdf-view" title="Affichage : mode nuit, deux pages, marges, signets, mes annotations" aria-label="Affichage">${ic('eye')}</button><button class="pdft-i" data-action="pdf-blank" title="Ajouter une page blanche" aria-label="Ajouter une page blanche">${ic('pageadd')}</button><button class="pdft-i" data-action="pdf-pos" title="Placer la barre d'outils (haut, bas, gauche, droite)" aria-label="Placer la barre d'outils">${ic('sidebar')}</button><button class="pdft-i pdft-close" data-action="pdf-annotate" title="Fermer les outils" aria-label="Fermer les outils">${ic('x')}</button></div>`;
     },
 
     /* ---------- the little panel of options under a tool ---------- */
     pdfPanelHtml(t) {
         const pv = this.pdfOpts(), btn = (k, v, cur, inner, cls = '') => `<button class="pdfp-o ${cur === v ? 'on' : ''} ${cls}" data-action="pdf-opt" data-k="${k}" data-v="${v}">${inner}</button>`;
-        const grid = (k, cur) => `<div class="pdfp-grid">${PDF_GRID.map(c => btn(k, c, cur, '', 'sw').replace('class="', `style="--c:${c}" class="`)).join('')}</div><label class="pdfp-hex"><span>#</span><input data-optin="${k}" value="${esc(String(cur).replace('#', '').toUpperCase())}" maxlength="6" autocomplete="off" spellcheck="false" aria-label="Couleur (code HEX)"><i style="background:${esc(cur)}"></i></label><button class="pdfp-wheel" data-action="pdf-colorpick" data-k="${k}" title="Roue chromatique, nuancier et pipette">${ic('palette')}Roue &amp; pipette</button>`;
+        const grid = (k, cur) => `<div class="pdfp-grid">${PDF_GRID.map(c => btn(k, c, cur, '', 'sw').replace('class="', `style="--c:${c}" class="`)).join('')}</div><div class="pdfp-cp" data-cpk="${k}" data-cur="${esc(cur)}"></div>`;
         const thick = (k, vals, cur) => `<div class="pdfp-row">${vals.map(w => btn(k, w, cur, `<i style="height:${Math.max(2, Math.round(w * 520))}px"></i>`, 'th')).join('')}</div>`;
         const sw = (k, label, on) => `<button class="pdfp-tg" data-action="pdf-opt" data-k="${k}" data-v="t"><span>${label}</span><i class="${on ? 'on' : ''}"></i></button>`;
         const h = x => `<div class="pdfp-h">${x}</div>`;
@@ -49,26 +55,41 @@ Object.assign(SuperAnki.prototype, {
         if (t === 'eraser') return h('Mode') + `<div class="pdfp-seg">${btn('erm', 'part', pv.er.mode, 'Précision')}${btn('erm', 'all', pv.er.mode, 'Trait entier')}</div>` + h('Taille de la gomme') + `<div class="pdfp-row">${[0.008, 0.016, 0.034].map(w => btn('ers', w, pv.er.size, `<i style="width:${Math.round(w * 400) + 4}px;height:${Math.round(w * 400) + 4}px;border-radius:50%"></i>`, 'th')).join('')}</div>` + sw('erb', 'Revenir à l\'outil précédent après avoir effacé', !!pv.er.back);
         if (t === 'shape') return h('Forme') + `<div class="pdfp-row">${PDF_SHAPES.map(([k, l, d]) => btn('shk', k, pv.sh.k, `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">${d}</svg>`, 'sp').replace('class="', `title="${l}" class="`)).join('')}</div>` + h('Couleur du trait') + grid('shc', pv.sh.c) + h('Épaisseur') + thick('shw', PDF_THICK, pv.sh.w) + h('Remplissage') + `<div class="pdfp-row">${btn('shf', '', pv.sh.f, '∅', 'sw none')}${PDF_COLORS.map(c => btn('shf', c, pv.sh.f, '', 'sw').replace('class="', `style="--c:${c}" class="`)).join('')}</div>`;
         if (t === 'arrow') return h('Type') + `<div class="pdfp-row">${[['a', '→'], ['b', '↔'], ['l', '—']].map(([k, l]) => btn('ark', k, pv.ar.k, l, 'sp')).join('')}</div>` + h('Épaisseur') + thick('arw', PDF_THICK, pv.ar.w) + h('Couleur') + grid('arc', pv.ar.c);
+        if (t === 'text') return h('Taille') + `<div class="pdfp-seg">${[[11, 'S'], [14, 'M'], [20, 'L'], [28, 'XL']].map(([v, l]) => btn('txs', v, pv.tx.fs, l)).join('')}</div>` + `<div class="pdfp-row">${btn('txb', 't', pv.tx.b ? 't' : '', '<b>G</b>', 'sp')}${[['s', 'Aa'], ['r', 'Aa'], ['m', 'Aa']].map(([k, l]) => btn('txf', k, pv.tx.f, l, 'sp').replace('class="', `style="font-family:${k === 'r' ? 'Georgia,serif' : k === 'm' ? 'ui-monospace,Menlo,monospace' : 'inherit'}" class="`)).join('')}</div>` + h('Couleur du texte') + grid('txc', pv.tx.c) + h('Fond') + `<div class="pdfp-row">${['', '#fde047', '#86efac', '#7dd3fc', '#f9a8d4', '#ffffff'].map(c => btn('txbg', c || 'none', pv.tx.bg || 'none', '', 'sw' + (c ? '' : ' none')).replace('class="', `style="--c:${c || '#fff'}" class="`)).join('')}</div><p class="small faint" style="margin:4px 0 0">Touche la page pour écrire. L'outil reste actif : touche ailleurs pour un autre texte.</p>`;
+        if (t === 'note') return h('Couleur de la note') + `<div class="pdfp-row">${['#fde047', '#86efac', '#7dd3fc', '#f9a8d4', '#fdba74', '#c4b5fd'].map(c => btn('ntc', c, pv.nt.c, '', 'sw').replace('class="', `style="--c:${c}" class="`)).join('')}</div>` + h('Taille du texte') + `<div class="pdfp-seg">${[[11, 'S'], [14, 'M'], [20, 'L'], [28, 'XL']].map(([v, l]) => btn('nts', v, pv.nt.fs, l)).join('')}</div><p class="small faint" style="margin:4px 0 0">Touche la page pour poser une note. Une fois posée : glisse-la, tourne-la (rond du haut), agrandis-la (rond du bas) ou change sa couleur.</p>`;
         if (t === 'pick') return `<div class="pdfp-col"><button class="btn btn-soft btn-sm" data-action="pdf-selall" data-s="all">Tout sélectionner (toutes les pages)</button><button class="btn btn-soft btn-sm" data-action="pdf-selall" data-s="page">Tout sélectionner sur cette page</button><p class="small faint" style="margin:6px 0 0">Tire un cadre sur la page pour choisir. Glisse la sélection pour la déplacer · touche Suppr pour tout effacer d'un coup.</p></div>`;
         return '';
     },
     pdfPanelOpen(t, anchor) {
         const pv = this.pv, old = $('#pdf-panel'); if (old) old.remove(); if (!t || !this.pdfPanelHtml(t)) { pv.panel = ''; return; }
         pv.panel = t; pv.panelAt = Date.now(); const box = document.createElement('div'); box.id = 'pdf-panel'; box.className = 'pdf-panel'; box.innerHTML = this.pdfPanelHtml(t); $('.pdfv').appendChild(box);
-        const a = (anchor || $(`.pdft-b[data-t="${t}"]`)); if (!a) return; const r = a.getBoundingClientRect(), v = $('.pdfv').getBoundingClientRect(), w = box.offsetWidth, h = box.offsetHeight;
+        this.pdfPanelMount(); const a = (anchor || $(`.pdft-b[data-t="${t}"]`)); if (!a) return; const r = a.getBoundingClientRect(), v = $('.pdfv').getBoundingClientRect(), w = box.offsetWidth, h = box.offsetHeight;
         const pos = this.pdfPrefs().pos; let left = clamp(r.left - v.left, 8, v.width - w - 8), top = r.bottom - v.top + 6;
         if (pos === 'left') { left = r.right - v.left + 8; top = clamp(r.top - v.top, 8, v.height - h - 8); } else if (pos === 'right') { left = r.left - v.left - w - 8; top = clamp(r.top - v.top, 8, v.height - h - 8); } else if (pos === 'bottom' || top + h > v.height - 8) top = Math.max(8, r.top - v.top - h - 6);
         box.style.left = `${left}px`; box.style.top = `${top}px`; box.style.maxHeight = `${v.height - 20}px`;
+    },
+    /* the colour part of a panel : the same swatches + a foldable wheel / HEX / pipette as everywhere else in the app */
+    pdfPanelMount() {
+        const pv = this.pv, box = $('#pdf-panel'); if (!pv || !box) return;
+        $$('.pdfp-cp', box).forEach(h => { const k = h.dataset.cpk; this.colorPicker({ host: h, grid: false, cur: h.dataset.cur, wheelOpen: !!pv.cpOpen, onWheel: o => { pv.cpOpen = o; }, onPick: c => { if (c) this.pdfOptSet(k, c); } }); });
+        if (!$('.pdfp-drag', box)) {   // a handle to move the panel wherever you want
+            const hd = document.createElement('div'); hd.className = 'pdfp-drag'; hd.title = 'Glisse pour déplacer ce panneau'; hd.innerHTML = '<i></i>'; box.insertBefore(hd, box.firstChild);
+            let x0 = 0, y0 = 0, l0 = 0, t0 = 0, on = false;
+            hd.addEventListener('pointerdown', e => { on = true; x0 = e.clientX; y0 = e.clientY; l0 = box.offsetLeft; t0 = box.offsetTop; hd.setPointerCapture(e.pointerId); e.preventDefault(); });
+            hd.addEventListener('pointermove', e => { if (!on) return; const v = $('.pdfv').getBoundingClientRect(); box.style.left = `${clamp(l0 + e.clientX - x0, 4, v.width - box.offsetWidth - 4)}px`; box.style.top = `${clamp(t0 + e.clientY - y0, 4, v.height - 50)}px`; });
+            hd.addEventListener('pointerup', () => { on = false; }); hd.addEventListener('pointercancel', () => { on = false; });
+        }
     },
     pdfPanelClose() { const o = $('#pdf-panel'); if (o) o.remove(); if (this.pv) this.pdfOpts().panel = ''; },
     pdfOptSet(k, v) {
         const pv = this.pdfOpts(), num2 = Number(v);
         ({ hlc: () => { pv.color = v; }, auto: () => { pv.auto = !pv.auto; }, penc: () => { pv.pen.c = v; }, penw: () => { pv.pen.w = num2; }, mkc: () => { pv.mk.c = v; }, mkw: () => { pv.mk.w = num2; },
             erm: () => { pv.er.mode = v; }, ers: () => { pv.er.size = num2; }, erb: () => { pv.er.back = !pv.er.back; }, shk: () => { pv.sh.k = v; }, shc: () => { pv.sh.c = v; }, shw: () => { pv.sh.w = num2; }, shf: () => { pv.sh.f = v; },
+            txs: () => { pv.tx.fs = num2; }, txb: () => { pv.tx.b = !pv.tx.b; }, txf: () => { pv.tx.f = v; }, txc: () => { pv.tx.c = v; }, txbg: () => { pv.tx.bg = v === 'none' ? '' : v; }, ntc: () => { pv.nt.c = v; }, nts: () => { pv.nt.fs = num2; },
             ark: () => { pv.ar.k = v; }, arw: () => { pv.ar.w = num2; }, arc: () => { pv.ar.c = v; } }[k] || (() => {}))();
         const keep = pv.panel, a = $('#pdf-panel'); const left = a && a.style.left, top = a && a.style.top;
         const tools = $('#pdf-tools'); if (tools) tools.innerHTML = this.pdfToolsHtml();
-        if (a) { a.innerHTML = this.pdfPanelHtml(keep); a.style.left = left; a.style.top = top; }
+        if (a) { a.innerHTML = this.pdfPanelHtml(keep); a.style.left = left; a.style.top = top; this.pdfPanelMount(); }
     },
 
     /* ---------- annotations that are shapes / arrows ---------- */
@@ -150,6 +171,15 @@ Object.assign(SuperAnki.prototype, {
     pdfBindTools() {
         if (document._pdfTools) return; document._pdfTools = true;
         document.addEventListener('pointerdown', e => { if (this.view !== 'pdf' || !this.pv) return; const p = $('#pdf-panel'); if (p && !p.contains(e.target) && !e.target.closest('#pdf-tools') && Date.now() - (this.pv.panelAt || 0) > 700) this.pdfPanelClose(); }, true);
+        /* the eraser shows its size as a ring that follows the finger / pointer */
+        const ringOff = () => { const r = $('#pdf-erring'); if (r) r.remove(); };
+        document.addEventListener('pointermove', e => {
+            const pv = this.pv; if (this.view !== 'pdf' || !pv || pv.tool !== 'eraser' || !pv.annotate) { ringOff(); return; }
+            const pgEl = e.target.closest && e.target.closest('.pdfp'); if (!pgEl) { ringOff(); return; }
+            let r = $('#pdf-erring'); if (!r) { r = document.createElement('div'); r.id = 'pdf-erring'; r.className = 'pdf-erring'; document.body.appendChild(r); }
+            const d = Math.max(14, 2 * this.pdfOpts().er.size * pgEl.getBoundingClientRect().width); r.style.cssText = `width:${d}px;height:${d}px;left:${e.clientX - d / 2}px;top:${e.clientY - d / 2}px`;
+        }, { passive: true });
+        document.addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') ringOff(); }, true); document.addEventListener('pointercancel', ringOff, true);
         document.addEventListener('change', e => { const i = e.target.closest && e.target.closest('[data-optin]'); if (!i || !this.pv) return; const v = i.value.trim().replace('#', ''); if (/^[0-9a-f]{6}$/i.test(v)) this.pdfOptSet(i.dataset.optin, '#' + v.toLowerCase()); else this.toast('Code couleur : 6 caractères (ex. 4B73FF).', 'warning'); });
         document.addEventListener('keydown', e => {
             if (this.view !== 'pdf' || !this.pv || this.modals.length) return; const typing = e.target.closest && e.target.closest('input, textarea, [contenteditable], .nb-t'); if (typing) return;

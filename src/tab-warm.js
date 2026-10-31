@@ -26,3 +26,12 @@ Object.assign(SuperAnki.prototype, {
     }
 });
 (() => { const base = SuperAnki.prototype.go; SuperAnki.prototype.go = function (...a) { const r = base.apply(this, a); try { this.tabWarmSoon(); } catch { /* ignore */ } return r; }; })();
+
+/* keyboard up = bottom bar hidden (never moved) ; keyboard down = the page is put back exactly where it was */
+(() => {
+    if (!matchMedia('(pointer: coarse)').matches) return;
+    const field = el => !!(el && el.matches && el.matches('input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=button]), textarea, [contenteditable=""], [contenteditable="true"]'));
+    const upd = () => document.body.classList.toggle('kb-open', field(document.activeElement));
+    document.addEventListener('focusin', upd);
+    document.addEventListener('focusout', () => setTimeout(() => { upd(); if (!document.body.classList.contains('kb-open')) { const y = window.scrollY; window.scrollTo(0, y); } }, 120));
+})();
