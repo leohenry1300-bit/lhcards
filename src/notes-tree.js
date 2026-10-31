@@ -167,10 +167,10 @@ Object.assign(SuperAnki.prototype, {
         const crumbs = this.notePathLabel(n), st = this.noteStats(n);
         return `<div class="panel nb-editor" data-id="${esc(n.id)}">
             <div class="nb-head">
+                <button class="icon-btn nb-sidebtn ${this.nbPrefs().sideOff ? '' : 'on'}" data-action="nb-side" title="${this.nbPrefs().sideOff ? 'Afficher la liste des notes' : 'Masquer la liste des notes'}" aria-label="Liste des notes">${ic('sidebar')}</button>
                 <button class="icon-btn" data-action="nb-close" title="${back ? `Retour à « ${esc(this.noteName(back))} »` : 'Retour à la liste'}" aria-label="Retour">${ic('arrowLeft')}</button>
                 <button class="nb-emoji" data-action="nb-emoji" title="Choisir l'emoji de la note" aria-label="Emoji de la note">${n.emoji ? esc(n.emoji) : ic('notebook')}</button>
                 <input class="nb-title" id="nb-title" maxlength="120" placeholder="Titre de la note" title="Double-clique (ou double-tape) pour renommer" value="${esc(n.title)}" ${n.title ? 'readonly' : ''} autocomplete="off" enterkeyhint="next">
-                <button class="icon-btn nb-sidebtn ${this.nbPrefs().sideOff ? '' : 'on'}" data-action="nb-side" title="${this.nbPrefs().sideOff ? 'Afficher la liste des notes' : 'Masquer la liste des notes'}" aria-label="Liste des notes">${ic('sidebar')}</button>
                 <button class="icon-btn" data-action="nb-find" title="Chercher dans la note (Ctrl+F)" aria-label="Chercher dans la note">${ic('search')}</button>
                 <button class="icon-btn ${n.fav ? 'nb-fav on' : 'nb-fav'}" data-action="nb-fav" title="Favori" aria-label="Favori">${ic('star', n.fav ? 'i-fill' : '')}</button>
                 <button class="icon-btn" data-action="nb-more" title="Plus d'actions" aria-label="Plus d'actions">${ic('more')}</button>
@@ -190,7 +190,7 @@ Object.assign(SuperAnki.prototype, {
     nbSubsHtml(n, kids = this.noteKids(n.id)) {
         return `<h4>Sous-notes${kids.length ? ` (${kids.length})` : ''}</h4>${kids.map(k => `<button class="nb-bl" data-action="nb-open" data-id="${esc(k.id)}"><span class="nb-row-ico">${k.emoji ? esc(k.emoji) : ic('notebook')}</span><span><b>${esc(this.noteName(k))}</b><small>${esc(truncate((k.b.find(b => b.x) || { x: 'Note vide' }).x, 80))}</small></span></button>`).join('')}<button class="btn btn-soft btn-sm" data-action="nb-new-sub" data-id="${esc(n.id)}" style="margin-top:6px">${ic('plus')}Ajouter une sous-note</button>`;
     },
-    noteStats(n) { const words = noteText({ b: n.b, tags: [] }).split(/\s+/).filter(Boolean).length; return `${plural(words, 'mot')} · ${Math.max(1, Math.round(words / 200))} min de lecture`; },
+    noteStats(n) { const words = noteText({ b: n.b, tags: [] }).split(/\s+/).filter(Boolean).length; return !words ? '0 mot' : `${plural(words, 'mot')} · ${words < 100 ? 'moins d\'1 min' : Math.round(words / 200) + ' min'} de lecture`; },
 
     /* ---------- creating, moving, deleting ---------- */
     noteNewFrom(tpl, ctx = {}) {

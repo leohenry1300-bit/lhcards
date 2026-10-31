@@ -9,7 +9,7 @@ Object.assign(ICONS, {
     grip: '<circle cx="9" cy="6" r="1.2"/><circle cx="15" cy="6" r="1.2"/><circle cx="9" cy="12" r="1.2"/><circle cx="15" cy="12" r="1.2"/><circle cx="9" cy="18" r="1.2"/><circle cx="15" cy="18" r="1.2"/>',
     notebook: '<path d="M6 3h12a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6z"/><path d="M9 3v18M12.5 8h3.5M12.5 12h3.5"/>'
 });
-const NB_TYPES = ['p', 'h1', 'h2', 'h3', 'todo', 'quote', 'hr', 'img', 'table', 'callout', 'code', 'math', 'num', 'toggle', 'toc', 'video', 'file'], NB_CARD_KINDS = ['basic', 'multi', 'list', 'mcq', 'cloze'], NB_MAX_DEPTH = 6, NB_MAX_BLOCKS = 4000;
+const NB_TYPES = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'todo', 'quote', 'hr', 'img', 'table', 'callout', 'code', 'math', 'num', 'toggle', 'toc', 'video', 'file'], NB_CARD_KINDS = ['basic', 'multi', 'list', 'mcq', 'cloze'], NB_MAX_DEPTH = 6, NB_MAX_BLOCKS = 4000;
 const NB_CE = (() => { try { const d = document.createElement('div'); d.contentEditable = 'plaintext-only'; return d.contentEditable === 'plaintext-only' ? 'plaintext-only' : 'true'; } catch { return 'true'; } })();
 const NB_LINK = /\[\[([^\[\]\n]{1,160})\]\]/g;
 
@@ -21,6 +21,8 @@ function normalizeNoteBlock(x) {
     if (t === 'callout') b.k = ['info', 'tip', 'warn', 'def'].includes(x.k) ? x.k : 'info';
     if (t === 'table') { b.rows = toArray(x.rows).slice(0, 40).map(r => toArray(r).slice(0, 8).map(c => String(c == null ? '' : c).replace(/\n+/g, ' ').slice(0, 300))).filter(r => r.length); if (!b.rows.length) b.rows = [['', ''], ['', '']]; const w = Math.max(...b.rows.map(r => r.length)); b.rows.forEach(r => { while (r.length < w) r.push(''); }); b.hdr = x.hdr !== false; b.id = String(x.id || uid('b')); b.tc = nbColOk(x.tc) ? x.tc : ''; b.zebra = !!x.zebra; b.fill = {}; b.cf = {}; if (x.fill && typeof x.fill === 'object') Object.entries(x.fill).slice(0, 400).forEach(([k, v]) => { if (/^\d+,(\d+|\*)$/.test(k) && nbColOk(v)) b.fill[k] = v; }); if (x.cf && typeof x.cf === 'object') Object.entries(x.cf).slice(0, 400).forEach(([k, v]) => { if (!/^\d+,\d+$/.test(k) || !v || typeof v !== 'object') return; const o = {}; ['b', 'i', 'u', 's'].forEach(z => { if (v[z]) o[z] = true; }); if (['l', 'c', 'r'].includes(v.a)) o.a = v.a; if (/^#[0-9a-f]{6}$/i.test(v.c || '')) o.c = v.c.toLowerCase(); if (Object.keys(o).length) b.cf[k] = o; }); }
     if (x.ok) b.ok = true;
+    if ((t === 'p' || t === 'quote') && (x.bs === 'dash' || x.bs === 'none')) b.bs = x.bs;   // bullet style: dot (default) | dash | none
+    if (t === 'table') { b.cw = toArray(x.cw).slice(0, 8).map(v => clamp(Math.round(num(v, 0)), 0, 700)); if (!b.cw.some(v => v > 0)) delete b.cw; b.rh = toArray(x.rh).slice(0, 40).map(v => clamp(Math.round(num(v, 0)), 0, 400)); if (!b.rh.some(v => v > 0)) delete b.rh; }
     if (t === 'p' && x.cd && typeof x.cd === 'object') {   // this line is a memory card (see notes-cards.js)
         const c = x.cd;
         b.cd = { k: NB_CARD_KINDS.includes(c.k) ? c.k : 'basic', a: String(c.a || '').replace(/\n+/g, ' ').slice(0, 4000), dir: ['fwd', 'back', 'both'].includes(c.dir) ? c.dir : 'fwd', on: c.on !== false, ta: !!c.ta, ord: !!c.ord, mx: !!c.mx,
@@ -128,7 +130,7 @@ Object.assign(SuperAnki.prototype, {
     noteAsText(n) {
         return [`# ${this.noteName(n)}`, ...n.b.map(b => {
             const pad = '  '.repeat(b.d), x = b.x;
-            return b.t === 'h1' ? `${pad}# ${x}` : b.t === 'h2' ? `${pad}## ${x}` : b.t === 'h3' ? `${pad}### ${x}` : b.t === 'todo' ? `${pad}- [${b.done ? 'x' : ' '}] ${x}` : b.t === 'quote' ? `${pad}> ${x}` : b.t === 'hr' ? `${pad}---` : b.t === 'img' ? `${pad}[image]` : b.t === 'num' ? `${pad}1. ${x}` : b.t === 'code' ? `${pad}\`${x}\`` : b.t === 'math' ? `${pad}$$ ${x} $$` : b.t === 'callout' ? `${pad}> ${{ info: 'ℹ️', tip: '💡', warn: '⚠️', def: '📘' }[b.k] || ''} ${x}` : b.t === 'toggle' ? `${pad}- ▸ ${x}` : b.t === 'toc' ? `${pad}[sommaire]` : b.t === 'video' ? `${pad}[vidéo] ${b.u}` : b.t === 'file' ? `${pad}[fichier] ${b.name}` : `${pad}- ${x}`;
+            return /^h[1-6]$/.test(b.t) ? `${pad}${'#'.repeat(Number(b.t[1]))} ${x}` : b.t === 'todo' ? `${pad}- [${b.done ? 'x' : ' '}] ${x}` : b.t === 'quote' ? `${pad}> ${x}` : b.t === 'hr' ? `${pad}---` : b.t === 'img' ? `${pad}[image]` : b.t === 'num' ? `${pad}1. ${x}` : b.t === 'code' ? `${pad}\`${x}\`` : b.t === 'math' ? `${pad}$$ ${x} $$` : b.t === 'callout' ? `${pad}> ${{ info: 'ℹ️', tip: '💡', warn: '⚠️', def: '📘' }[b.k] || ''} ${x}` : b.t === 'toggle' ? `${pad}- ▸ ${x}` : b.t === 'toc' ? `${pad}[sommaire]` : b.t === 'video' ? `${pad}[vidéo] ${b.u}` : b.t === 'file' ? `${pad}[fichier] ${b.name}` : `${pad}- ${x}`;
         })].join('\n');
     },
 
@@ -138,16 +140,15 @@ Object.assign(SuperAnki.prototype, {
         let bar = $('#nb-bar');
         if (!open) { if (bar) bar.remove(); document.body.classList.remove('nb-open', 'nb-editing'); return; }
         if (!bar) document.body.insertAdjacentHTML('beforeend', `<div class="nb-bar" id="nb-bar" role="toolbar" aria-label="Mise en forme">
-    <button data-nb="out" title="Remonter d'un niveau" aria-label="Remonter d'un niveau">${ic('chevronLeft')}<span>Niveau</span></button>
-    <button data-nb="in" title="Descendre d'un niveau" aria-label="Descendre d'un niveau">${ic('chevronRight')}<span>Niveau</span></button>
+    <div class="nb-lvl" role="group" aria-label="Niveau (retrait)" title="Retrait : remonter ou descendre d'un niveau"><button data-nb="out" title="Remonter d'un niveau" aria-label="Remonter d'un niveau">${ic('chevronLeft')}</button><button data-nb="in" title="Descendre d'un niveau" aria-label="Descendre d'un niveau">${ic('chevronRight')}</button><small>Niveau</small></div>
     <span class="nb-sep"></span>
     <button data-nb="card" title="Carte mémoire" aria-label="Carte mémoire">${ic('copy')}<span>Carte ▾</span></button>
-    <button data-nb="head" title="Titre" aria-label="Titre">${ic('heading')}<span>Titre ▾</span></button>
+    <button data-nb="fmt" title="Gras, italique, surligné, couleurs…" aria-label="Mise en forme"><b class="nb-aa">Aa</b><span>Texte ▾</span></button>
+    <button data-nb="head" title="Titre (1 à 6)" aria-label="Titre">${ic('heading')}<span>Titre ▾</span></button>
     <button data-nb="todo" title="À faire (case à cocher)" aria-label="À faire">${ic('checkSq')}<span>À faire</span></button>
     <button data-nb="img" title="Image" aria-label="Image">${ic('image')}<span>Image</span></button>
     <button data-nb="table" title="Tableau" aria-label="Tableau">${ic('table')}<span>Tableau ▾</span></button>
-    <button data-nb="fmt" title="Gras, italique, surligné, code" aria-label="Mise en forme"><b class="nb-aa">Aa</b><span>Texte ▾</span></button>
-    <button data-nb="plus" title="Plus : lien, citation, séparateur, déplacer…" aria-label="Plus">${ic('plus')}<span>Plus</span></button>
+    <button data-nb="plus" title="Plus : listes, lien, citation, séparateur, déplacer…" aria-label="Plus">${ic('plus')}<span>Plus ▾</span></button>
     <button data-nb="undo" title="Annuler" aria-label="Annuler">${ic('undo')}<span>Annuler</span></button>
     <span class="nb-sep"></span>
     <button data-nb="kbd" class="nb-kbd" title="Fermer le clavier" aria-label="Fermer le clavier">${ic('kbdoff')}<span>Clavier</span></button>
@@ -174,7 +175,7 @@ Object.assign(SuperAnki.prototype, {
             : b.t === 'num' ? `<span class="nb-numg">${this.nbNumOf(n.b, i)}.</span>`
             : b.t === 'toggle' ? `<button class="nb-tog ${kids ? 'kids' : ''} ${b.c ? 'fold' : ''}" data-nbk="bul" aria-label="${b.c ? 'Déplier' : 'Replier'}">${ic('chevronRight')}</button>`
             : b.t === 'callout' ? `<button class="nb-cico k-${b.k}" data-nbk="calk" aria-label="Type d'encadré" title="Changer le type d'encadré">${ic({ info: 'info', tip: 'sparkle', warn: 'alert', def: 'book' }[b.k] || 'info')}</button>`
-            : b.t === 'p' || b.t === 'quote' ? `<button class="nb-bul ${kids ? 'kids' : ''} ${b.c ? 'fold' : ''}" data-nbk="bul" aria-label="${kids ? (b.c ? 'Déplier' : 'Replier') : 'Puce'}"><i></i></button>` : '<span class="nb-nogut"></span>';
+            : b.t === 'p' || b.t === 'quote' ? `<button class="nb-bul ${kids ? 'kids' : ''} ${b.c ? 'fold' : ''} ${b.bs ? 'bs-' + b.bs : ''}" data-nbk="bul" aria-label="${kids ? (b.c ? 'Déplier' : 'Replier') : 'Puce'}"><i></i></button>` : '<span class="nb-nogut"></span>';
         let body;
         if (b.t === 'hr') body = '<hr class="nb-hr">';
         else if (b.t === 'img') body = `<figure class="nb-img"><img src="${esc(b.src)}" alt=""><span class="nb-img-tools"><button class="icon-btn icon-btn-sm" data-nbk="imgcrop" aria-label="Rogner l'image" title="Rogner">${ic('crop')}</button><button class="icon-btn icon-btn-sm" data-nbk="imgocc" aria-label="Masquer une zone (cartes)" title="Masquer une zone pour faire des cartes">${ic('eye')}</button><button class="icon-btn icon-btn-sm nb-img-x" data-nbk="imgx" aria-label="Retirer l'image">${ic('x')}</button></span></figure>`;
@@ -189,7 +190,7 @@ Object.assign(SuperAnki.prototype, {
     },
     nbNumOf(b, i) { let k = 1; for (let j = i - 1; j >= 0; j--) { if (b[j].d > b[i].d) continue; if (b[j].d === b[i].d && b[j].t === 'num') k++; else break; } return k; },
     nbTocHtml(n) {
-        const hs = n.b.map((b, i) => [b, i]).filter(([b]) => /^h[123]$/.test(b.t) && b.x.trim());
+        const hs = n.b.map((b, i) => [b, i]).filter(([b]) => /^h[1-6]$/.test(b.t) && b.x.trim());
         return `<nav class="nb-toc" aria-label="Sommaire"><b>Sommaire</b>${hs.length ? hs.map(([b, i]) => `<button data-nbk="toc" data-to="${i}" style="padding-left:${(Number(b.t[1]) - 1) * 14}px">${esc(this.nbPlain(b.x))}</button>`).join('') : '<span class="faint">Ajoute des titres : ils apparaîtront ici.</span>'}</nav>`;
     },
     nbSetBlockType(i, t) { const n = this.note(this.ui.note), b = n.b[i]; if (!b) return; if (nbSolid(b.t)) { this.nbInsertAfter(i, [{ t, x: '' }]); return; } this.nbOp(() => { delete b.cd; delete b.done; b.t = b.t === t ? 'p' : t; if (t === 'callout') b.k = b.k || 'info'; }, i, 'end'); },
@@ -301,7 +302,7 @@ Object.assign(SuperAnki.prototype, {
         this.nbOp(nn => {
             b.x = left;
             const at = b.c ? this.nbSubEnd(nn.b, i) : i + 1;
-            nn.b.splice(at, 0, { t: ['todo', 'num', 'code'].includes(b.t) ? b.t : 'p', x: right, d: b.d });
+            nn.b.splice(at, 0, Object.assign({ t: ['todo', 'num', 'code'].includes(b.t) ? b.t : 'p', x: right, d: b.d }, b.t === 'p' && b.bs && !b.cd ? { bs: b.bs } : {}));
         }, (b.c ? this.nbSubEnd(n.b, i) : i + 1), 0);
     },
     nbBackspace(i) {
@@ -327,7 +328,7 @@ Object.assign(SuperAnki.prototype, {
         const n = this.note(this.ui.note), b = n.b[i], t = $('.nb-t', this.nbEl(i));
         if (lines.length <= 1) { document.execCommand('insertText', false, (lines[0] || '').replace(/\s+/g, ' ')); return; }
         const pos = this.nbCaret(t), base = b.d;
-        const parsed = lines.map(l => { const m = /^(\s*)([-*•]\s+|\d+[.)]\s+|#{1,3}\s+|>\s+)?(.*)$/.exec(l); const lead = m[1].replace(/\t/g, '  ').length, mk = (m[2] || '').trim(); const t2 = /^#{1,3}$/.test(mk) ? 'h' + mk.length : mk === '>' ? 'quote' : 'p'; return { d: Math.floor(lead / 2), t: t2, x: m[3].trim() }; });
+        const parsed = lines.map(l => { const m = /^(\s*)([-*•]\s+|\d+[.)]\s+|#{1,6}\s+|>\s+)?(.*)$/.exec(l); const lead = m[1].replace(/\t/g, '  ').length, mk = (m[2] || '').trim(); const t2 = /^#{1,6}$/.test(mk) ? 'h' + mk.length : mk === '>' ? 'quote' : 'p'; return { d: Math.floor(lead / 2), t: t2, x: m[3].trim() }; });
         const min = Math.min(...parsed.map(p => p.d));
         this.nbOp(nn => {
             const tail = b.x.slice(pos.e); b.x = b.x.slice(0, pos.s) + parsed[0].x;
@@ -339,7 +340,7 @@ Object.assign(SuperAnki.prototype, {
     /* Markdown shortcuts at the start of a line: "# " title, "[] " to do, "> " quote, "---" separator */
     nbShortcut(i, t) {
         const n = this.note(this.ui.note), b = n.b[i]; if (b.t !== 'p') return false;
-        const m = /^(#{1,3}|\[\s?\]|>>>|>|[-*•]|\d+[.)]|```|\$\$)\s/.exec(b.x); if (!m) return false;
+        const m = /^(#{1,6}|\[\s?\]|>>>|>|[-*•]|\d+[.)]|```|\$\$)\s/.exec(b.x); if (!m) return false;
         const k = m[1], rest = b.x.slice(m[0].length);
         const type = /^#/.test(k) ? 'h' + k.length : /^\[/.test(k) ? 'todo' : k === '>' ? 'quote' : k === '>>>' ? 'callout' : /^\d/.test(k) ? 'num' : k === '```' ? 'code' : k === '$$' ? 'math' : 'p';
         this.nbOp(() => { b.t = type; b.x = rest; }, i, 0); return true;
@@ -349,7 +350,7 @@ Object.assign(SuperAnki.prototype, {
     /* « / » at the start of a line (or after a space): a menu of every block and tool */
     nbSlashItems(i) {
         const set = t => () => this.nbSetBlockType(i, t), card = k => () => { this.nbActivate(i, 'end'); this.nbCardInsert(k); };
-        return [['Texte simple', 'file', () => this.nbSetType(i, 'p')], ['Titre 1', 'heading', () => this.nbSetType(i, 'h1')], ['Titre 2', 'heading', () => this.nbSetType(i, 'h2')], ['Titre 3', 'heading', () => this.nbSetType(i, 'h3')],
+        return [['Texte simple', 'file', () => this.nbSetType(i, 'p')], ['Titre 1', 'heading', () => this.nbSetType(i, 'h1')], ['Titre 2', 'heading', () => this.nbSetType(i, 'h2')], ['Titre 3', 'heading', () => this.nbSetType(i, 'h3')], ['Titre 4', 'heading', () => this.nbSetType(i, 'h4')], ['Titre 5', 'heading', () => this.nbSetType(i, 'h5')], ['Titre 6', 'heading', () => this.nbSetType(i, 'h6')],
             ['À faire (case à cocher)', 'checkSq', () => this.nbSetType(i, 'todo')], ['Liste numérotée', 'listOrdered', set('num')], ['Bascule (replie)', 'chevronRight', set('toggle')], ['Citation', 'quote', () => this.nbSetType(i, 'quote')],
             ['Encadré', 'info', set('callout')], ['Bloc de code', 'code', set('code')], ['Formule maths', 'sigma', set('math')], ['Séparateur', 'list', () => this.nbInsertAfter(i, [{ t: 'hr' }, { t: 'p', x: '' }])], ['Sommaire de la note', 'toc', () => this.nbInsertAfter(i, [{ t: 'toc' }, { t: 'p', x: '' }])],
             ['Tableau 3×3', 'table', () => this.nbInsertAfter(i, [{ t: 'table', id: uid('b'), hdr: true, rows: [['', '', ''], ['', '', ''], ['', '', '']] }])], ['Image', 'image', () => this.nbBar('img', $('#nb-bar'))], ['Vidéo YouTube / Vimeo', 'play', () => this.nbVideoPrompt(i)], ['Joindre un fichier', 'export', () => this.nbFilePick(i)],
@@ -436,31 +437,33 @@ Object.assign(SuperAnki.prototype, {
             ...(hasSel ? [{ sep: true }, { ico: 'brackets', label: 'Mettre la sélection en trou', fn: () => this.nbSelToCloze() }] : []),
             ...(b.cd ? [{ sep: true }, { ico: 'trash', label: 'Retirer la carte de cette ligne', danger: true, fn: () => this.nbCardDelete(i) }] : []),
             { sep: true }, { ico: 'sparkle', label: 'Plan → cartes (toute la note)…', fn: () => this.nbPlanToCards() }], btn);
-        else if (act === 'head') this.nbMenu([['p', 'Texte', 'file'], ['h1', 'Titre 1', 'heading'], ['h2', 'Titre 2', 'heading'], ['h3', 'Titre 3', 'heading']].map(([t, label, ico]) => ({ ico, label, on: b.t === t, fn: () => this.nbOp(() => { if (!nbSolid(b.t)) { b.t = t; delete b.done; delete b.cd; } }, i, 'end') })), btn);
+        else if (act === 'head') this.nbMenu([['p', 'Texte', 'file'], ['h1', 'Titre 1', 'heading'], ['h2', 'Titre 2', 'heading'], ['h3', 'Titre 3', 'heading'], ['h4', 'Titre 4', 'heading'], ['h5', 'Titre 5', 'heading'], ['h6', 'Titre 6', 'heading']].map(([t, label, ico]) => ({ ico, label, on: b.t === t, fn: () => this.nbOp(() => { if (!nbSolid(b.t)) { b.t = t; delete b.done; delete b.cd; } }, i, 'end') })), btn);
         else if (act === 'fmt') this.nbMenu([{ ico: 'bold', label: '<b>Gras</b> · Ctrl+B', fn: () => this.nbWrap('**') }, { ico: 'italic', label: '<i>Italique</i> · Ctrl+I', fn: () => this.nbWrap('*') }, { ico: 'underline', label: '<u>Souligné</u> · Ctrl+U', fn: () => this.nbWrap('__') }, { sep: true }, { ico: 'pencil', label: '<mark class="nb-hl">Surligné jaune</mark>', fn: () => this.nbWrap('==') }, { ico: 'pencil', label: '<mark class="nb-hl nb-hl-g">Surligné vert</mark>', fn: () => this.nbWrap('=={g}', '==') }, { ico: 'pencil', label: '<mark class="nb-hl nb-hl-b">Surligné bleu</mark>', fn: () => this.nbWrap('=={b}', '==') }, { ico: 'pencil', label: '<mark class="nb-hl nb-hl-p">Surligné rose</mark>', fn: () => this.nbWrap('=={p}', '==') }, { sep: true }, { ico: 'file', label: '<code>Code</code>', fn: () => this.nbWrap('`') }, { ico: 'eraser', label: 'Effacer la mise en forme', fn: () => { if (b.x) this.nbOp(() => { b.x = b.x.replace(/==(?:\{(?:[ygbp]|#[0-9a-f]{6})\})?/gi, '').replace(/\{c:#[0-9a-f]{6}\|([^{}|]*)\}/gi, '$1').replace(/\*\*|~~|`/g, '').replace(/(^|[^\w])__([^_]+)__(?!\w)/g, '$1$2').replace(/(^|\s)\*([^*]+)\*/g, '$1$2'); }, i, 'end'); } }], btn);
         else if (act === 'table') this.nbTableMenu(btn, i);
         else if (act === 'plus') this.nbMenu([
+            { head: 'LISTE (cette ligne et ses voisines)' },
+            ...[['dot', 'Points', 'list'], ['dash', 'Tirets', 'minus'], ['num', 'Numérotée', 'listOrdered'], ['none', 'Sans puce', 'x']].map(([k, label, ico]) => ({ ico, label, on: (b.t === 'num' ? 'num' : (b.bs || 'dot')) === k, fn: () => this.nbBulletStyle(i, k) })),
+            { sep: true }, { head: 'INSÉRER' },
             { ico: 'link', label: 'Lien vers une note, un PDF ou une carte…', fn: () => this.nbLinkPicker() },
             { ico: 'file', label: b.t === 'quote' ? 'Retirer la citation' : 'Citation', fn: () => this.nbOp(() => { if (!nbSolid(b.t)) { b.t = b.t === 'quote' ? 'p' : 'quote'; delete b.cd; } }, i, 'end') },
-            { ico: 'list', label: 'Séparateur', fn: () => this.nbInsertAfter(i, [{ t: 'hr' }, { t: 'p', x: '' }]) },
             { ico: 'info', label: 'Encadré (info, astuce, attention…)', fn: () => this.nbSetBlockType(i, 'callout') },
             { ico: 'code', label: 'Bloc de code', fn: () => this.nbSetBlockType(i, 'code') },
             { ico: 'sigma', label: 'Formule maths', fn: () => this.nbSetBlockType(i, 'math') },
-            { ico: 'listOrdered', label: 'Liste numérotée', fn: () => this.nbSetBlockType(i, 'num') },
             { ico: 'chevronRight', label: 'Bascule (replie ses sous-lignes)', fn: () => this.nbSetBlockType(i, 'toggle') },
+            { ico: 'list', label: 'Séparateur', fn: () => this.nbInsertAfter(i, [{ t: 'hr' }, { t: 'p', x: '' }]) },
             { ico: 'toc', label: 'Sommaire de la note', fn: () => this.nbInsertAfter(i, [{ t: 'toc' }, { t: 'p', x: '' }]) },
-            { sep: true },
+            { ico: 'calendar', label: 'Date du jour', fn: () => this.nbInsertText(i, new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })) },
+            { ico: 'clock', label: 'Heure', fn: () => this.nbInsertText(i, new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })) },
+            { sep: true }, { head: 'MÉDIAS ET FICHIERS' },
             { ico: 'play', label: 'Vidéo (YouTube, Vimeo, mp4)…', fn: () => this.nbVideoPrompt(i) },
-            { ico: 'export', label: 'Joindre un fichier (Word, Excel, audio, vidéo…)…', fn: () => this.nbFilePick(i) },
+            { ico: 'clock', label: 'Minute de vidéo (⏱)', fn: () => this.nbInsertText(i, '⏱0:00') },
             { ico: 'mic', label: 'Enregistrer un audio…', fn: () => this.nbAudioRecord(i) },
-            ...(this.note(this.ui.note).b[i] && this.note(this.ui.note).b[i].t === 'todo' ? [{ ico: 'calendar', label: 'Date limite de cette case…', fn: () => this.nbDuePrompt(i) }] : []),
-            { ico: 'export', label: 'Imprimer / enregistrer en PDF…', fn: () => this.nbPrint(this.note(this.ui.note)) },
+            { ico: 'export', label: 'Joindre un fichier (Word, Excel, audio…)…', fn: () => this.nbFilePick(i) },
+            { sep: true }, { head: 'OUTILS' },
+            ...(b.t === 'todo' ? [{ ico: 'calendar', label: 'Date limite de cette case…', fn: () => this.nbDuePrompt(i) }] : []),
             { ico: 'sparkle', label: 'Écrire avec l\'IA…', fn: () => this.aiWriteBlocks(i) },
-            { ico: 'clock', label: 'Insérer une minute de vidéo (⏱)', fn: () => this.nbInsertText(i, '⏱0:00') },
-            { sep: true },
-            { ico: 'calendar', label: 'Insérer la date du jour', fn: () => this.nbInsertText(i, new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })) },
-            { ico: 'clock', label: 'Insérer l\'heure', fn: () => this.nbInsertText(i, new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })) },
             { ico: 'search', label: 'Rechercher / remplacer dans la note', fn: () => this.nbFindToggle() },
+            { ico: 'export', label: 'Imprimer / enregistrer en PDF…', fn: () => this.nbPrint(this.note(this.ui.note)) },
             { sep: true },
             { ico: 'chevronUp', label: 'Monter la ligne · Alt+↑', fn: () => this.nbMoveStep(i, -1) },
             { ico: 'chevronDown', label: 'Descendre la ligne · Alt+↓', fn: () => this.nbMoveStep(i, 1) }], btn);
@@ -549,6 +552,8 @@ Object.assign(SuperAnki.prototype, {
             else if (kind === 'trow') this.nbOp(() => { b.rows.push(b.rows[0].map(() => '')); }, null);
             else if (kind === 'tcol') { if (b.rows[0].length >= 8) this.toast('8 colonnes au maximum.', 'warning'); else this.nbOp(() => { b.rows.forEach(r => r.push('')); }, null); }
             else if (kind === 'tcards') this.nbTableCards(i);
+            else if (kind === 'tbold') this.nbTCell(i, 'bold', k);
+            else if (kind === 'tcolors') this.nbTCell(i, 'colors', k);
             else if (kind === 'calk') this.nbMenu([['info', 'Information', 'info'], ['tip', 'Astuce', 'sparkle'], ['warn', 'Attention', 'alert'], ['def', 'Définition', 'book']].map(([k2, label, ico]) => ({ ico, label, on: b.k === k2, fn: () => this.nbOp(() => { b.k = k2; }, i, 'end') })), k);
             else if (kind === 'toc') { const el = this.nbEl(Number(k.dataset.to)); if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
             else if (kind === 'ok') { this.nbPush(); const ow = this.nbCardOwners(n)[i], mx = ow >= 0 && n.b[ow].cd.mx; if (!b.ok && !mx) { for (let j = ow + 1; j < this.nbSubEnd(n.b, ow); j++) delete n.b[j].ok; } b.ok = !b.ok; if (ow >= 0) n.b[ow].cd.sg = ''; this.nbChanged(); if (ow >= 0) for (let j = ow + 1; j < this.nbSubEnd(n.b, ow); j++) { const bt = $('.nb-okb', this.nbEl(j)); if (bt) { bt.classList.toggle('on', !!n.b[j].ok); bt.innerHTML = n.b[j].ok ? ic('check') : ''; bt.setAttribute('aria-pressed', String(!!n.b[j].ok)); } } this.nbCardFlushLater(); }

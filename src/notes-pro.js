@@ -61,7 +61,7 @@ Object.assign(SuperAnki.prototype, {
         const esch = s => esc(String(s));
         const body = n.b.map((b, i) => {
             const pad = `margin-left:${b.d * 18}px`, x = this.inlineHtml ? this.inlineHtml(b.x) : esch(b.x);
-            if (b.t === 'h1' || b.t === 'h2' || b.t === 'h3') return `<${b.t} style="${pad}">${x}</${b.t}>`;
+            if (/^h[1-6]$/.test(b.t)) return `<${b.t} style="${pad}">${x}</${b.t}>`;
             if (b.t === 'hr') return '<hr>';
             if (b.t === 'img') return `<p style="${pad}"><img src="${esch(/^media:/.test(b.src) ? this.data.media[b.src.slice(6)] || '' : b.src)}" style="max-width:100%"></p>`;
             if (b.t === 'table') return `<table style="${pad}">${b.rows.map((r, ri) => `<tr>${r.map(c => `<${ri === 0 && b.hdr ? 'th' : 'td'}>${this.inlineHtml ? this.inlineHtml(c) : esch(c)}</${ri === 0 && b.hdr ? 'th' : 'td'}>`).join('')}</tr>`).join('')}</table>`;

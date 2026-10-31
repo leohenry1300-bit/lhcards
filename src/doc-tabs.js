@@ -23,7 +23,7 @@ Object.assign(SuperAnki.prototype, {
     tabActive(t) { if (t.k === 'mem') return this.view === 'notes' && !this.ui.note && !!this.ui.nbMem; if (t.k === 'folder') return this.view === 'notes' && !this.ui.note && !this.ui.nbMem && this.ui.nbFolder === t.id; return t.k === 'pdf' ? this.view === 'pdf' && this.pv && this.pv.p.id === t.id : this.view === 'notes' && this.ui.note === t.id; },
     tabsHtml() {
         const t = this.tabsGet(); if (t.length < 2 && !(t.length && (this.view === 'pdf' || (this.view === 'notes' && (this.ui.note || this.ui.nbMem || this.ui.nbFolder))))) return '';
-        return `<div class="doc-tabs" id="doc-tabs" role="tablist"><button class="dt-home" data-action="tab-list" title="Liste des notes" aria-label="Liste des notes">${ic('list')}</button>${t.map(x => {
+        return `<div class="doc-tabs" id="doc-tabs" role="tablist"><button class="dt-home" data-action="tab-list" title="Retour à l'onglet Notes" aria-label="Retour à l'onglet Notes">${ic('notebook')}</button>${t.map(x => {
             const { nm, ico } = this.tabInfo(x);
             return `<div class="dt ${this.tabActive(x) ? 'on' : ''}" role="tab" data-action="tab-open" data-k="${x.k}" data-id="${esc(x.id)}" title="${esc(nm)}">${ico}<span>${esc(truncate(nm, 26))}</span><button class="dt-x" data-action="tab-close" data-k="${x.k}" data-id="${esc(x.id)}" aria-label="Fermer l'onglet">${ic('x')}</button></div>`;
         }).join('')}<button class="dt-new" data-action="tab-new" title="Ouvrir un autre document dans un nouvel onglet" aria-label="Nouvel onglet">${ic('plus')}</button></div>`;
@@ -37,7 +37,7 @@ Object.assign(SuperAnki.prototype, {
     },
     tabAction(action, el) {
         const k = el.dataset.k, id = el.dataset.id;
-        if (action === 'tab-new') { this.quickOpen(); return; }
+        if (action === 'tab-new') { this._qTab = true; this.quickOpen(); return; }
         if (action === 'tab-list') { if (this.pv) this.pv.prevNote = null; this.ui.note = null; this.ui.nbFolder = null; this.ui.nbMem = false; if (this.view === 'notes') this.renderNotes(); else this.go('notes'); return; }
         if (action === 'tab-open') { if (this.tabActive({ k, id })) return; if (k === 'mem' || k === 'folder') { if (this.pv) this.pv.prevNote = null; this.ui.note = null; this.ui.nbMem = k === 'mem'; this.ui.nbFolder = k === 'folder' ? id : null; if (this.view === 'notes') { this.renderNotes(); window.scrollTo(0, 0); } else this.go('notes'); return; } if (k === 'pdf') this.pdfOpen(id, { from: 'notes' }); else this.noteOpen(id, { push: false }); return; }
         if (action === 'tab-close') {

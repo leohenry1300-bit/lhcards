@@ -3557,3 +3557,38 @@ body.nb-selmode .nb-bar { display: none !important; }
 
 /* phone: while you type (keyboard up) the bottom bar steps aside instead of floating above the keyboard; it is back at the very bottom the moment you stop */
 @media (max-width: 767px) { body.kb-open .bottom-nav { display: none !important; } }
+
+/* ===== Notes : puces, barre, tableaux, onglets, liste des documents (polish) ===== */
+.nb-bul.bs-dash i { width: 9px; height: 2.5px; border-radius: 2px; }
+.nb-bul.bs-none i { opacity: 0; }
+.nb-bul.bs-none.kids i { opacity: .35; }
+.nb-h4 .nb-view, .nb-h4 .nb-t { font-size: 1.15rem; font-weight: 800; line-height: 1.3; padding-top: 6px; }
+.nb-h5 .nb-view, .nb-h5 .nb-t { font-size: 1.02rem; font-weight: 800; line-height: 1.3; padding-top: 4px; }
+.nb-h6 .nb-view, .nb-h6 .nb-t { font-size: .92rem; font-weight: 800; line-height: 1.3; padding-top: 3px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-faint); }
+.nb-lvl { flex: none; display: grid; grid-template-columns: 1fr 1fr; align-items: center; justify-items: center; min-width: 74px; padding: 2px 4px 0; }
+.nb-lvl button { width: 34px; height: 30px; display: grid; place-items: center; border-radius: 9px; background: var(--surface-3); margin: 0 1px; }
+.nb-lvl button .i { width: 18px; height: 18px; }
+.nb-lvl small { grid-column: 1 / 3; font-size: .62rem; font-weight: 700; color: var(--text-faint); padding-top: 2px; }
+.nb-bar .nb-lvl { flex: 0 0 auto; }
+.nb-tbar { gap: 4px; flex-wrap: wrap; align-items: center; }
+.nb-tsep { width: 1px; height: 20px; background: var(--border); margin: 0 2px; }
+.nb-table.fixed { table-layout: fixed; min-width: 0; }
+.nb-table.fixed th, .nb-table.fixed td { min-width: 0; }
+.nb-table th, .nb-table td { position: relative; }
+.nb-table input { height: 100%; min-height: 34px; }
+.nb-cres { position: absolute; top: 0; right: -4px; width: 9px; height: 100%; cursor: col-resize; z-index: 3; touch-action: none; }
+.nb-rres { position: absolute; left: 0; bottom: -4px; width: 100%; height: 9px; cursor: row-resize; z-index: 3; touch-action: none; }
+.nb-cres::after, .nb-rres::after { content: ''; position: absolute; background: var(--primary); opacity: 0; transition: opacity .15s; border-radius: 3px; }
+.nb-cres::after { left: 3px; top: 25%; width: 3px; height: 50%; } .nb-rres::after { top: 3px; left: 25%; height: 3px; width: 50%; }
+.nb-cres:hover::after, .nb-rres:hover::after, .nb-cres:active::after, .nb-rres:active::after { opacity: .9; }
+@media (pointer: coarse) { .nb-cres { width: 16px; right: -8px; } .nb-rres { height: 16px; bottom: -8px; } .nb-cres::after, .nb-rres::after { opacity: .35; } }
+.doc-tabs .dt { touch-action: pan-x; user-select: none; -webkit-user-select: none; }
+.doc-tabs .dt.dragging { opacity: .85; z-index: 5; box-shadow: 0 6px 18px rgba(0,0,0,.25); position: relative; cursor: grabbing; }
+.emo-own { display: flex; gap: 8px; } .emo-own .input { flex: 1; font-size: 1.2rem; }
+.emo-h { font-size: .74rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--text-faint); margin: 12px 0 6px; }
+.emo-all { max-height: 46vh; overflow-y: auto; }
+.pdfv-docs { flex: none; width: 270px; overflow-y: auto; background: var(--surface); border-right: 1px solid var(--border); padding: 8px; }
+.pdfd-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px 8px; font-size: .9rem; }
+.pdfv-docsbtn.on { background: var(--primary-soft); color: var(--primary); }
+.pdfv.narrow .pdfv-docs { position: absolute; z-index: 70; left: 0; top: 0; bottom: 0; width: min(84%, 320px); box-shadow: 8px 0 30px rgba(0,0,0,.3); }
+.pdfv-body { position: relative; }

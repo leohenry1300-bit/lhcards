@@ -1228,6 +1228,30 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
             });
             ok('PDF: a click on a document tab opens it (not the Notes list), Texte/Note have their options, colours = one panel with a foldable wheel, the eraser no longer looks like a T', t.tab && t.landed && t.txt && t.nt && t.noEraserT, JSON.stringify(t));
         }
+        {   /* Notes : bullet styles, titles up to h6, word count, free emoji, resizable tables, reorderable tabs */
+            const t = await page.evaluate(async () => {
+                const a = app, w = ms => new Promise(r => setTimeout(r, ms)), o = {}, pid0 = a.pv && a.pv.p.id; if (a.pv) a.pv.prevNote = null;
+                a.go('notes'); await w(300);
+                const n = a.noteNew('Polish A'), n2 = a.noteNew('Polish B'); a.noteOpen(n2.id); await w(200); a.noteOpen(n.id); await w(300);
+                const N = a.note(n.id); N.b = [{ t: 'p', x: 'un', d: 0 }, { t: 'p', x: 'deux', d: 0 }, { t: 'table', id: 'tbp', hdr: true, rows: [['A', 'B'], ['1', '2']] }, { t: 'p', x: '', d: 0 }]; a.renderNotes(); await w(300);
+                a.nbBulletStyle(0, 'dash'); await w(150); o.dash = a.note(n.id).b[1].bs === 'dash';
+                a.nbBulletStyle(0, 'none'); await w(150); o.none = a.note(n.id).b[0].bs === 'none';
+                a.nbBulletStyle(0, 'num'); await w(150); o.num = a.note(n.id).b[0].t === 'num' && !a.note(n.id).b[0].bs;
+                a.nbSetType(3, 'h6'); await w(150); o.h6 = a.note(n.id).b[3].t === 'h6' && normalizeNoteBlock({ t: 'h5', x: 'x', d: 0 }).t === 'h5';
+                o.stats = a.noteStats({ b: [{ t: 'p', x: '', d: 0 }] }) === '0 mot';
+                o.res = document.querySelectorAll('.nb-cres').length === 2 && document.querySelectorAll('.nb-rres').length === 2 && !!document.querySelector('[data-nbk=tcolors]');
+                a.nbOp(() => { a.note(n.id).b[2].cw = [200, 300]; a.note(n.id).b[2].rh = [60, 0]; }, null); await w(200);
+                o.fixed = !!document.querySelector('.nb-table.fixed col') && normalizeNoteBlock(a.note(n.id).b[2]).cw.length === 2;
+                o.emoji = typeof a.openNoteEmoji === 'function' && NB_EMOJI_CATS.length >= 6;
+                const before = a.tabsGet().map(x => x.id).join(); const t0 = a.tabsGet(); a._dtabs = [t0[t0.length - 1], ...t0.slice(0, -1)]; a.tabsSave(); a.tabsRender();
+                o.tabs = a.tabsGet().map(x => x.id).join() !== before && !!document.querySelector('#doc-tabs .dt');
+                o.home = !!document.querySelector('.dt-home .i') && /Notes/.test(document.querySelector('.dt-home').title);
+                a.data.notes = a.data.notes.filter(x => x.id !== n.id && x.id !== n2.id); a._dtabs = (a._dtabs || []).filter(x => x.id !== n.id && x.id !== n2.id); a.tabsSave(); a.ui.note = null;
+                if (pid0) { a.pdfOpen(pid0); await w(1800); a.pv.prevNote = null; }
+                return o;
+            });
+            ok('Notes: bullet styles (points / tirets / numérotée / aucune), titles up to 6, "0 mot" without reading time, free emoji, resizable table (column / row), reorderable tabs, notes icon on the tab bar', Object.values(t).every(Boolean), JSON.stringify(t));
+        }
         /* the annotated PDF is a real PDF: opened again with pdf.js, highlight pixel + text + extra page */
         const ex = await page.evaluate(async () => {
             const a = app, p = a.pv.p, { bytes } = await a.pdfAnnotatedBytes(p), out = {};
