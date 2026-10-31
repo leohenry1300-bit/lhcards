@@ -44,7 +44,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     }
 
 
-    /* 0b. DECISION: an update is applied behind the loading screen; the app never restarts by itself once it is open */
+    /* 0b. DECISION (user): a new version is never applied by itself : the app opens and a banner asks (Mettre à jour / Plus tard) */
     {
         const up = await ctx.newPage(); let navs = 0, afterOpen = 0, opened = false;
         await up.route(/fonts\.(googleapis|gstatic)/, r => r.abort());
@@ -53,7 +53,8 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         await up.goto(`http://localhost:${PORT}/index.html`);
         for (let i = 0; i < 60 && !opened; i++) { await wait(250); opened = await up.evaluate(() => !!document.querySelector('.hero') && !document.getElementById('boot')).catch(() => false); }
         const before = afterOpen; await wait(7000);
-        ok('new version found: reloads once behind the loading screen, never after the app is open', opened && navs <= 2 && afterOpen === before && afterOpen === 0, JSON.stringify({ navs, afterOpen, opened }));
+        const banner = await up.evaluate(() => { const b = document.getElementById('upd-banner'); return !!b && /Nouvelle version/.test(b.textContent) && !!b.querySelector('[data-ex=upd]'); }).catch(() => false);
+        ok('new version found: the app does not restart by itself, a banner asks (Mettre à jour / Plus tard)', opened && navs === 1 && afterOpen === 0 && banner, JSON.stringify({ navs, afterOpen, opened, banner }));
         await up.close();
     }
 

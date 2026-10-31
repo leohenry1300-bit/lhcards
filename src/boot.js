@@ -6,15 +6,18 @@ app.init().catch(err => {
     if (boot) boot.innerHTML = `Oups, le chargement a échoué : ${esc(err.message)}. <br><button class="btn btn-primary" style="margin-top:12px" onclick="location.reload()">Recharger</button>`;
 });
 
-/* Updates are applied while the loading screen is up (see checkUpdateEarly in app.js). Once the app is open it is never restarted by itself:
-   if a newer build shows up later (app left open for a long time), only the "new version" banner is offered. */
+/* A new version is never applied by itself : the banner « Nouvelle version disponible » asks (Mettre à jour / Plus tard). It is checked
+   a few seconds after opening, when coming back to the app, and every 15 minutes. */
 setTimeout(() => { try { app.pdfGc(); app.pdfSyncAll(); } catch { /* ignore */ } }, 9000);
-setTimeout(async () => {
+const lhCheckNew = async () => {
     try {
         if (!/^https?:/.test(location.protocol)) return;
         const meta = document.querySelector('meta[name=app-build]'), cur = meta ? Number(meta.content) : 0;
         const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' }); if (!r.ok) return;
         const live = Number((await r.json()).build) || 0;
-        if (cur && live && live > cur && app.updRefresh) app.updRefresh(true);
+        if (cur && live && live > cur && app.updRefresh) { app._updReady = true; app.updRefresh(true); }
     } catch { /* offline: nothing to do */ }
-}, 6000);
+};
+setTimeout(lhCheckNew, 3500);
+setInterval(lhCheckNew, 15 * 60 * 1000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') setTimeout(lhCheckNew, 800); });

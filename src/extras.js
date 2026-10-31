@@ -328,6 +328,8 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
     wrap('practiceAnswer', { pre() { const s = this.session; return !!(s && s.kind === 'practice' && s.revealed); }, post(was, ok) { if (was) sfx(ok ? 'right' : 'wrong'); } });
     wrap('quizAnswer', { pre(i) { const s = this.session; return s && !s.answered && s.options && s.options[i] ? s.options[i].ok : null; }, post(ok) { if (ok !== null) sfx(ok ? 'right' : 'wrong'); } });
     wrap('showSummary', { post() { sfx('done'); } });
+    /* changing tab (a swipe, a button elsewhere in the app…) makes the same small sound as touching the bar; a tap on the bar already played it (the guard keeps it from sounding twice) */
+    wrap('go', { pre() { return this.view; }, post(prev, view) { const T = ['dashboard', 'decks', 'notes', 'stats', 'settings']; if (prev && prev !== view && T.includes(prev) && T.includes(view) && SND.tab !== 'none') sfxUi('tab' + SND.tab); } });
     wrap('openModal', { post() { sfxUi('open'); } });
     wrap('closeModal', { pre() { return !!(this.modals && this.modals.length); }, post(had) { if (had) sfxUi('close'); } });
     wrap('toast', { post(_, msg, type) { if (type === 'success') sfxUi('success'); else if (type === 'error' || type === 'warning') sfxUi('error'); } });
@@ -370,8 +372,8 @@ Object.assign(SuperAnki.prototype, {
             if (!t.closest || t.closest('.modal-back [data-close]')) return;
             if (t.closest('[data-nav]')) { if (SND.tab !== 'none') sfxUi('tab' + SND.tab); }
             else if (t.closest('.segmented button, .chip, .theme-opt, [data-action="set"], [data-action="filter"]')) sfxUi('select');
-            else if (t.closest('.btn, .icon-btn, .mode-tile, .deck-card button')) sfxUi('tap');
-        });
+            else if (t.closest('.btn, .icon-btn, .mode-tile, .deck-card button, .avatar-btn, .menu button, .nb-menu button, .dt, .nb-row, .nb-bar button, .nb-lvl button, .nb-tbar button, .pdft-b, .pdft-i, .pdfp-o, .pdf-pop button, .quick-i, .link, .nb-bl, .set-nav button, .pdfa-tb button')) sfxUi('tap');
+        }, true);   // (capture phase : the sound is decided before the app re-draws the button that was touched, e.g. the profile avatar)
         document.addEventListener('change', e => {
             const t = e.target;
             if (t.type === 'checkbox' && !t.closest('#fw-sound-x')) sfxUi(t.checked ? 'on' : 'off');
@@ -408,7 +410,7 @@ Object.assign(SuperAnki.prototype, {
         const st = $('#upd-status'), say = t => { if (st) st.textContent = t; };
         this.toast('Recherche de mise à jour…', 'info');
         say('Recherche…');
-        const r = await this.updCheck(false);
+        const r = this._updReady ? 'new' : await this.updCheck(false);
         if (r === 'offline') { this.toast('Impossible de vérifier : pas de connexion.', 'warning'); say('Pas de connexion.'); return; }
         if (r === 'same') { this.toast('Tu as déjà la dernière version ✓', 'success'); return; }
         say('Installation…');
