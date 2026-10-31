@@ -3503,3 +3503,9 @@ mark.nb-hl-p{background:color-mix(in srgb,#f472b6 50%,transparent)}
 /* no rubber band at the ends of a page: during the bounce the browser moves the page and the bar fixed to the bottom no longer sits on the edge */
 html, body { overscroll-behavior: none; }
 .bottom-nav { transform: none !important; }
+
+/* Notes: guide shown while there is nothing yet */
+.nb-empty { display: flex; align-items: flex-start; gap: 14px; padding: 18px; background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 8%, var(--surface)), var(--surface)); border: var(--border-w) solid color-mix(in srgb, var(--primary) 20%, var(--border)); }
+.nb-empty-ico { width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; flex: none; font-size: 1.7rem; background: linear-gradient(135deg, var(--primary), var(--primary-2, var(--primary))); color: var(--on-primary, #fff); }
+.nb-empty h3 { font-size: 1.05rem; font-weight: 800; margin-bottom: 4px; } .nb-empty p { color: var(--text-faint); line-height: 1.5; font-size: .9rem; }
+.nb-empty > div { text-align: left; }
