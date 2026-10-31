@@ -26,25 +26,25 @@ Object.assign(SuperAnki.prototype, {
     recapDelta(now, before, unit = '') {
         if (before == null || !before) return '';
         const d = now - before; if (!d) return '<em>comme la semaine d\'avant</em>';
-        return `<em class="${d > 0 ? 'up' : 'down'}">${d > 0 ? '▲ +' : '▼ '}${d}${unit} vs semaine d'avant</em>`;
+        return `<em class="${d > 0 ? 'up' : 'down'}">${d > 0 ? '▲ +' : '▼ −'}${Math.abs(d)}${unit} <small>sem. passée</small></em>`;
     },
-    recapHtml(r, full = true) {
+    recapHtml(r, mode = 'full') {   // 'full' (Sunday window) has the cards to review, 'stats' does not, 'tiles' = the home card
         const max = Math.max(1, ...r.per);
         const tiles = `<div class="recap-tiles">
             <div><b>${r.n}</b><span>révisions</span>${this.recapDelta(r.n, r.prev.n)}</div>
             <div><b>${r.pct}%</b><span>réussite</span>${this.recapDelta(r.pct, r.prevPct, ' pts')}</div>
             <div><b>${r.days}/7</b><span>jours actifs</span></div>
             <div><b>${fmtDuration(r.sec)}</b><span>d'étude</span></div></div>`;
-        if (!full) return tiles;
-        const bars = `<div class="recap-bars" role="img" aria-label="Révisions par jour">${r.per.map((n, i) => `<div><i style="height:${Math.round(n / max * 100)}%" title="${n}"></i><span>${r.labels[i]}</span></div>`).join('')}</div>`;
-        const top = r.top.length ? `<div class="recap-sec"><h4>Paquets les plus travaillés</h4>${r.top.map(x => `<p>${esc(x.d.emoji || '')} ${esc(x.d.name)} <b>${x.n}</b></p>`).join('')}</div>` : '';
+        if (mode === 'tiles') return tiles;
+        const bars = `<div class="recap-bars" role="img" aria-label="Révisions par jour">${r.per.map((n, i) => `<div class="${i === 6 ? 'now' : ''}"><b>${n || ''}</b><i style="height:${Math.max(4, Math.round(n / max * 100))}%"></i><span>${r.labels[i]}</span></div>`).join('')}</div>`;
+        const top = r.top.length ? `<div class="recap-sec"><h4>Paquets les plus travaillés</h4>${r.top.map(x => `<div class="recap-row"><span>${esc(x.d.emoji || '')} ${esc(x.d.name)}</span><b>${x.n}</b><i style="width:${Math.round(x.n / r.top[0].n * 100)}%"></i></div>`).join('')}</div>` : '';
         const weak = r.weak.length ? `<div class="recap-sec"><h4>À revoir</h4>${r.weak.map(x => `<p>${esc(stripHtml(x.c.front).slice(0, 80) || 'Carte')} <b>${x.n} raté${x.n > 1 ? 's' : ''}</b></p>`).join('')}<button class="btn btn-soft btn-sm" data-action="practice-errors">${ic('play')}Retravailler mes erreurs</button></div>` : '<div class="recap-sec"><h4>À revoir</h4><p class="muted">Aucune carte ratée cette semaine, bravo.</p></div>';
-        return `${tiles}${bars}${top}${weak}`;
+        return `${tiles}${bars}${top}${mode === 'full' ? weak : ''}`;
     },
     statRecap() {
         if (this.statsUi.deck !== 'all') return '';
         const r = this.recapData(); if (!r) return '';
-        return `<section class="panel panel-pad stat-card wide recap"><div class="section-head" style="margin-bottom:6px"><h4 class="stat-title">${ic('chart')} Ta semaine <span class="faint">· ${this.recapRange(r)}</span></h4></div>${this.recapHtml(r)}</section>`;
+        return `<section class="panel panel-pad stat-card wide recap"><div class="section-head" style="margin-bottom:6px"><h4 class="stat-title">${ic('chart')} Ta semaine <span class="faint">· ${this.recapRange(r)}</span></h4></div>${this.recapHtml(r, 'stats')}</section>`;
     },
     /* home card: Sunday (and Monday if it was missed), once per week */
     recapWeekKey() { const t0 = startOfDay(), dow = dayStart(Date.now()).getDay(); if (dow !== 0 && dow !== 1) return ''; return dayKey(t0 - (dow === 1 ? 86400000 : 0)); },
@@ -52,7 +52,7 @@ Object.assign(SuperAnki.prototype, {
         const key = this.recapWeekKey(); if (!key) return '';
         try { if (localStorage.getItem('lh_recap') === key) return ''; } catch { /* ignore */ }
         const r = this.recapData(); if (!r) return '';
-        return `<section class="panel panel-pad recap-card"><div class="section-head" style="margin-bottom:8px"><h3 class="section-title">${ic('chart')} Ta semaine</h3><button class="icon-btn icon-btn-sm" data-action="recap-dismiss" aria-label="Fermer">${ic('x')}</button></div>${this.recapHtml(r, false)}<button class="btn btn-soft btn-sm" data-action="recap-open">Voir le détail</button></section>`;
+        return `<section class="panel panel-pad recap-card"><div class="section-head" style="margin-bottom:8px"><h3 class="section-title">${ic('chart')} Ta semaine</h3><button class="icon-btn icon-btn-sm" data-action="recap-dismiss" aria-label="Fermer">${ic('x')}</button></div>${this.recapHtml(r, 'tiles')}<button class="btn btn-soft btn-sm" data-action="recap-open">Voir le détail</button></section>`;
     },
     recapOpen() {
         const r = this.recapData();
