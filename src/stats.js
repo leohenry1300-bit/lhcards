@@ -158,8 +158,8 @@ Object.assign(SuperAnki.prototype, {
                 <p class="small muted">${errCount ? `${plural(errCount, 'carte')} ratée${errCount > 1 ? 's' : ''} récemment. Elles sortent de la liste dès que tu les réussis.` : 'Aucune erreur en attente. Les cartes ratées en révision, en quiz ou au chrono apparaîtront ici.'}</p>
             </section>`;
         const sections = [
-            this.statRecap(),
             this.statToday(scope),
+            this.statRecap(),
             errPanel,
             this.statForecast(scope),
             this.statCalendar(scope),
