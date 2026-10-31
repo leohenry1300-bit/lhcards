@@ -56,6 +56,7 @@ function normalizePdf(x) {
         last: clamp(Math.round(num(x.last, 0)), 0, pg.length - 1), zoom: clamp(num(x.zoom, 1), 0.4, 4), mode: x.mode === 'text' ? 'text' : 'pdf',
         pg, ann, trash, up: !!x.up, toc: toArray(x.toc).slice(0, 300).map(t => ({ t: String(t && t.t || '').slice(0, 120), n: Math.max(1, Math.round(num(t && t.n, 1))), d: clamp(Math.round(num(t && t.d, 0)), 0, 4) })).filter(t => t.t),
         prio: ['none', 'high', 'normal', 'low'].includes(x.prio) ? x.prio : 'none',
+        bm: toArray(x.bm).slice(0, 8).map(b => b && ids.has(String(b.pid)) ? { id: String(b.id || uid('k')), pid: String(b.pid), t: String(b.t || '').slice(0, 40) } : null).filter(Boolean),
         study: normalizePdfStudy(x.study, pages),
         ocr: (o => { const r = {}; if (o && typeof o === 'object') Object.entries(o).slice(0, 800).forEach(([k, v]) => { if (/^\d+$/.test(k) && typeof v === 'string' && v.trim()) r[k] = v.slice(0, 20000); }); return r; })(x.ocr)
     };

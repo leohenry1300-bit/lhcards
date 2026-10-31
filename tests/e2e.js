@@ -1526,6 +1526,26 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     }
 
 
+    {   /* PDF : signets, liste des annotations (filtre couleur), zone → image dans la note / image à masquer, mode nuit, marges recadrées */
+        const pt = await page.evaluate(async () => {
+            const out = {}, a = app, w = ms => new Promise(r => setTimeout(r, ms));
+            if (!a.pv) { await a.pdfOpen(a.data.pdfs[0].id); await w(2200); }
+            const p = a.pv.p, g = p.pg[0];
+            a.pdfBookmarks(); await w(200); document.querySelector('[data-bm=add]').click(); await w(200); out.bm = p.bm.length === 1 && p.bm[0].pid === g.id; a.closeModal();
+            p.ann[g.id] = [{ i: 'z1', t: 'hl', c: '#fde047', m: 1, r: [[0.1, 0.1, 0.3, 0.03]], s: 'Un contrat est un accord' }, { i: 'z2', t: 'hl', c: '#86efac', m: 1, r: [[0.1, 0.2, 0.3, 0.03]], s: 'Il faut un consentement' }];
+            a.pdfAnnList(); await w(200);
+            const rows0 = document.querySelectorAll('.al-go').length; document.querySelector('[data-al=flt][data-c="#86efac"]').click(); await w(100);
+            out.list = rows0 === 2 && document.querySelectorAll('.al-go').length === 1; a.closeModal();
+            const P = a.pdfPrefs(); P.night = true; P.crop = 0.1; a.pdfReflow(); await w(600);
+            out.view = document.querySelector('.pdfv').classList.contains('night') && /inset/.test(a.pv.pages[0].el.style.clipPath); P.night = false; P.crop = 0; a.pdfReflow(); await w(300);
+            a.pdfAreaToNote({ pid: g.id, rect: [0.1, 0.1, 0.6, 0.3], text: 'x' }); await w(200); out.note = a.pdfNoteOf(p).b.some(b => b.t === 'img');
+            a.pdfAreaOcclude({ pid: g.id, rect: [0.1, 0.1, 0.6, 0.3], text: 'x' }); await w(300); out.occ = !!document.querySelector('#oc-stage img'); a.closeModal();
+            return out;
+        });
+        ok('PDF: bookmarks, annotation list with colour filter, night mode + cropped margins, zone → picture in the note / picture to hide', pt.bm && pt.list && pt.view && pt.note && pt.occ, JSON.stringify(pt));
+    }
+
+
     {   /* IA lot 3 : quiz → QCM à relire, lecture d'un PDF scanné par images */
         await page.route('https://api.anthropic.com/**', r => {
             const body = r.request().postData() || '';

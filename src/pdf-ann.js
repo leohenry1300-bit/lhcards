@@ -140,7 +140,7 @@ Object.assign(SuperAnki.prototype, {
         const pop = document.createElement('div'); pop.id = 'pdf-pop'; pop.className = 'pdf-pop';
         const cur = ann ? ann.a.c : pv.color;
         pop.innerHTML = `<div class="pdf-pop-c">${PDF_COLORS.map(c => `<button class="pdft-c ${c === cur && !area ? 'on' : ''}" data-pop="color" data-c="${c}" style="--c:${c}" aria-label="${area ? 'Surligner la zone' : 'Surligner'} (${c})"></button>`).join('')}</div>
-            <div class="pdf-pop-a"><button data-pop="cite">${ic('note')}<span>Citer</span></button><button data-pop="card">${ic('plus')}<span>Carte</span></button>${area ? `<button data-pop="img">${ic('image')}<span>Carte image</span></button>` : `<button data-pop="read">${ic('volume')}<span>Lire</span></button>`}<button data-pop="copy">${ic('copy')}<span>Copier</span></button>${ann ? `<button data-pop="del" class="danger">${ic('trash')}<span>Effacer</span></button>` : ''}<button data-pop="x" aria-label="Fermer">${ic('x')}</button></div>`;
+            <div class="pdf-pop-a"><button data-pop="cite">${ic('note')}<span>Citer</span></button><button data-pop="card">${ic('plus')}<span>Carte</span></button>${area ? `<button data-pop="img">${ic('image')}<span>Carte image</span></button><button data-pop="imgnote">${ic('note')}<span>Dans la note</span></button><button data-pop="occ">${ic('eye')}<span>Masquer</span></button>` : `<button data-pop="hole">${ic('eye')}<span>Trou</span></button><button data-pop="ai">${ic('sparkle')}<span>IA</span></button><button data-pop="read">${ic('volume')}<span>Lire</span></button>`}<button data-pop="copy">${ic('copy')}<span>Copier</span></button>${ann ? `<button data-pop="del" class="danger">${ic('trash')}<span>Effacer</span></button>` : ''}<button data-pop="x" aria-label="Fermer">${ic('x')}</button></div>`;
         v.appendChild(pop);
         const vr = v.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight, touch = matchMedia('(pointer: coarse)').matches;
         let top = touch ? rect.bottom + 34 : rect.top - h - 8; if (top < vr.top + 56) top = rect.bottom + (touch ? 34 : 10); if (top + h > vr.bottom - 8) top = Math.max(vr.top + 56, rect.top - h - (touch ? 56 : 8));
@@ -160,6 +160,10 @@ Object.assign(SuperAnki.prototype, {
             if (k === 'cite') { if (!text) this.toast('Pas de texte dans cette zone.', 'warning'); else this.pdfCite(text, pid); }
             else if (k === 'card') this.pdfCardModal({ text, pid });
             else if (k === 'img') this.pdfAreaCard(area);
+            else if (k === 'imgnote') this.pdfAreaToNote(area);
+            else if (k === 'occ') this.pdfAreaOcclude(area);
+            else if (k === 'hole') this.pdfCardModal({ text, pid, kind: 'cloze' });
+            else if (k === 'ai') { const run = this.pdfAiSel(text, pid), go = kind => () => { this.pdfPopClose(); window.getSelection().removeAllRanges(); run(kind); }; this.showMenu(b, [{ icon: 'plus', label: 'Créer des cartes', fn: go('cards') }, { icon: 'sparkle', label: 'Expliquer simplement', fn: go('explain') }, { icon: 'list', label: 'Résumer', fn: go('short') }, { icon: 'pencil', label: 'Reformuler (plus simple)', fn: go('simple') }]); return; }
             else if (k === 'read') this.pdfSpeak(text);
             else if (k === 'copy') { try { navigator.clipboard.writeText(text); this.toast('Copié', 'success', ic('copy')); } catch { this.toast('Impossible de copier ici.', 'warning'); } }
             else if (k === 'del') { this.pdfEdit(() => this.pdfAnnDel(ann.pid, ann.a.i)); }
@@ -197,7 +201,7 @@ Object.assign(SuperAnki.prototype, {
     },
 
     /* ---------- a card from a passage ---------- */
-    pdfCardModal({ text = '', pid, image = '' }) {
+    pdfCardModal({ text = '', pid, image = '', kind: kind0 = 'basic' }) {
         const pv = this.pv, p = pv.p, d = this.pdfDeckOf(p), i = this.pdfPageIndex(p, pid) + 1, t = String(text).replace(/\s+/g, ' ').trim().slice(0, 600);
         const img = image ? `<img src="${esc(this.data.media[image.slice(6)] || '')}" alt="" style="max-width:100%;max-height:150px;border-radius:8px;display:block;margin-bottom:6px">` : '';
         const m = this.openModal({
@@ -213,6 +217,7 @@ Object.assign(SuperAnki.prototype, {
         let kind = 'basic'; const front = $('#pc-front', m), back = $('#pc-back', m), tx = $('#pc-text', m);
         $$('[data-pk]', m).forEach(b => b.addEventListener('click', () => { if (b.disabled) return; kind = b.dataset.pk; $$('[data-pk]', m).forEach(x => x.classList.toggle('active', x === b)); $('#pc-f', m).classList.toggle('hidden', kind !== 'basic'); $('#pc-b', m).classList.toggle('hidden', kind !== 'basic'); $('#pc-c', m).classList.toggle('hidden', kind !== 'cloze'); }));
         let n = 0; $('#pc-hide', m).addEventListener('click', () => { const a = tx.selectionStart, b = tx.selectionEnd; if (a === b) { this.toast('Sélectionne d\'abord un ou plusieurs mots.', 'warning'); return; } n++; tx.value = `${tx.value.slice(0, a)}{{c${n}::${tx.value.slice(a, b)}}}${tx.value.slice(b)}`; });
+        if (kind0 === 'cloze' && t) { const c = $('[data-pk=cloze]', m); if (c) c.click(); }
         setTimeout(() => (kind === 'basic' ? front : tx).focus(), 60);
         $('#pc-go', m).addEventListener('click', () => {
             const src = { pdf: p.id, pid, t: t.slice(0, 120) }; let ids;
@@ -359,6 +364,8 @@ Object.assign(SuperAnki.prototype, {
         const A = {
             'pdf-tool': () => { if (pv.tool === ds.t) { if (pv.panel === ds.t) this.pdfPanelClose(); else this.pdfPanelOpen(ds.t, el); return; } pv.prevTool = pv.tool; pv.tool = ds.t; this.pdfPanelClose(); this.pdfRefreshTools(); if (ds.t !== 'pick') this.pdfSelSet(null); if (this.pdfPanelHtml(ds.t)) this.pdfPanelOpen(ds.t); },
             'pdf-opt': () => this.pdfOptSet(ds.k, ds.v),
+            'pdf-more-tools': () => this.pdfMoreTools(el),
+            'pdf-view': () => this.pdfViewMenu(el),
             'pdf-selall': () => this.pdfSelAll(ds.s),
             'pdf-sel-do': () => this.pdfSelDo(ds.d),
             'pdf-undo': () => this.pdfUndo(false), 'pdf-redo': () => this.pdfUndo(true),
@@ -419,6 +426,9 @@ Object.assign(SuperAnki.prototype, {
         this.showMenu(anchor, [
             { icon: 'brain', label: 'Étude du PDF (chapitres, progression)…', fn: () => this.stPanel() },
             { icon: 'pencil', label: 'Renommer le PDF', fn: () => this.pdfRenameDialog(p) },
+            { icon: 'list', label: 'Mes annotations (liste, filtre couleur)…', fn: () => this.pdfAnnList() },
+            { icon: 'flag', label: 'Signets…', fn: () => this.pdfBookmarks() },
+            { icon: 'moon', label: 'Affichage (nuit, 2 pages, marges)…', fn: () => this.pdfViewMenu(anchor) },
             { icon: 'note', label: 'Extraire mes annotations dans la note', fn: () => this.pdfExtract() },
             { icon: pv.mode === 'text' ? 'file' : 'typeT', label: pv.mode === 'text' ? 'Revenir au PDF fidèle' : 'Lecteur de texte (réaffiche le texte)', fn: () => this.pdfAction('pdf-mode', anchor) },
             { icon: 'sparkle', label: 'Cartes avec l\'IA…', fn: () => this.aiPdfCards() },

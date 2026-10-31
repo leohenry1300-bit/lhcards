@@ -23,13 +23,13 @@ function occlusionHtml(c) {
 }
 
 Object.assign(SuperAnki.prototype, {
-    openOcclusionModal(cardId, presetDeck) {
+    openOcclusionModal(cardId, presetDeck, preset = null) {
         if (!this.data.decks.length) { this.toast('Crée d\'abord un paquet.', 'warning'); this.openDeckModal(); return; }
         const card = cardId ? this.card(cardId) : null;
         const sibs = card ? this.noteSiblings(card).sort((a, b) => a.ord - b.ord) : [];
         const old = card ? occlusionData(card) : null;
-        let img = card ? (this.data.media[card.nf.front.slice(6)] || '') : '';
-        let imgRef = card ? card.nf.front : '';
+        let img = card ? (this.data.media[card.nf.front.slice(6)] || '') : preset ? preset.img : '';
+        let imgRef = card ? card.nf.front : preset ? preset.ref : '';
         let masks = old ? old.m.map(r => [...r]) : [];
         const deckId = card ? card.deckId : presetDeck || (this.ui.deck !== 'all' && this.ui.deck !== 'errors' ? this.ui.deck : this.lastDeckUsed) || this.sortedDecks()[0].id;
         const m = this.openModal({

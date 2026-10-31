@@ -630,7 +630,7 @@ Object.assign(SuperAnki.prototype, {
         document.addEventListener('click', e => {
             const b = e.target.closest('.nb-bar [data-nb]'); if (b) { this.nbBar(b.dataset.nb, b); return; }
             const s = e.target.closest('.nb-suggest [data-sug]'); if (s) { this.nbSuggestPick(Number(s.dataset.sug)); return; }
-            if (!e.target.closest('.nb-menu, .nb-sel, [data-action=nb-more]')) this.nbMenuClose();
+            if (!e.target.closest('.nb-menu, .nb-sel, [data-action=nb-more], [data-nbk=tmenu], [data-nbk=cmenu], [data-nbk=tcol]')) this.nbMenuClose();
         });
         }
         /* title: double-click (or double-tap) to rename */

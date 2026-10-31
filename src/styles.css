@@ -3509,3 +3509,14 @@ html, body { overscroll-behavior: none; }
 .nb-empty-ico { width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; flex: none; font-size: 1.7rem; background: linear-gradient(135deg, var(--primary), var(--primary-2, var(--primary))); color: var(--on-primary, #fff); }
 .nb-empty h3 { font-size: 1.05rem; font-weight: 800; margin-bottom: 4px; } .nb-empty p { color: var(--text-faint); line-height: 1.5; font-size: .9rem; }
 .nb-empty > div { text-align: left; }
+
+/* PDF study tools */
+.pdfv.night .pdfp canvas { filter: invert(.92) hue-rotate(180deg) brightness(.95); }
+.pdfv.night .pdfp { background: #111; }
+.pdfv.night .pdfp.blank { background: #1a1a1a; }
+.pdfv.two .pdf-pages { flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 12px; }
+.al-row { display: flex; gap: 6px; align-items: stretch; }
+.al-go { flex: 1; min-width: 0; display: flex; gap: 10px; align-items: flex-start; text-align: left; padding: 9px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.al-go .al-t { flex: 1; min-width: 0; overflow-wrap: anywhere; } .al-go b { white-space: nowrap; color: var(--text-faint); font-size: .8rem; }
+.al-dot { flex: none; width: 12px; height: 12px; border-radius: 50%; margin-top: 5px; border: 1px solid rgba(0,0,0,.25); }
+.al-list { display: flex; flex-direction: column; gap: 6px; } .al-list > * + * { margin-top: 0 !important; }
