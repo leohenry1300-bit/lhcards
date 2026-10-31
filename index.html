@@ -89,3 +89,102 @@
     padding: 0;
   }
 }
+
+/* Notes home strip / styles de refonte visuelle */
+.notes-side.nb-page .decks-toolbar {
+  gap: 12px;
+  padding: 4px 0 8px;
+}
+.notes-side.nb-page .decks-toolbar .btn {
+  border: var(--border-w) solid color-mix(in srgb, var(--primary) 18%, var(--border));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 9%, var(--surface)), var(--surface));
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--primary) 9%, transparent);
+}
+.notes-side.nb-page .search-bar.nb-searchpanel {
+  border-color: color-mix(in srgb, var(--primary) 14%, var(--border));
+  background: color-mix(in srgb, var(--surface) 90%, var(--surface-2));
+}
+.notes-side.nb-page .stats-head {
+  padding-bottom: 4px;
+}
+.notes-side.nb-page .page-title {
+  font-size: clamp(1.5rem, 2.6vw, 2rem);
+}
+.notes-side.nb-page .panel.nb-listpanel {
+  border-top: 1px solid var(--border);
+}
+.notes-side.nb-page .chip-row.nb-chips {
+  padding-top: 8px;
+}
+.notes-side.nb-page .nb-lp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 0 12px;
+}
+.notes-side.nb-page .nb-lp-head b {
+  font-size: .92rem;
+  letter-spacing: .01em;
+}
+.notes-side.nb-page .nb-tools {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+.notes-side.nb-page .sort-btn,
+.notes-side.nb-page .btn-soft[data-action="nb-sel-toggle"] {
+  min-height: 36px;
+  padding: 8px 12px;
+  font-size: .78rem;
+}
+
+/* refinement des lignes de notes */
+.nb-row {
+  border-radius: 12px;
+  border: 1px solid transparent;
+}
+.nb-row:hover {
+  background: color-mix(in srgb, var(--surface-2) 90%, var(--surface));
+  border-color: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+.nb-row.on {
+  background: color-mix(in srgb, var(--primary) 9%, var(--surface));
+  border-color: color-mix(in srgb, var(--primary) 25%, transparent);
+}
+.nb-row .nb-row-t b {
+  font-size: .96rem;
+}
+.nb-row .nb-row-t small {
+  color: var(--text-faint);
+}
+.nb-row .nb-row-d {
+  gap: 6px;
+}
+.nb-row .nb-row-d small {
+  color: var(--text-faint);
+  font-weight: 700;
+}
+.nb-row .nb-more-row {
+  opacity: .75;
+}
+.nb-row .nb-more-row:hover {
+  opacity: 1;
+}
+
+/* CTA de lancement plus marqués */
+.nb-empty-actions .btn-primary {
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--primary) 30%, transparent);
+}
+.nb-empty-actions .btn-soft {
+  background: var(--surface-2);
+}
+
+/* rendu lisible en haut de page */
+.notes-side.nb-page .stats-head .head-tools {
+  gap: 6px;
+}
+.notes-side.nb-page .head-tools .icon-btn {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
