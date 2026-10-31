@@ -957,7 +957,7 @@ class SuperAnki {
             const log = JSON.parse(localStorage.getItem('lh_boots') || '[]').filter(b => Date.now() - b.t < 864e5);
             if (!log.length) return '';
             const n = k => log.filter(b => b.k === k).length;
-            const d = window.__navDiag; return `Démarrages sur 24 h : ${log.length} (${n('bg')} après arrière-plan, ${n('crash')} arrêt anormal, ${n('reload')} rechargement)` + (d ? ` · Barre du bas : écran ${d.inner}/${d.vv}, vide sous la barre ${d.gapUnderBar}, correction ${d.applied}` : '');
+            const d = window.__navDiag; return `Démarrages sur 24 h : ${log.length} (${n('bg')} après arrière-plan, ${n('crash')} arrêt anormal, ${n('reload')} rechargement)` + (d ? ` · Barre du bas : écran ${d.inner}/${d.vv}, vide sous la barre ${d.gapUnderBar}, hauteur retenue ${d.good || '—'}, correction ${d.applied}` : '');
         } catch { return ''; }
     }
     /* ---------- boot ---------- */

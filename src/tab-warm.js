@@ -47,11 +47,38 @@ Object.assign(SuperAnki.prototype, {
         const lay = window.innerHeight, vis = Math.round(vv.height + vv.offsetTop), ok = Math.abs(vv.scale - 1) < 0.02 && vv.offsetTop < 1;
         const cur = parseFloat(document.documentElement.style.getPropertyValue('--navgap')) || 0, gap = ok ? vis - lay : 0, r = nav.getBoundingClientRect(), under = Math.round(vis - (r.bottom - cur));
         window.__navDiag = { inner: lay, vv: Math.round(vv.height), top: Math.round(vv.offsetTop), scale: +vv.scale.toFixed(2), clientH: document.documentElement.clientHeight, screenH: screen.height, navBottom: Math.round(r.bottom), gapUnderBar: under, applied: 0 };
-        const fix = ok && under > 6 && under < 160 ? under : 0;
-        document.documentElement.style.setProperty('--navgap', fix + 'px'); window.__navDiag.applied = fix;
+        /* installed app : the right layout height is remembered (the biggest one seen, per orientation, outside the keyboard); when iOS later reports a clearly shorter one
+           (typically right after an update reload) the bar is lowered by exactly the missing part */
+        let fixB = 0;
+        try {
+            const standalone = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+            if (standalone && ok && !document.body.classList.contains('kb-open')) {
+                const k = 'lh_vh_' + (matchMedia('(orientation: portrait)').matches ? 'p' : 'l'), g = Number(localStorage.getItem(k)) || 0;
+                if (lay > g) localStorage.setItem(k, String(lay)); else if (g - lay >= 28 && g - lay <= 140) fixB = g - lay;
+                window.__navDiag.good = g;
+            }
+        } catch { /* ignore */ }
+        const fix = fixB || (ok && under > 6 && under < 160 ? under : 0);
+        document.documentElement.style.setProperty('--navgap', fix + 'px'); window.__navDiag.applied = fix; if (fix && window.lhViewportKick) { /* floating bar found: ask WebKit to measure the screen again */ lhViewportKick(); }
     };
     const soon = () => { clearTimeout(tm); tm = setTimeout(measure, 120); };
     ['resize', 'orientationchange', 'pageshow', 'focusout', 'touchend', 'visibilitychange'].forEach(e => window.addEventListener(e, soon, { passive: true }));
     vv.addEventListener('resize', soon); window.addEventListener('scroll', soon, { passive: true });
     setTimeout(measure, 800); setTimeout(measure, 3000);
+})();
+
+/* After a reload (typically the one that installs an update) iOS can leave the page's layout viewport shorter than the screen, so the bottom bar floats
+   above the edge. Briefly re-writing the viewport meta tag makes WebKit measure the screen again. Done after a reload / an update, and whenever the guard
+   above finds the bar floating (at most once every 20 s). The bar itself is never moved by script. */
+window.lhViewportKick = () => {
+    try {
+        const m = document.querySelector('meta[name=viewport]'); if (!m || window.__kickAt && Date.now() - window.__kickAt < 20000) return; window.__kickAt = Date.now();
+        const c = m.getAttribute('content'); m.setAttribute('content', c + ', minimum-scale=1');
+        setTimeout(() => { m.setAttribute('content', c); window.dispatchEvent(new Event('resize')); }, 80);
+    } catch { /* ignore */ }
+};
+(() => {
+    let reloaded = false; try { reloaded = ((performance.getEntriesByType('navigation')[0] || {}).type === 'reload') || sessionStorage.getItem('lh_upd_done') === '1'; sessionStorage.removeItem('lh_upd_done'); } catch { /* ignore */ }
+    if (reloaded) { setTimeout(window.lhViewportKick, 500); setTimeout(() => { window.__kickAt = 0; window.lhViewportKick(); }, 2500); }
+    window.addEventListener('pageshow', e => { if (e.persisted) setTimeout(window.lhViewportKick, 300); });
 })();
