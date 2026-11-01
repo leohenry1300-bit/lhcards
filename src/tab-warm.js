@@ -26,3 +26,20 @@ Object.assign(SuperAnki.prototype, {
     }
 });
 (() => { const base = SuperAnki.prototype.go; SuperAnki.prototype.go = function (...a) { const r = base.apply(this, a); try { this.tabWarmSoon(); } catch { /* ignore */ } return r; }; })();
+
+/* Keyboard (the only thing that makes the bottom bar jump, said the user): while a text field has the focus on a phone the bar is simply hidden (never moved),
+   and when the keyboard closes the page is nudged back (iOS leaves it displaced) so the bar is again exactly at the bottom. Nothing else touches the bar. */
+(() => {
+    if (!matchMedia('(pointer: coarse)').matches) return;
+    const isField = el => !!(el && el.matches && el.matches('input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=button]):not([type=submit]), textarea, [contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"]'));
+    const upd = () => document.body.classList.toggle('kb-open', isField(document.activeElement));
+    document.addEventListener('focusin', upd);
+    document.addEventListener('focusout', () => {
+        setTimeout(upd, 60);
+        [150, 450, 900].forEach(t => setTimeout(() => {
+            if (isField(document.activeElement)) return; upd();
+            const vv = window.visualViewport, y = window.scrollY;
+            if (vv && (vv.offsetTop > 0.5 || vv.height < window.innerHeight - 2)) { window.scrollTo(window.scrollX, y + 1); window.scrollTo(window.scrollX, y); }
+        }, t));
+    });
+})();

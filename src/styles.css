@@ -3617,3 +3617,6 @@ body.nb-selmode .nb-bar { display: none !important; }
 .focus-w:not(.collapsed) .fw-chip.on { background: var(--primary); }
 body.in-session .focus-w:not(.collapsed) { opacity: 1 !important; }
 
+
+/* phone: while you type, the bottom bar steps aside (hidden, not moved) */
+@media (max-width: 767px) { body.kb-open .bottom-nav { display: none !important; } }
