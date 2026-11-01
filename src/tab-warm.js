@@ -34,12 +34,13 @@ Object.assign(SuperAnki.prototype, {
     const isField = el => !!(el && el.matches && el.matches('input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=button]):not([type=submit]), textarea, [contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"]'));
     const upd = () => document.body.classList.toggle('kb-open', isField(document.activeElement));
     document.addEventListener('focusin', upd);
+    /* when the keyboard closes iOS leaves the page displaced (the bar then comes back too high): the page is pushed by 2 px and brought back, in two separate
+       moments (iOS ignores two scrolls made in the same instant); the bar only comes back once that is done */
+    const nudge = () => { if (isField(document.activeElement)) return; const x = window.scrollX, y = window.scrollY; window.scrollTo(x, y + 2); setTimeout(() => window.scrollTo(x, y), 40); };
     document.addEventListener('focusout', () => {
-        setTimeout(upd, 60);
-        [150, 450, 900].forEach(t => setTimeout(() => {
-            if (isField(document.activeElement)) return; upd();
-            const vv = window.visualViewport, y = window.scrollY;
-            if (vv && (vv.offsetTop > 0.5 || vv.height < window.innerHeight - 2)) { window.scrollTo(window.scrollX, y + 1); window.scrollTo(window.scrollX, y); }
-        }, t));
+        setTimeout(() => { if (!isField(document.activeElement)) { nudge(); } }, 120);
+        setTimeout(() => { if (!isField(document.activeElement)) nudge(); }, 380);
+        setTimeout(upd, 520);
+        setTimeout(() => { if (!isField(document.activeElement)) nudge(); }, 700);
     });
 })();
