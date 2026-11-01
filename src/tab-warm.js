@@ -52,7 +52,7 @@ Object.assign(SuperAnki.prototype, {
         let fixB = 0;
         try {
             const standalone = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
-            if (standalone && ok && !document.body.classList.contains('kb-open')) {
+            if (standalone && Math.abs(vv.scale - 1) < 0.02 && !document.body.classList.contains('kb-open') && !(document.activeElement && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName) || document.activeElement && document.activeElement.isContentEditable)) {
                 const k = 'lh_vh_' + (matchMedia('(orientation: portrait)').matches ? 'p' : 'l'), g = Number(localStorage.getItem(k)) || 0;
                 if (lay > g) localStorage.setItem(k, String(lay)); else if (g - lay >= 28 && g - lay <= 140) fixB = g - lay;
                 window.__navDiag.good = g;
@@ -64,7 +64,18 @@ Object.assign(SuperAnki.prototype, {
     const soon = () => { clearTimeout(tm); tm = setTimeout(measure, 120); };
     ['resize', 'orientationchange', 'pageshow', 'focusout', 'touchend', 'visibilitychange'].forEach(e => window.addEventListener(e, soon, { passive: true }));
     vv.addEventListener('resize', soon); window.addEventListener('scroll', soon, { passive: true });
+    /* after the keyboard closes iOS can leave the page nudged : put it back, then measure again (a few times, the keyboard animation is slow) */
+    document.addEventListener('focusout', () => { [150, 500, 1200].forEach(t => setTimeout(() => { const f = document.activeElement; if (f && (/^(INPUT|TEXTAREA)$/.test(f.tagName) || f.isContentEditable)) return; const y = window.scrollY; if (vv.offsetTop > 0 || vv.height < window.innerHeight - 2) { window.scrollTo(window.scrollX, y + 1); window.scrollTo(window.scrollX, y); } measure(); }, t)); });
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') [200, 800, 2000].forEach(t => setTimeout(measure, t)); });
+    setInterval(measure, 4000);   // (a cheap measure : nothing moves unless a real gap is found)
     setTimeout(measure, 800); setTimeout(measure, 3000);
+    /* small readout (installed app only) so a screenshot shows the real numbers : i = layout height, v = visible height, g = remembered height, a = correction */
+    try {
+        if ((navigator.standalone === true || matchMedia('(display-mode: standalone)').matches) && localStorage.getItem('lh_dbg') !== '0') {
+            const b = document.createElement('div'); b.id = 'nav-dbg'; b.style.cssText = 'position:fixed;top:calc(env(safe-area-inset-top,0px) + 2px);left:4px;z-index:9999;font:9px/1.2 ui-monospace,monospace;background:rgba(0,0,0,.55);color:#9f9;padding:2px 5px;border-radius:5px;pointer-events:none';
+            document.body.appendChild(b); setInterval(() => { const d = window.__navDiag; if (d) b.textContent = `i${d.inner} v${d.vv} t${d.top} g${d.good || '-'} u${d.gapUnderBar} a${d.applied}`; }, 700);
+        }
+    } catch { /* ignore */ }
 })();
 
 /* After a reload (typically the one that installs an update) iOS can leave the page's layout viewport shorter than the screen, so the bottom bar floats
