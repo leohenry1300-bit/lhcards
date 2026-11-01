@@ -358,6 +358,7 @@ const LAZY = {json.dumps(LAZY)};   /* files loaded when needed (see loadLazy) */
 {read("pdf-pro.js")}
 {read("notes-pro.js")}
 {read("notes-polish.js")}
+{read("shell.js")}
 {read("recap.js")}
 {read("share.js")}
 {read("boot.js")}

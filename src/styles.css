@@ -3618,5 +3618,17 @@ body.nb-selmode .nb-bar { display: none !important; }
 body.in-session .focus-w:not(.collapsed) { opacity: 1 !important; }
 
 
-/* phone: while you type, the bottom bar steps aside (hidden, not moved) */
-@media (max-width: 767px) { body.kb-open .bottom-nav { display: none !important; } }
+
+/* ===== PHONE : fixed frame (the page itself never scrolls; only the middle part does) =====
+   The top bar, the scrolling area (#main) and the bottom bar are stacked in a frame as tall as the screen : the bottom bar is part of the frame,
+   not "fixed to the window", so iOS (keyboard, update reload, rubber band) has nothing to leave displaced. Looks and scrolls the same as before. */
+@media (max-width: 767px) {
+  html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+  body { display: flex !important; flex-direction: column; height: 100dvh; min-height: 0; }
+  body > .topbar { position: relative; flex: none; }
+  body > .main { flex: 1 1 auto; min-height: 0; width: 100%; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; padding-bottom: 20px; }
+  body > .bottom-nav { position: relative !important; flex: none; bottom: auto !important; }
+  body.in-session > .main { padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
+  .bulk-bar { bottom: 12px; } #nb-bulk { bottom: 12px; }
+  .set-nav { top: 0 !important; }
+}

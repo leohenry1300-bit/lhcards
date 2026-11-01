@@ -26,21 +26,3 @@ Object.assign(SuperAnki.prototype, {
     }
 });
 (() => { const base = SuperAnki.prototype.go; SuperAnki.prototype.go = function (...a) { const r = base.apply(this, a); try { this.tabWarmSoon(); } catch { /* ignore */ } return r; }; })();
-
-/* Keyboard (the only thing that makes the bottom bar jump, said the user): while a text field has the focus on a phone the bar is simply hidden (never moved),
-   and when the keyboard closes the page is nudged back (iOS leaves it displaced) so the bar is again exactly at the bottom. Nothing else touches the bar. */
-(() => {
-    if (!matchMedia('(pointer: coarse)').matches) return;
-    const isField = el => !!(el && el.matches && el.matches('input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=button]):not([type=submit]), textarea, [contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"]'));
-    const upd = () => document.body.classList.toggle('kb-open', isField(document.activeElement));
-    document.addEventListener('focusin', upd);
-    /* when the keyboard closes iOS leaves the page displaced (the bar then comes back too high): the page is pushed by 2 px and brought back, in two separate
-       moments (iOS ignores two scrolls made in the same instant); the bar only comes back once that is done */
-    const nudge = () => { if (isField(document.activeElement)) return; const x = window.scrollX, y = window.scrollY; window.scrollTo(x, y + 2); setTimeout(() => window.scrollTo(x, y), 40); };
-    document.addEventListener('focusout', () => {
-        setTimeout(() => { if (!isField(document.activeElement)) { nudge(); } }, 120);
-        setTimeout(() => { if (!isField(document.activeElement)) nudge(); }, 380);
-        setTimeout(upd, 520);
-        setTimeout(() => { if (!isField(document.activeElement)) nudge(); }, 700);
-    });
-})();
