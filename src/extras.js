@@ -419,7 +419,6 @@ Object.assign(SuperAnki.prototype, {
             if (reg) await reg.update();
             if (window.caches) { const ks = await caches.keys(); await Promise.all(ks.filter(k => k.startsWith('superanki-')).map(k => caches.delete(k))); }
         } catch { /* ignore */ }
-        try { sessionStorage.setItem('lh_upd_done', '1'); } catch { /* ignore */ }
         this.toast('Mise à jour installée : rechargement…', 'success');
         setTimeout(() => location.reload(), 500);
     },
